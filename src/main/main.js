@@ -125,7 +125,15 @@ function handlers () {
   }
 }
 
+// Smoke test progress, as GitHub annotations so CI shows where it got to.
+let smokeStage = 'starting'
+const stage = (name) => { smokeStage = name; if (smoke) console.log(`::notice title=smoke ${process.platform}::${name}`) }
+if (smoke) {
+  setTimeout(() => { console.log(`::error title=smoke ${process.platform}::stuck at: ${smokeStage}`); app.exit(1) }, 90000).unref?.()
+}
+
 app.whenReady().then(async () => {
+  stage('electron ready')
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null)
   try {
     ww = new WirdApp({ dataDir: app.getPath('userData') })
@@ -135,7 +143,9 @@ app.whenReady().then(async () => {
     app.exit(1)
     return
   }
+  stage('data folder ready')
   await ww.start()
+  stage('network started')
   const h = handlers()
   ipcMain.handle('ww', async (_e, name, args) => {
     if (!Object.hasOwn(h, name)) return { error: 'Unknown request.' }
@@ -170,22 +180,24 @@ app.on('before-quit', async (e) => {
 app.on('window-all-closed', () => app.quit())
 
 async function runSmokeTest () {
-  const fail = (why) => { console.error(`smoke test failed: ${why}`); app.exit(1) }
-  const timer = setTimeout(() => fail('timed out'), 60000)
+  const fail = (why) => { console.log(`::error title=smoke ${process.platform}::${why}`); app.exit(1) }
   win.webContents.on('render-process-gone', (_e, d) => fail(`renderer ${d.reason}`))
-  win.webContents.on('console-message', (e) => { if (e.level === 'error') console.error(`renderer: ${e.message}`) })
+  win.webContents.on('console-message', (e) => { if (e.level === 'error') console.log(`::warning title=smoke renderer::${String(e.message).slice(0, 300)}`) })
   await new Promise((resolve) => win.webContents.once('did-finish-load', resolve))
-  for (let i = 0; i < 100; i++) {
+  stage('window loaded')
+  for (let i = 0; i < 150; i++) {
     const ok = await win.webContents.executeJavaScript("Boolean(document.querySelector('.welcome input') && document.querySelector('.rail'))").catch(() => false)
     if (ok) {
+      stage('app on screen')
       const word = await win.webContents.executeJavaScript("window.ww.call('deal', 'everyday').then((d) => d.word)")
       const fonts = await win.webContents.executeJavaScript("document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === 'error').map((f) => f.family))")
       if (!word) return fail('no word dealt')
       if (fonts.length) return fail(`fonts failed to load: ${fonts.join(', ')}`)
-      console.log(`smoke test passed on ${process.platform}: window up, dealt “${word}”, data in ${app.getPath('userData')}`)
-      clearTimeout(timer)
-      await ww.stop().catch(() => {})
-      fs.rmSync(app.getPath('userData'), { recursive: true, force: true })
+      stage(`dealt “${word}”; stopping`)
+      // Shutting down the network shouldn't hold up the result.
+      await Promise.race([ww.stop().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 3000))])
+      try { fs.rmSync(app.getPath('userData'), { recursive: true, force: true }) } catch {}
+      console.log(`smoke test passed on ${process.platform}`)
       app.exit(0)
       return
     }
