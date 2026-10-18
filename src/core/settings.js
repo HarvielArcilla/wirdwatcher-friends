@@ -3,14 +3,15 @@
 // is no server to do it), so each limit is a setting you can change, with a
 // range it can't leave.
 
-import fs from 'node:fs'
 import path from 'node:path'
+import { readJson, writeJson } from './files.js'
 
 // kind: 'count' | 'bool' | 'choice'. group orders the settings screen; the
 // 'sound' group has its own section in Settings.
 export const SETTING_FIELDS = {
   // Playing
-  ratingSound: { group: 'sound', kind: 'choice', default: 'chime', options: ['chime', 'marimba', 'pop', 'bubble', 'coin', 'typewriter', 'original', 'custom', 'off'], label: 'Sound when you rate a word' },
+  ratingSound: { group: 'sound', kind: 'choice', default: 'arcade', options: ['arcade', 'coin', 'gem', 'harp', 'kalimba', 'chime', 'marimba', 'pop', 'bubble', 'typewriter', 'original', 'custom', 'off'], label: 'Sound when you rate a word' },
+  celebrate: { group: 'sound', kind: 'bool', default: true, label: 'Celebrate 5.0 and 0.0', hint: 'A perfect word gets a fanfare and confetti; a 0.0 gets a sad trombone and falls apart.' },
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
   sounds: { group: 'sound', kind: 'bool', default: false, label: 'The original sounds for very high and very low ratings', hint: 'Above 4.0 and at 1.0 or below, play wirdwatcher 1’s sounds instead.' },
@@ -52,9 +53,11 @@ export function normalizeSettings (s = {}) {
 export class Settings {
   constructor (dir, overrides = {}) {
     this.file = path.join(dir, 'settings.json')
-    let saved = {}
-    try { saved = JSON.parse(fs.readFileSync(this.file, 'utf8')) } catch {}
-    this.values = normalizeSettings({ ...DEFAULT_SETTINGS, ...overrides, ...saved })
+    // Only the settings you changed are saved, so improved defaults reach
+    // you in updates while your own choices stay.
+    this.defaults = normalizeSettings({ ...DEFAULT_SETTINGS, ...overrides })
+    this.chosen = readJson(this.file, {}) || {}
+    this.values = normalizeSettings({ ...this.defaults, ...this.chosen })
   }
 
   get (k) { return this.values[k] }
@@ -62,9 +65,19 @@ export class Settings {
 
   set (patch) {
     this.values = normalizeSettings({ ...this.values, ...patch })
-    fs.writeFileSync(this.file, JSON.stringify(this.values, null, 2))
+    for (const k of Object.keys(patch)) {
+      if (!(k in SETTING_FIELDS)) continue
+      if (this.values[k] === this.defaults[k]) delete this.chosen[k]
+      else this.chosen[k] = this.values[k]
+    }
+    writeJson(this.file, this.chosen, { pretty: true })
     return this.all()
   }
 
-  reset () { return this.set(DEFAULT_SETTINGS) }
+  reset () {
+    this.chosen = {}
+    this.values = { ...this.defaults }
+    writeJson(this.file, this.chosen, { pretty: true })
+    return this.all()
+  }
 }

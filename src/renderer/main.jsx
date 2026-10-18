@@ -41,6 +41,14 @@ function App () {
     api('customSound').then((snd) => setCustomSound(snd?.dataUrl || null))
   }, [])
 
+  // A button clicked with the mouse gives the keyboard back to the game, so
+  // Space or Enter afterwards don't press it again. Tabbing still works.
+  useEffect(() => {
+    const up = () => { const el = document.activeElement; if (el?.tagName === 'BUTTON') el.blur() }
+    document.addEventListener('mouseup', up)
+    return () => document.removeEventListener('mouseup', up)
+  }, [])
+
   // Search from anywhere: / (when not typing) or Ctrl/Cmd+K.
   useEffect(() => {
     const onKey = (e) => {

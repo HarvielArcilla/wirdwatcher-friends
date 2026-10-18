@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
-import { api, Kbd, ratingColor } from './ui.jsx'
+import { api, Kbd, ratingColor, useToast, celebrate } from './ui.jsx'
 
 // Look up any word, by spelling or by meaning. ↑ ↓ to move, Enter to open
 // it on the Play screen (where you can rate it), Esc to close.
-export default function Search ({ onOpen, onClose }) {
+export default function Search ({ onOpen: openWord, onClose }) {
+  const toast = useToast()
+  const onOpen = (word) => {
+    if (hits.find((h) => h.word === word)?.match === 'meaning') api('count', 'meaningSearches').then((res) => celebrate(toast, res)).catch(() => {})
+    openWord(word)
+  }
   const [q, setQ] = useState('')
   const [hits, setHits] = useState([])
   const [sel, setSel] = useState(0)

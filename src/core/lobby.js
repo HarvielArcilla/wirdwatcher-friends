@@ -33,7 +33,10 @@ import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 
 const PROTOCOL = 2
-export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0 }
+// style: 'chill' just reveals (the average, who went highest and lowest:
+// something to talk about); 'tune' also scores closeness to the table.
+export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'chill' }
+export const LOBBY_STYLES = ['chill', 'tune']
 export const LOBBY_ROUNDS = [5, 10, 15, 20, 30]
 export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds; 0 = no timer
 export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '👏', '🙈']
@@ -271,13 +274,20 @@ export class LobbyHost extends EventEmitter {
     const ratings = Object.fromEntries([...c.ratings].filter(([id]) => this.players.has(id)))
     const verdict = roundVerdict(ratings)
     const points = {}
+    const scored = this.options.style === 'tune'
     for (const [id, r] of Object.entries(ratings)) {
       const others = Object.entries(ratings).filter(([o]) => o !== id).map(([, v]) => v)
-      points[id] = closeness(r, others)
+      points[id] = scored ? closeness(r, others) : 0
       const p = this.players.get(id)
       if (p) p.score += points[id]
     }
-    c.result = { ratings, points, ...verdict }
+    // Who went highest and lowest (everyone tied for it), when it differs.
+    const vals = Object.values(ratings)
+    const hi = Math.max(...vals)
+    const lo = Math.min(...vals)
+    const highest = vals.length > 1 && hi !== lo ? Object.keys(ratings).filter((id) => ratings[id] === hi) : []
+    const lowest = vals.length > 1 && hi !== lo ? Object.keys(ratings).filter((id) => ratings[id] === lo) : []
+    c.result = { ratings, points, scored, highest, lowest, ...verdict }
     this.history.push({ round: this.round, word: c.word, ...c.result, players: Object.keys(ratings).length })
     this._changed()
   }
@@ -350,6 +360,7 @@ function pickOptions (o = {}) {
   if (Number.isInteger(Number(o.rounds)) && o.rounds >= 1 && o.rounds <= 50) out.rounds = Number(o.rounds)
   if (LOBBY_TIMERS.includes(Number(o.timer))) out.timer = Number(o.timer)
   if (typeof o.mode === 'string' && o.mode.length < 80) out.mode = o.mode
+  if (LOBBY_STYLES.includes(o.style)) out.style = o.style
   return out
 }
 

@@ -52,15 +52,29 @@ export class Words {
     this.short = []
     this.long = []
     this.chainable = []
+    this._pos = new Array(this.list.length)
+    this._topic = new Array(this.list.length).fill(null)
+    const topicOf = new Map()
+    for (const t of TOPICS) for (const name of t.topics) if (topicIndex.has(name)) topicOf.set(topicIndex.get(name), t.id)
     this.list.forEach((w, i) => {
       const [form, ipa, senses] = w
       const first = senses[0][1]
-      for (const t of TOPICS) if (t.topics.some((name) => topicIndex.get(name) === first)) this.byTopic.get(t.id).push(i)
+      this._pos[i] = [...new Set(senses.map((x) => x[0]))].join('')
+      const topic = topicOf.get(first)
+      if (topic) { this._topic[i] = topic; this.byTopic.get(topic).push(i) }
       if (ipa.length && senses.length >= 2) this.everyday.push(i)
       if (form.length <= 4) this.short.push(i)
       if (form.length >= 12) this.long.push(i)
       if (this.synonyms(form).length >= 2) this.chainable.push(i)
     })
+  }
+
+  // Cheap facts about a word for stats: its parts of speech and its topic
+  // playlist (by its most common sense). No objects built per call.
+  meta (form) {
+    const i = this.index.get(form)
+    if (i === undefined) return null
+    return { pos: this._pos[i], topic: this._topic[i] }
   }
 
   get size () { return this.list.length }

@@ -81,7 +81,7 @@ export class Friends extends EventEmitter {
     return this.store.listFriends().map((f) => {
       const data = this.store.friend(f.userId)
       const me = data.records.me?.v || {}
-      return { userId: f.userId, name: f.name, color: f.color, addedAt: f.addedAt, lastSeen: f.lastSeen || null, online: this.links.has(f.userId), level: me.level || 1, title: me.title || '', rated: me.rated ?? Object.keys(data.records).filter((k) => k.startsWith('r/')).length, badges: me.badges || 0 }
+      return { userId: f.userId, name: f.name, color: f.color, addedAt: f.addedAt, lastSeen: f.lastSeen || null, online: this.links.has(f.userId), level: me.level || 1, title: me.title || '', rated: me.rated ?? Object.keys(data.records).filter((k) => k.startsWith('r/')).length, badges: me.badges || 0, match: this.store.tasteMatch(f.userId) }
     })
   }
 

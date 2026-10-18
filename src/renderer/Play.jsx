@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
 import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
 import { playRating } from './sound.js'
+import { burst, centerOf } from './effects.js'
 
 // The solo game. Keyboard first, like the original:
 //   digits      type a rating (4 → 4., 7 → 4.7, 5 → 5.0)
@@ -20,6 +21,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   const [stampKey, setStampKey] = useState(0)
   const [panel, setPanel] = useState(null) // 'comment' | 'add' | 'modes'
   const [showAll, setShowAll] = useState(false)
+  const [fx, setFx] = useState(null) // { kind: 'perfect' | 'sparkle' | 'zero' | 'wilt', key }
   // Every word seen this sitting, in order, and where we are in it. Going
   // back and forward walks this list; only stepping past the end deals.
   const trail = useRef({ items: [], pos: -1 })
@@ -27,15 +29,20 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   const [skipNote, setSkipNote] = useState(null) // { word, index } just skipped
   const inputRef = useRef(null)
   const autoTimer = useRef(null)
+  const loading = useRef(false) // a word is being dealt or a rating saved
+  const pending = useRef('') // digits typed meanwhile
 
   const show = useCallback((dealt) => {
     clearTimeout(autoTimer.current)
+    setFx(null)
     setCard(dealt)
     setShowAll(false)
     setFloats([])
     const mine = dealt.info?.mine?.r
     setRated(mine !== null && mine !== undefined ? { r: mine, again: true } : null)
-    setText(mine !== null && mine !== undefined ? formatRating(mine) : '')
+    const typed = pending.current
+    pending.current = ''
+    setText(typed ? typeRating(typed) : mine !== null && mine !== undefined ? formatRating(mine) : '')
     if (dealt.word && settings.speakOnReveal) speak(dealt.word)
   }, [settings.speakOnReveal])
 
@@ -52,7 +59,8 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     const t = trail.current
     const item = t.items[i]
     if (!item) return
-    const info = await api('wordInfo', item.word)
+    loading.current = true
+    const info = await api('wordInfo', item.word).finally(() => { loading.current = false })
     if (!info) return
     t.pos = i
     sync()
@@ -63,7 +71,8 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   // A new word from the current playlist, added to the end of the trail.
   const dealNew = useCallback(async (m = mode) => {
     try {
-      const dealt = await api('deal', m, card?.word || null)
+      loading.current = true
+      const dealt = await api('deal', m, card?.word || null).finally(() => { loading.current = false })
       if (dealt.word) push({ word: dealt.word, mode: m, chain: dealt.chain, note: dealt.note })
       show(dealt)
     } catch (err) { toast({ error: true, title: 'Couldn’t deal a word', text: err.message }) }
@@ -88,6 +97,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     if (!item) return dealNew()
     item.skipped = true
     setSkipNote({ word: item.word, index: t.pos })
+    api('count', 'skips').then((res) => celebrate(toast, res)).catch(() => {})
     dealNew()
   }, [dealNew])
 
@@ -113,10 +123,12 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
 
   const submit = useCallback(async () => {
     const r = ratingValue(text)
-    if (r === null || !card?.word) return
+    if (r === null || !card?.word || loading.current) return
     try {
-      const earned = await api('rate', card.word, r)
-      const info = await api('wordInfo', card.word)
+      loading.current = true
+      const [earned, info] = await (async () => {
+        try { const e = await api('rate', card.word, r); return [e, await api('wordInfo', card.word)] } finally { loading.current = false }
+      })()
       setCard((c) => ({ ...c, info, chain: earned.chain || c.chain }))
       setRated({ ...earned, r })
       setText(formatRating(r))
@@ -124,6 +136,13 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       setFloats(earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` })))
       setTimeout(() => setFloats([]), 1900)
       playRating(r, settings)
+      // The extremes get a moment of their own.
+      const kind = !settings.celebrate ? null : r === 5 ? 'perfect' : r >= 4.5 ? 'sparkle' : r === 0 ? 'zero' : r < 1 ? 'wilt' : null
+      setFx(kind ? { kind, key: Date.now() } : null)
+      if (kind === 'perfect' || kind === 'sparkle') {
+        const at = centerOf(inputRef.current)
+        requestAnimationFrame(() => burst(at.x, at.y, kind === 'perfect' ? 'confetti' : 'sparkle'))
+      }
       setSkipNote(null)
       celebrate(toast, earned)
       if (earned.twins.length) toast({ emoji: '👯', title: `Same as ${earned.twins.join(' and ')}`, text: `You both gave “${card.word}” a ${formatRating(r)}.` })
@@ -134,14 +153,25 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
 
   const isRated = rated && ratingValue(text) === rated.r
 
+  // Keys are ignored only while you're typing in a real text box (a comment,
+  // a playlist name) or the playlist picker is open. A side panel left open
+  // never swallows keys: it just stays there until Esc or you're done.
   const onKey = useCallback((e) => {
-    if (!active || panel === 'comment' || panel === 'add' || panel === 'modes') {
-      if (e.key === 'Escape') setPanel(null)
+    if (!active) return
+    if (e.key === 'Escape') { setPanel(null); return }
+    if (panel === 'modes') return
+    const tag = e.target.tagName
+    if ((tag === 'INPUT' && e.target !== inputRef.current) || tag === 'TEXTAREA' || tag === 'SELECT') return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const k = e.key
+    // Holding Enter or → down shouldn't fly through words.
+    if (e.repeat && (k === 'Enter' || k === 'ArrowRight' || k === 'ArrowLeft')) { e.preventDefault(); return }
+    // While the next word is on its way, keep typed digits for it.
+    if (loading.current) {
+      if (/^[0-9.]$/.test(k)) { e.preventDefault(); pending.current += k }
+      else if (k === 'Enter') e.preventDefault()
       return
     }
-    if (e.target.tagName === 'INPUT' && e.target !== inputRef.current) return
-    if (e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return
-    const k = e.key
     if (k === 'Enter') {
       e.preventDefault()
       if (card?.empty) return
@@ -233,7 +263,11 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
           : card?.word && (
             <>
               <div className='word-area'>
-                <h1 key={card.word} className='word' style={{ fontSize: wordSize(card.word) }}>{card.word}</h1>
+                <h1 key={`${card.word}-${fx?.key || 0}`} className={`word ${fx ? `fx-${fx.kind}` : ''}`} style={{ fontSize: wordSize(card.word) }} aria-label={card.word}>
+                  {fx?.kind === 'zero'
+                    ? [...card.word].map((ch, i) => <span key={i} className='fall' aria-hidden='true' style={{ '--d': `${(i * 37) % 11 * 0.03}s`, '--x': `${((i * 53) % 9 - 4) * 14}px`, '--r': `${((i * 71) % 13 - 6) * 18}deg` }}>{ch}</span>)
+                    : card.word}
+                </h1>
                 <div className='say'>
                   <button onClick={() => speak(card.word)} title='Say it (Space)' aria-label='Say it'>{icons.speaker()}</button>
                   {info.ipa.length ? <span>/{info.ipa[0]}/</span> : null}
@@ -252,9 +286,6 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                       aria-label='Your rating out of 5'
                       style={{ color: r !== null ? ratingColor(r) : undefined }}
                     />
-                    <div className='xp-float' aria-hidden='true'>
-                      {floats.map((f) => <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
-                    </div>
                   </div>
                   <div className='rate-help'>
                     <div className='stars' aria-hidden='true'>
@@ -263,8 +294,12 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                     {isRated
                       ? <span><Kbd>Enter</Kbd> next word{rated.again && !rated.xp ? ', or type to change your rating' : ''}</span>
                       : r !== null ? <span><Kbd>Enter</Kbd> to rate <b>{text}</b></span> : <span>Type a rating out of 5</span>}
+                    <div className='xp-float' aria-hidden='true'>
+                      {floats.map((f) => <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
+                    </div>
                   </div>
                 </div>
+                {isRated && info.compare && <Compare key={`${card.word}-${rated.r}`} c={info.compare} r={rated.r} />}
               </div>
 
               <div className='entry'>
@@ -311,12 +346,55 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
         {info?.synonyms.length > 0 && (
           <div>
             <h3>Synonyms</h3>
-            <div className='syns'>{info.synonyms.slice(0, 16).map((w) => <button key={w} className='chip' onClick={() => open(w)}>{w}</button>)}</div>
+            <div className='syns'>{info.synonyms.slice(0, 16).map((w) => <button key={w} className='chip' onClick={() => { open(w); api('count', 'synonymsOpened').then((res) => celebrate(toast, res)).catch(() => {}) }}>{w}</button>)}</div>
           </div>
         )}
       </aside>
 
       {panel === 'modes' && <ModePicker modes={modes} mode={mode} onPick={(m) => { setPanel(null); if (m === mode) dealNew(m); else setMode(m) }} onClose={() => setPanel(null)} />}
+    </div>
+  )
+}
+
+// After you rate: where you landed against your friends (or, with no
+// friends on this word yet, against your own ratings). Everyone starts in
+// the middle and slides to where they rated, so it plays like a reveal.
+function Compare ({ c, r }) {
+  const [shown, setShown] = useState(false)
+  useEffect(() => { const t = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(t) }, [])
+  const at = (v) => `${(shown ? v : 2.5) / 5 * 100}%`
+  // Friends who gave the same rating stack up.
+  const stacks = {}
+  const dots = c.friends.map((f) => { const k = f.r.toFixed(1); stacks[k] = (stacks[k] || 0) + 1; return { ...f, level: stacks[k] } })
+  if (!c.friends.length && !c.self) return null
+  return (
+    <div className='compare'>
+      {c.verdict && <div className={`verdict tone-${c.verdict.tone}`}>{c.verdict.text}</div>}
+      <div className='scale' role='img' aria-label={`You rated ${formatRating(r)}${c.table ? `, your friends averaged ${formatRating(c.table.avg)}` : ''}`}>
+        <div className='track' />
+        {[0, 1, 2, 3, 4, 5].map((t) => <span key={t} className='tick' style={{ left: `${t * 20}%` }}>{t}</span>)}
+        {c.self && <span className='mark self' style={{ left: at(c.self.avg) }} title={`Your average: ${formatRating(c.self.avg)}`}><i />your avg</span>}
+        {c.table && c.table.n > 1 && <span className='mark avg' style={{ left: at(c.table.avg) }}><i />friends {formatRating(c.table.avg)}</span>}
+        {dots.map((f) => (
+          <span key={f.userId} className='dot' style={{ left: at(f.r), bottom: `${18 + (f.level - 1) * 26}px`, background: f.color }} title={`${f.name}: ${formatRating(f.r)}`}>{f.name[0].toUpperCase()}</span>
+        ))}
+        <span className='me' style={{ left: at(r), color: ratingColor(r) }}>{formatRating(r)}<b>you</b></span>
+      </div>
+      {c.friends.length > 0 && (
+        <div className='compare-list'>
+          {c.friends.slice(0, 4).map((f) => (
+            <div key={f.userId} className='cmp'>
+              <Avatar name={f.name} color={f.color} />
+              <span className='who'>{f.name}{f.match !== null && <small>{f.match}% taste match</small>}</span>
+              <span className='cmp-r' style={{ color: ratingColor(f.r) }}>{formatRating(f.r)}</span>
+              <span className='cmp-d'>{f.diff === 0 ? 'same' : `${f.diff > 0 ? 'you +' : 'you '}${f.diff.toFixed(1)}`}</span>
+              {f.comment && <span className='cmt'>“{f.comment}”</span>}
+            </div>
+          ))}
+          {c.friends.length > 4 && <div className='more-friends'>and {c.friends.length - 4} more</div>}
+        </div>
+      )}
+      {!c.friends.length && c.self && c.self.n < 10 && <div className='verdict tone-self'>Rate {10 - c.self.n} more to see how your words stack up. Add friends to compare with them.</div>}
     </div>
   )
 }

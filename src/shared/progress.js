@@ -61,7 +61,46 @@ export const BADGES = [
   { id: 'fulltable', emoji: '🎱', name: 'Full table', hint: 'Finish a lobby game with eight players.', test: (s) => s.fullTables >= 1 },
   { id: 'hive', emoji: '🐝', name: 'Hive mind', hint: 'Everyone at the table rates within 0.5 of each other.', test: (s) => s.hiveMinds >= 1 },
   { id: 'hottake', emoji: '🌶️', name: 'Hot take', hint: 'Be 2.0 away from everyone else at the table.', test: (s) => s.hotTakes >= 1 },
-  { id: 'owl', emoji: '🦉', name: 'Night owl', hint: 'Rate a word between 2 and 5 in the morning.', test: (s) => s.owl >= 1 }
+  { id: 'owl', emoji: '🦉', name: 'Night owl', hint: 'Rate a word between 2 and 5 in the morning.', test: (s) => s.owl >= 1 },
+  // Volume and dedication
+  { id: 'fivehundred', emoji: '📖', name: 'Paperback', hint: 'Rate 500 words.', test: (s) => s.rated >= 500 },
+  { id: 'fivek', emoji: '🗄️', name: 'Card catalog', hint: 'Rate 5,000 words.', test: (s) => s.rated >= 5000 },
+  { id: 'twentyfivek', emoji: '🏔️', name: 'Summit', hint: 'Rate 25,000 words.', test: (s) => s.rated >= 25000 },
+  { id: 'sitting20', emoji: '⚡', name: 'Speed reader', hint: 'Rate 20 new words in one sitting.', test: (s) => s.bestSession >= 20 },
+  { id: 'sitting100', emoji: '🏃', name: 'Marathon', hint: 'Rate 100 new words in one sitting.', test: (s) => s.bestSession >= 100 },
+  { id: 'streak100', emoji: '💎', name: 'Diamond streak', hint: 'Rate words 100 days in a row.', test: (s) => s.bestStreak >= 100 },
+  { id: 'early', emoji: '🐦', name: 'Early bird', hint: 'Rate a word between 5 and 7 in the morning.', test: (s) => s.earlyBird >= 1 },
+  { id: 'weekend', emoji: '🛋️', name: 'Weekend wordsmith', hint: 'Rate words on a Saturday and the Sunday after.', test: (s) => s.weekends >= 1 },
+  { id: 'level10', emoji: '🎖️', name: 'Double digits', hint: 'Reach level 10.', test: (s) => s.level >= 10 },
+  { id: 'level25', emoji: '🏅', name: 'Seasoned', hint: 'Reach level 25.', test: (s) => s.level >= 25 },
+  // How you rate
+  { id: 'perfect10', emoji: '✨', name: 'Perfectionist', hint: 'Give ten words a 5.0.', test: (s) => s.fives >= 10 },
+  { id: 'zero10', emoji: '🌑', name: 'Abyss gazer', hint: 'Give ten words a 0.0.', test: (s) => s.zeros >= 10 },
+  { id: 'spectrum', emoji: '🌈', name: 'Full spectrum', hint: 'Use 25 different ratings.', test: (s) => s.distinct >= 25 },
+  { id: 'everyrating', emoji: '🎚️', name: 'Every notch', hint: 'Use all 51 ratings from 0.0 to 5.0.', test: (s) => s.distinct >= 51 },
+  { id: 'optimist', emoji: '🌻', name: 'Optimist', hint: 'Average 4.0 or more over 100 words.', test: (s) => s.rated >= 100 && s.average >= 4 },
+  { id: 'curmudgeon', emoji: '🌧️', name: 'Curmudgeon', hint: 'Average under 2.0 over 100 words.', test: (s) => s.rated >= 100 && s.average < 2 },
+  // The words themselves
+  { id: 'alphabet', emoji: '🔤', name: 'A to Z', hint: 'Rate a word starting with every letter.', test: (s) => s.letters >= 26 },
+  { id: 'palindrome', emoji: '🪞', name: 'Racecar', hint: 'Rate a palindrome, a word spelled the same backwards.', test: (s) => s.palindromes >= 1 },
+  { id: 'qnou', emoji: '🦆', name: 'Q without U', hint: 'Rate a word with a Q not followed by a U.', test: (s) => s.qNoU >= 1 },
+  { id: 'vowelless', emoji: '🤐', name: 'Vowel-free', hint: 'Rate a word of three letters or more with no a, e, i, o or u.', test: (s) => s.vowelless >= 1 },
+  { id: 'zoologist', emoji: '🦒', name: 'Zoologist', hint: 'Rate 50 animal words.', test: (s) => (s.byTopic.animals || 0) >= 50 },
+  { id: 'gourmet', emoji: '🧑‍🍳', name: 'Gourmet', hint: 'Rate 50 food and drink words.', test: (s) => (s.byTopic.food || 0) >= 50 },
+  { id: 'botanist', emoji: '🌱', name: 'Botanist', hint: 'Rate 50 plant words.', test: (s) => (s.byTopic.plants || 0) >= 50 },
+  { id: 'feelings', emoji: '🫶', name: 'In your feelings', hint: 'Rate 50 feelings words.', test: (s) => (s.byTopic.feelings || 0) >= 50 },
+  // Finding words
+  { id: 'skipper', emoji: '⏭️', name: 'Not today', hint: 'Skip a word with →.', test: (s) => s.skips >= 1 },
+  { id: 'detective', emoji: '🔎', name: 'Reverse dictionary', hint: 'Open 10 words you found by their meaning.', test: (s) => s.meaningSearches >= 10 },
+  { id: 'thesaurus', emoji: '🧭', name: 'Thesaurus hopper', hint: 'Jump to 25 synonyms.', test: (s) => s.synonymsOpened >= 25 },
+  // Friends and the table
+  { id: 'friends10', emoji: '🏟️', name: 'Full house', hint: 'Have ten friends.', test: (s) => s.friends >= 10 },
+  { id: 'soulmate', emoji: '🧬', name: 'Taste twin', hint: 'Reach a 90% taste match with a friend over 25 shared words.', test: (s) => s.maxMatch >= 90 },
+  { id: 'opposites', emoji: '🧲', name: 'Opposites attract', hint: 'Stay friends at under 50% taste match over 25 shared words.', test: (s) => s.matched > 0 && s.minMatch < 50 },
+  { id: 'host', emoji: '🎩', name: 'Host with the most', hint: 'Host five lobbies.', test: (s) => s.hosted >= 5 },
+  { id: 'regular', emoji: '🍻', name: 'Regular', hint: 'Finish ten lobby games.', test: (s) => s.lobbyGames >= 10 },
+  { id: 'hive10', emoji: '🍯', name: 'Honeycomb', hint: 'Ten hive-mind words at a table.', test: (s) => s.hiveMinds >= 10 },
+  { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 }
 ]
 
 // Rating input: what the box shows after each keystroke, like the original

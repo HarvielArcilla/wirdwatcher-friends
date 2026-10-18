@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
 import { playRating } from './sound.js'
+import { burst, centerOf } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
@@ -76,6 +77,14 @@ function Table ({ lobby, choices, active, events, settings }) {
   const phase = lobby.phase
 
   useEffect(() => { setText('') }, [lobby.round, phase === 'waiting'])
+  // A 5.0 at the table: confetti from that card once it has flipped.
+  useEffect(() => {
+    if (phase !== 'reveal' || !res || !settings?.celebrate) return
+    const perfect = Object.entries(res.ratings).filter(([, v]) => v === 5).map(([id]) => id)
+    if (!perfect.length) return
+    const t = setTimeout(() => perfect.forEach((id) => { const at = centerOf(document.querySelector(`[data-card="${id}"]`)); burst(at.x, at.y, 'confetti') }), 750)
+    return () => clearTimeout(t)
+  }, [phase, lobby.round]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { deadline.current = c?.endsIn != null ? Date.now() + c.endsIn : null }, [c?.word, phase]) // eslint-disable-line react-hooks/exhaustive-deps
   useInterval(() => tick((x) => x + 1), deadline.current && phase === 'rating' ? 250 : 0)
 
@@ -92,6 +101,7 @@ function Table ({ lobby, choices, active, events, settings }) {
 
   const onKey = useCallback((e) => {
     if (!active || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return
+    if (e.repeat && e.key === 'Enter') { e.preventDefault(); return }
     const k = e.key
     if (e.altKey) {
       const n = /^Digit[1-8]$/.test(e.code) ? Number(e.code.slice(5)) : 0
@@ -119,7 +129,7 @@ function Table ({ lobby, choices, active, events, settings }) {
 
   return (
     <div className='lobby'>
-      <section className='lobby-stage'>
+      <section className='lobby-stage' onMouseDown={(e) => { if (!['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) document.activeElement?.blur?.() }}>
         <div className='lobby-top'>
           <span className='round'>
             {phase === 'waiting' && 'Waiting for players'}
@@ -160,7 +170,7 @@ function Table ({ lobby, choices, active, events, settings }) {
               </>
             )}
             {phase === 'reveal' && res && <Verdict word={c.word} res={res} players={lobby.players} />}
-            {phase === 'results' && <Podium players={lobby.players} />}
+            {phase === 'results' && (lobby.options.style === 'tune' ? <Podium players={lobby.players} /> : <TableWords history={lobby.history} />)}
           </div>
 
           {Array.from({ length: n }, (_, i) => {
@@ -172,10 +182,10 @@ function Table ({ lobby, choices, active, events, settings }) {
             const flip = phase === 'reveal' && rv !== undefined
             return [
               phase !== 'waiting' && phase !== 'results' && (
-                <div key={`c${p.id}`} className={`card ${p.locked ? 'locked' : ''} ${flip ? 'flip' : ''}`} style={cardPos}>
+                <div key={`c${p.id}`} data-card={p.id} className={`card ${p.locked ? 'locked' : ''} ${flip ? 'flip' : ''} ${flip && res.highest.includes(p.id) ? 'card-hi' : ''} ${flip && res.lowest.includes(p.id) ? 'card-lo' : ''} ${flip && rv === 0 ? 'crack' : ''}`} style={cardPos}>
                   <div style={{ transitionDelay: `${i * 90}ms` }}>
                     <div className='back'>{p.locked ? '✓' : ''}</div>
-                    <div className='face' style={flip ? { '--rc': ratingColor(rv) } : undefined}>{flip ? formatRating(rv) : ''}{flip && <small>+{res.points[p.id]}</small>}</div>
+                    <div className='face' style={flip ? { '--rc': ratingColor(rv) } : undefined}>{flip ? formatRating(rv) : ''}{flip && res.scored && <small>+{res.points[p.id]}</small>}</div>
                   </div>
                 </div>
               ),
@@ -184,7 +194,9 @@ function Table ({ lobby, choices, active, events, settings }) {
                 <Avatar name={p.name} color={p.color} />
                 <span className='sname'>{p.me ? 'You' : p.name}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
                 <span className='slvl'>Level {p.level}</span>
-                {phase !== 'waiting' && <span className='pts'>{p.score} pts</span>}
+                {phase !== 'waiting' && lobby.options.style === 'tune' && <span className='pts'>{p.score} pts</span>}
+                {phase === 'reveal' && res.highest.includes(p.id) && <span className='tag hi'>highest</span>}
+                {phase === 'reveal' && res.lowest.includes(p.id) && <span className='tag lo'>lowest</span>}
                 {phase === 'reveal' && res.hotTake === p.id && <span className='tag'>hot take</span>}
                 {phase === 'reveal' && p.next && <span className='tag ok'>ready</span>}
                 {lobby.isHost && !p.me && phase === 'waiting' && <button className='btn small ghost' onClick={() => act('kick', p.id)}>Remove</button>}
@@ -230,6 +242,10 @@ function Table ({ lobby, choices, active, events, settings }) {
                   {choices.modes.map((m) => <option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
                 </select>
               </label>
+              <label>Style
+                <div className='seg'>{[['chill', 'Chill'], ['tune', 'In tune (scored)']].map(([x, label]) => <button key={x} className={lobby.options.style === x ? 'on' : ''} onClick={() => act('configure', { style: x })}>{label}</button>)}</div>
+                <small className='opt-hint'>{lobby.options.style === 'tune' ? 'Up to 100 points a word for rating close to everyone else.' : 'No points. Reveal, see who went highest and lowest, talk about it.'}</small>
+              </label>
               <label>Rounds
                 <div className='seg'>{choices.rounds.map((x) => <button key={x} className={lobby.options.rounds === x ? 'on' : ''} onClick={() => act('configure', { rounds: x })}>{x}</button>)}</div>
               </label>
@@ -260,7 +276,7 @@ function Table ({ lobby, choices, active, events, settings }) {
             return <div key={i}><b style={{ color: p?.color }}>{who}</b> {e.text}</div>
           })}
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); if (chat.trim()) { act('chat', chat); setChat('') } }}>
+        <form onSubmit={(e) => { e.preventDefault(); if (chat.trim()) { act('chat', chat); setChat('') } e.currentTarget.querySelector('input')?.blur() }}>
           <input className='field' value={chat} maxLength={140} onChange={(e) => setChat(e.target.value)} placeholder='Say something to the table' onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur() }} />
         </form>
       </aside>
@@ -272,17 +288,49 @@ function SeatReactions ({ reactions, playerId }) {
   return reactions.filter((x) => x.id === playerId).map((x) => <span key={x.key} className='reaction'>{x.emoji}</span>)
 }
 
+// The middle of the table after a reveal: the average, and who went
+// highest and lowest, which is the thing people want to talk about.
 function Verdict ({ word, res, players }) {
   const n = Object.keys(res.ratings).length
   const hot = players.find((p) => p.id === res.hotTake)
+  const names = (ids) => ids.map((id) => players.find((p) => p.id === id)).filter(Boolean).map((p) => (p.me ? 'you' : p.name))
+  const list = (xs) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
   let verdict = n < 2 ? 'Just you this time' : res.spread === 0 ? 'Perfect agreement' : res.hive ? 'Hive mind' : res.spread >= 3 ? 'The table is split' : res.spread >= 1.5 ? 'Some disagreement' : 'Pretty close'
   if (hot) verdict = `Hot take from ${hot.me ? 'you' : hot.name}`
+  const hiR = res.highest.length ? res.ratings[res.highest[0]] : null
+  const loR = res.lowest.length ? res.ratings[res.lowest[0]] : null
   return (
     <>
-      <div className='tsub'>{word}</div>
+      <div className='tsub'>{word}, on average</div>
       <div className='tmean' style={{ color: ratingColor(res.mean) }}>{res.mean === null ? '–' : formatRating(res.mean)}</div>
       <div className='tverdict'>{verdict}</div>
-      {n >= 2 && <div className='tsub'>{formatRating(res.spread)} between highest and lowest</div>}
+      {hiR !== null && (
+        <div className='extremes'>
+          <span><b style={{ color: ratingColor(hiR) }}>{formatRating(hiR)}</b> highest, {list(names(res.highest))}</span>
+          <span><b style={{ color: ratingColor(loR) }}>{formatRating(loR)}</b> lowest, {list(names(res.lowest))}</span>
+        </div>
+      )}
+    </>
+  )
+}
+
+// Chill results: the words the table loved and hated most.
+function TableWords ({ history }) {
+  const best = [...history].filter((h) => h.mean !== null).sort((a, b) => b.mean - a.mean)
+  const shown = best.length > 4 ? [...best.slice(0, 2), ...best.slice(-2)] : best
+  return (
+    <>
+      <div className='tsub'>The table’s verdicts</div>
+      <div className='table-words'>
+        {shown.map((h, i) => (
+          <div key={h.word}>
+            <span className='tw-word'>{h.word}</span>
+            <span className='tw-r' style={{ color: ratingColor(h.mean) }}>{formatRating(h.mean)}</span>
+            {i === 0 && <small>favorite</small>}
+            {i === shown.length - 1 && shown.length > 1 && <small>least favorite</small>}
+          </div>
+        ))}
+      </div>
     </>
   )
 }

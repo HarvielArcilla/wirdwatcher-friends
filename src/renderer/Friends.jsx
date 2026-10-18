@@ -73,6 +73,7 @@ export default function Friends ({ friends, openWord, refreshTop }) {
                 <div>
                   <strong>{f.name}</strong>
                   <small>Level {f.level}{f.title && `, ${f.title}`}. {plural(f.rated, 'word')} rated. {f.online ? 'Online now' : f.lastSeen ? `Last seen ${timeAgo(f.lastSeen)}` : 'Not seen yet'}</small>
+                  <small className='match'>{f.match?.pct != null ? <><b style={{ color: f.match.pct >= 80 ? 'var(--good)' : f.match.pct < 55 ? 'var(--bad)' : 'var(--mid)' }}>{f.match.pct}%</b> taste match over {plural(f.match.shared, 'word')} you both rated</> : f.match?.shared ? `${f.match.shared} of 5 shared words for a taste match` : 'Rate the same words to see your taste match'}</small>
                 </div>
                 <span>
                   <button className='btn small ghost' onClick={() => setOpen(open === f.userId ? null : f.userId)}>{open === f.userId ? 'Hide' : 'Their words'}</button>

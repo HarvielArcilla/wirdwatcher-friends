@@ -123,8 +123,8 @@ test('search finds words by spelling and by meaning', () => {
 test('rating sound settings, and a custom sound file', () => {
   const dir = tmp()
   const app = offline(dir)
-  assert.equal(app.settings.get('ratingSound'), 'chime')
-  assert.equal(app.settings.set({ ratingSound: 'nope' }).ratingSound, 'chime')
+  assert.equal(app.settings.get('ratingSound'), 'arcade')
+  assert.equal(app.settings.set({ ratingSound: 'nope' }).ratingSound, 'arcade')
   assert.equal(app.settings.set({ ratingSound: 'coin', soundVolume: 400 }).soundVolume, 100)
   const wav = path.join(dir, 'ding.wav')
   fs.writeFileSync(wav, Buffer.from('RIFF0000WAVEfmt '))
@@ -138,5 +138,5 @@ test('rating sound settings, and a custom sound file', () => {
   assert.throws(() => app.setCustomSound(big), /3 MB/)
   app.clearCustomSound()
   assert.equal(app.customSound(), null)
-  assert.equal(app.settings.get('ratingSound'), 'chime')
+  assert.equal(app.settings.get('ratingSound'), 'arcade')
 })

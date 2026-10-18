@@ -102,6 +102,16 @@ function handlers () {
       return { sound: ww.setCustomSound(res.filePaths[0]), settings: ww.settingsView() }
     },
     clearCustomSound: () => { ww.clearCustomSound(); return ww.settingsView() },
+    count: (name) => ww.count(name),
+    dataFolder: () => app.getPath('userData'),
+    openDataFolder: () => shell.openPath(app.getPath('userData')),
+    deleteProfile: async () => {
+      await ww.deleteProfile()
+      ww = null
+      setTimeout(() => { app.relaunch(); app.exit(0) }, 100)
+      return true
+    },
+    resetSettings: (tab) => ww.resetSettings(tab),
     settings: () => ww.settingsView(),
     setSettings: (patch) => ww.setSettings(patch),
     copy: (text) => { clipboard.writeText(String(text)); return true },
@@ -111,7 +121,14 @@ function handlers () {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null)
-  ww = new WirdApp({ dataDir: app.getPath('userData') })
+  try {
+    ww = new WirdApp({ dataDir: app.getPath('userData') })
+  } catch (err) {
+    // Most likely data from a newer version. Say so, and change nothing.
+    dialog.showErrorBox('wirdwatcher can’t open your data', `${err.message}\n\nYour data folder: ${app.getPath('userData')}`)
+    app.exit(1)
+    return
+  }
   await ww.start()
   const h = handlers()
   ipcMain.handle('ww', async (_e, name, args) => {

@@ -9,6 +9,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { readJson, writeJson } from './files.js'
 import hcrypto from 'hypercore-crypto'
 
 export const COLORS = ['#e8c686', '#e88a6b', '#7fc4a8', '#8ab4e8', '#c49ae8', '#e89ac0', '#a8d46f', '#6fd4d4']
@@ -21,8 +22,7 @@ export class Identity {
   constructor (dir) {
     this.file = path.join(dir, 'identity.json')
     fs.mkdirSync(dir, { recursive: true })
-    let saved = null
-    try { saved = JSON.parse(fs.readFileSync(this.file, 'utf8')) } catch {}
+    let saved = readJson(this.file, null)
     if (!saved?.seed) {
       saved = { version: 2, seed: crypto.randomBytes(32).toString('hex'), name: '', color: null, createdAt: Date.now() }
     }
@@ -52,7 +52,7 @@ export class Identity {
   }
 
   _write () {
-    fs.writeFileSync(this.file, JSON.stringify(this.saved, null, 2), { mode: 0o600 })
+    writeJson(this.file, this.saved, { mode: 0o600, pretty: true })
   }
 }
 

@@ -13,23 +13,28 @@ import { Store } from './store.js'
 import { Words } from './words.js'
 import { Game } from './game.js'
 import { Friends } from './friends.js'
-import { LobbyHost, LobbyClient, LOBBY_ROUNDS, LOBBY_TIMERS, REACTIONS } from './lobby.js'
+import { LobbyHost, LobbyClient, LOBBY_ROUNDS, LOBBY_TIMERS, LOBBY_STYLES, REACTIONS } from './lobby.js'
 import { XP } from '../shared/progress.js'
 import { normalizeAppearance } from '../shared/appearance.js'
+import { readJson, writeJson } from './files.js'
+import { migrate } from './migrate.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const WORDS_FILE = path.join(here, '..', '..', 'data', 'words.json.gz')
+export const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8')).version
 
 const SOUND_TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.webm': 'audio/webm' }
 const MAX_SOUND_BYTES = 3 * 1024 * 1024
+const OUR_FILES = new Set(['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'version.json', 'friends', 'sounds', 'backups'])
 
 let sharedWords = null // the list is read-only, so copies in one process share it
 
 export class WirdApp extends EventEmitter {
   // swarm / lan: options for the network (tests use a local DHT and port).
-  constructor ({ dataDir, swarm = {}, lan = {}, settings = {}, wordsFile = WORDS_FILE, now } = {}) {
+  constructor ({ dataDir, swarm = {}, lan = {}, settings = {}, wordsFile = WORDS_FILE, now, appVersion = APP_VERSION } = {}) {
     super()
     this.dataDir = dataDir
+    this.migration = migrate(dataDir, { appVersion })
     this.swarm = swarm
     this.lan = lan
     this.identity = new Identity(dataDir)
@@ -77,9 +82,7 @@ export class WirdApp extends EventEmitter {
   // How the app looks on this computer (appearance.json). Never shared.
   appearance () {
     if (!this._appearance) {
-      let saved = {}
-      try { saved = JSON.parse(fs.readFileSync(path.join(this.dataDir, 'appearance.json'), 'utf8')) } catch {}
-      this._appearance = normalizeAppearance(saved)
+      this._appearance = normalizeAppearance(readJson(path.join(this.dataDir, 'appearance.json'), {}))
     }
     return this._appearance
   }
@@ -90,7 +93,7 @@ export class WirdApp extends EventEmitter {
     const merged = { ...cur, ...patch }
     for (const k of ['dark', 'light', 'fonts']) if (patch[k]) merged[k] = { ...cur[k], ...patch[k] }
     this._appearance = normalizeAppearance(merged)
-    fs.writeFileSync(path.join(this.dataDir, 'appearance.json'), JSON.stringify(this._appearance, null, 2))
+    writeJson(path.join(this.dataDir, 'appearance.json'), this._appearance, { pretty: true })
     return this._appearance
   }
 
@@ -124,8 +127,16 @@ export class WirdApp extends EventEmitter {
 
   clearCustomSound () {
     fs.rmSync(path.join(this.dataDir, 'sounds'), { recursive: true, force: true })
-    if (this.settings.get('ratingSound') === 'custom') this.settings.set({ ratingSound: 'chime' })
+    if (this.settings.get('ratingSound') === 'custom') this.settings.set({ ratingSound: 'arcade' })
     return null
+  }
+
+  // Resets one tab's settings: 'play', 'friends' (friends and lobbies) or 'network'.
+  resetSettings (tab) {
+    const groups = { play: ['play'], friends: ['friends', 'lobbies'], network: ['network'] }[tab] || []
+    const patch = {}
+    for (const [k, f] of Object.entries(SETTING_FIELDS)) if (groups.includes(f.group)) patch[k] = this.settings.defaults[k]
+    return this.setSettings(patch)
   }
 
   settingsView () {
@@ -193,6 +204,26 @@ export class WirdApp extends EventEmitter {
     this.emit('lobby', view)
   }
 
+  // Small counters the window reports (for badges).
+  count (name) {
+    if (!['skips', 'meaningSearches', 'synonymsOpened'].includes(name)) throw new Error('Unknown counter.')
+    this.store.count(name)
+    return this.game.award()
+  }
+
+  // Deletes everything wirdwatcher keeps about you on this computer: your
+  // identity, ratings, friends, settings, sounds and backups. Friends who are
+  // online are told, so they drop you too. Can't be undone.
+  async deleteProfile () {
+    for (const f of this.store.listFriends()) await this.friends.remove(f.userId).catch(() => {})
+    await this.stop()
+    for (const name of fs.readdirSync(this.dataDir)) {
+      if (OUR_FILES.has(name) || /\.(damaged-|tmp$)/.test(name) || /^(me|progress|settings|appearance|identity|version)\.json\./.test(name)) {
+        fs.rmSync(path.join(this.dataDir, name), { recursive: true, force: true })
+      }
+    }
+  }
+
   async hostLobby (options = {}) {
     await this.leaveLobby()
     // Lobbies deal from the whole pool (whatever the host has rated before),
@@ -203,6 +234,8 @@ export class WirdApp extends EventEmitter {
       const word = (pool === null || pool.length ? this.words.random(mode, used) : null) || this.words.random('everyday', used)
       return word ? { word, info: this.words.lookup(word) } : null
     }
+    this.store.count('hosted')
+    this.game.award()
     const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, settings: this.settings, swarm: this.swarm, lan: this.lan, options })
     this._wireLobby(lobby)
     await lobby.start()
@@ -246,6 +279,7 @@ export class WirdApp extends EventEmitter {
     const m = this.game.modes()
     return {
       rounds: LOBBY_ROUNDS,
+      styles: LOBBY_STYLES,
       timers: LOBBY_TIMERS,
       reactions: REACTIONS,
       modes: [...m.modes.filter((x) => ['shuffle', 'everyday', 'short', 'long'].includes(x.id)), ...m.topics].map(({ id, name, emoji }) => ({ id, name, emoji }))

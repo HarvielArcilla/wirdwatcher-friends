@@ -115,7 +115,8 @@ export class Game extends EventEmitter {
       mine: { r: this.store.rating(word), comment, favorite: Boolean(this.store.get(`f/${word}`)) },
       friends: this.store.friendsOn(word).map((f) => (this.settings.get('showFriendComments') ? f : { ...f, comment: null })),
       inPlaylists: this.store.playlists().filter((p) => p.words.includes(word)).map((p) => p.id),
-      daily: word === this.words.daily(utcDay(this.now()))
+      daily: word === this.words.daily(utcDay(this.now())),
+      compare: this.store.rating(word) !== null ? this.compare(word, this.store.rating(word)) : null
     }
   }
 
@@ -152,10 +153,13 @@ export class Game extends EventEmitter {
       if (word === this.words.daily(utcDay(now))) { this.store.count('dailies'); gain(XP.daily, 'Word of the day') }
       const hour = now.getHours()
       if (hour >= 2 && hour < 5) this.store.count('owl')
+      if (hour >= 5 && hour < 7) this.store.count('earlyBird')
+      if (!(p.days || []).includes(today)) p.days = [...(p.days || []), today].slice(-800)
       // Flow: every 10 words in one sitting.
       const t = now.getTime()
       this.session.count = t - this.session.last > FLOW_GAP_MS ? 1 : this.session.count + 1
       this.session.last = t
+      this.store.progress.bestSession = Math.max(this.store.progress.bestSession || 0, this.session.count)
       if (this.session.count % 10 === 0) gain(XP.flow, `${this.session.count} in a row`)
     }
 
@@ -197,7 +201,46 @@ export class Game extends EventEmitter {
 
     const result = this._finish(xp, before, badgesBefore)
     this.store.saveProgress()
-    return { word, r, fresh, ...result, twins, chainDone, finished, friends, chain: chainDone ? null : (this.chain && this.chain.words.includes(word) ? this._chainView(this.chain, rated) : null) }
+    return { word, r, fresh, ...result, twins, chainDone, finished, friends, compare: this.compare(word, r), chain: chainDone ? null : (this.chain && this.chain.words.includes(word) ? this._chainView(this.chain, rated) : null) }
+  }
+
+  // How a rating compares, for the reveal after you rate:
+  //   friends: each friend's rating of this word, closest first, with taste match
+  //   table:   the friends' average and range, and where you sit in it
+  //   self:    where this rating sits among everything you've rated
+  //   verdict: one line that sums it up
+  compare (word, r) {
+    const friends = this.store.friendsOn(word).filter((f) => f.r !== null).map((f) => ({ ...f, diff: Math.round((r - f.r) * 10) / 10, match: this.store.tasteMatch(f.userId)?.pct ?? null })).sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff))
+    const others = this.store.ratings().filter((x) => x.word !== word).map((x) => x.r)
+    const self = others.length ? {
+      n: others.length,
+      avg: Math.round((others.reduce((a, b) => a + b, 0) / others.length) * 10) / 10,
+      below: Math.round((others.filter((x) => x < r).length / others.length) * 100), // % of my other words rated lower
+      same: others.filter((x) => x === r).length
+    } : null
+    let table = null
+    let verdict = null
+    if (friends.length) {
+      const vals = friends.map((f) => f.r)
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length
+      const diff = Math.round((r - avg) * 10) / 10
+      const higher = vals.filter((v) => v < r).length
+      const lower = vals.filter((v) => v > r).length
+      table = { avg: Math.round(avg * 10) / 10, min: Math.min(...vals), max: Math.max(...vals), diff, higher, lower, n: vals.length }
+      const twin = friends.find((f) => f.r === r)
+      if (twin) verdict = { tone: 'twin', text: friends.filter((f) => f.r === r).length > 1 ? 'Same as several of your friends' : `Exactly what ${twin.name} said` }
+      else if (diff >= 1.5) verdict = { tone: 'hot', text: `Hot take: ${diff.toFixed(1)} above your friends` }
+      else if (diff <= -1.5) verdict = { tone: 'cold', text: `Cold take: ${Math.abs(diff).toFixed(1)} below your friends` }
+      else if (Math.abs(diff) <= 0.3) verdict = { tone: 'agree', text: vals.length > 1 ? 'Right in step with your friends' : `Right in step with ${friends[0].name}` }
+      else if (lower === 0 && vals.length > 1) verdict = { tone: 'high', text: 'Your friends’ biggest fan of this one' }
+      else if (higher === 0 && vals.length > 1) verdict = { tone: 'low', text: 'Toughest of your friends on this one' }
+      else verdict = { tone: diff > 0 ? 'high' : 'low', text: `A little ${diff > 0 ? 'kinder' : 'harsher'} than your friends` }
+    } else if (self && self.n >= 10) {
+      if (self.below >= 95) verdict = { tone: 'high', text: 'One of your highest ratings ever' }
+      else if (self.below <= 3 && self.same < self.n * 0.05) verdict = { tone: 'low', text: 'One of your lowest ratings ever' }
+      else verdict = { tone: 'self', text: `Higher than ${self.below}% of the words you’ve rated` }
+    }
+    return { friends, table, self, verdict }
   }
 
   unrate (word) {
@@ -295,7 +338,15 @@ export class Game extends EventEmitter {
       twins: this.store.counter('twins'), lobbyGames: this.store.counter('lobbyGames'), fullTables: this.store.counter('fullTables'),
       hiveMinds: this.store.counter('hiveMinds'), hotTakes: this.store.counter('hotTakes'), owl: this.store.counter('owl'), lobbyRounds: this.store.counter('lobbyRounds')
     }
+    Object.assign(s, {
+      level: levelFor(p.xp).level, bestSession: p.bestSession || 0, earlyBird: this.store.counter('earlyBird'),
+      hosted: this.store.counter('hosted'), skips: this.store.counter('skips'), meaningSearches: this.store.counter('meaningSearches'),
+      synonymsOpened: this.store.counter('synonymsOpened'), comparisons: this.store.counter('comparisons'),
+      byTopic: {}, letters: 0, distinct: 0, palindromes: 0, qNoU: 0, vowelless: 0, weekends: 0, maxMatch: 0, minMatch: 100, matched: 0
+    })
     const touched = new Set()
+    const letters = new Set()
+    const values = new Set()
     for (const { word, r } of ratings) {
       s.sum += r
       if (r === 5) s.fives++
@@ -306,12 +357,32 @@ export class Game extends EventEmitter {
       s.histogram[Math.min(10, Math.floor(r * 2))]++
       s.longest = Math.max(s.longest, word.length)
       s.shortest = s.shortest ? Math.min(s.shortest, word.length) : word.length
-      const info = this.words.lookup(word)
-      if (!info) continue
-      for (const pos of new Set(info.senses.map((x) => x.pos))) s.byPos[pos]++
-      for (const t of info.topics) touched.add(t)
+      letters.add(word[0])
+      values.add(r)
+      if (word.length >= 3 && word === [...word].reverse().join('')) s.palindromes++
+      if (/q(?!u)/.test(word)) s.qNoU++
+      if (word.length >= 3 && !/[aeiou]/.test(word)) s.vowelless++
+      const meta = this.words.meta(word)
+      if (!meta) continue
+      for (const pos of meta.pos) s.byPos[pos]++
+      if (meta.topic) { touched.add(meta.topic); s.byTopic[meta.topic] = (s.byTopic[meta.topic] || 0) + 1 }
     }
     s.topicsTouched = touched.size
+    s.letters = letters.size
+    s.distinct = values.size
+    // Weekends with ratings on both the Saturday and the Sunday.
+    const days = new Set(p.days || [])
+    for (const d of days) {
+      const date = new Date(`${d}T12:00:00`)
+      if (date.getDay() === 6) { date.setDate(date.getDate() + 1); if (days.has(localDay(date))) s.weekends++ }
+    }
+    for (const f of this.store.listFriends()) {
+      const m = this.store.tasteMatch(f.userId)
+      if (m?.pct == null || m.shared < 25) continue
+      s.matched++
+      s.maxMatch = Math.max(s.maxMatch, m.pct)
+      s.minMatch = Math.min(s.minMatch, m.pct)
+    }
     s.average = ratings.length ? s.sum / ratings.length : null
     const sorted = ratings.map((x) => x.r).sort((a, b) => a - b)
     s.median = sorted.length ? (sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : null

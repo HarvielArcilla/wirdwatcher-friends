@@ -18,20 +18,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { EventEmitter } from 'node:events'
+import { readJson, writeJson } from './files.js'
 
 const USER = /^[0-9a-f]{64}$/
 const KEY = /^(r|c|f|p)\/[a-z0-9-]{1,64}$|^me$/
-
-function readJson (file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
-}
-
-// Write to a temporary file, then rename: a crash never leaves half a file.
-function writeJson (file, value) {
-  const tmp = `${file}.${process.pid}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(value))
-  fs.renameSync(tmp, file)
-}
 
 // Checks one record from a friend; returns a clean copy or null.
 export function cleanRecord (key, rec, { maxCommentChars = 2000 } = {}) {
@@ -241,6 +231,23 @@ export class Store extends EventEmitter {
       out.push({ userId: info.userId, name: info.name, color: info.color, r: r ?? null, comment: c || null, favorite: Boolean(f) })
     }
     return out
+  }
+
+  // How alike two people rate: 100% means identical on every shared word,
+  // 0% means a full 5 points apart on average. null until 5 shared words.
+  tasteMatch (id) {
+    const data = this.friends.get(id)
+    if (!data) return null
+    let n = 0
+    let diff = 0
+    for (const [k, rec] of Object.entries(data.records)) {
+      if (!k.startsWith('r/') || rec.v === null) continue
+      const mine = this.mine.records[k]
+      if (!mine || mine.v === null) continue
+      n++
+      diff += Math.abs(mine.v - rec.v)
+    }
+    return n >= 5 ? { pct: Math.round(100 - (diff / n) * 20), shared: n } : { pct: null, shared: n }
   }
 
   friendRatings (id) {
