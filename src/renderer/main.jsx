@@ -7,6 +7,8 @@ import Collection from './Collection.jsx'
 import Friends from './Friends.jsx'
 import Settings from './Settings.jsx'
 import { applyAppearance, onSystemScheme } from './theme.js'
+import Search from './Search.jsx'
+import { setCustomSound } from './sound.js'
 
 const TABS = [
   { id: 'play', label: 'Play', icon: icons.play },
@@ -29,12 +31,27 @@ function App () {
   const [events, setEvents] = useState([])
   const [mode, setMode] = useState(() => { try { return localStorage.getItem('mode') || 'everyday' } catch { return 'everyday' } })
   const [focusWord, setFocusWord] = useState(null)
+  const [searching, setSearching] = useState(false)
 
   useEffect(() => {
     api('boot').then((b) => {
       setBoot(b); setAppearance(b.appearance); setMe(b.me); setProfile(b.profile); setModes(b.modes); setFriends(b.friends); setSettings(b.settings); setLobby(b.lobby)
       if (b.platform === 'darwin') document.body.classList.add('mac')
     })
+    api('customSound').then((snd) => setCustomSound(snd?.dataUrl || null))
+  }, [])
+
+  // Search from anywhere: / (when not typing) or Ctrl/Cmd+K.
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) && !e.target.readOnly
+      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') || (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey)) {
+        e.preventDefault()
+        setSearching(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Appearance: apply on every change, and when the system flips light/dark.
@@ -99,6 +116,10 @@ function App () {
           <span className='who'><strong>{me.name}</strong><span>{lvl.title}, {lvl.step - lvl.into} XP to go</span></span>
         </button>
         <div className='grow' />
+        <button className='searchbtn' onClick={() => setSearching(true)} aria-label='Search words'>
+          <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' aria-hidden='true'><circle cx='11' cy='11' r='7' /><path d='m20 20-3.5-3.5' /></svg>
+          <span>Search words</span><kbd>/</kbd>
+        </button>
         <span className='stat flame' title='Days in a row'><strong>{me.streak || 0}</strong>day streak 🔥</span>
         <span className='stat'><strong>{profile.stats.rated.toLocaleString()}</strong>rated</span>
         <span className='stat'><strong>{onlineFriends}</strong>friends online</span>
@@ -106,13 +127,14 @@ function App () {
 
       <main className='main'>
         <div style={{ display: tab === 'play' ? 'contents' : 'none' }}>
-          <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play'} />
+          <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play' && !searching} />
         </div>
         {tab === 'collection' && <Collection profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         {tab === 'friends' && <Friends friends={friends} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
-          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby'} events={events} />
+          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} />
         </div>
+        {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
         {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
       </main>
 

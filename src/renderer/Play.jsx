@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
-import { api, R, Avatar, Kbd, Bar, icons, play, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
+import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
+import { playRating } from './sound.js'
 
 // The solo game. Keyboard first, like the original:
 //   digits      type a rating (4 → 4., 7 → 4.7, 5 → 5.0)
 //   Enter       rate; Enter again for the next word
 //   ↑ ↓         nudge by 0.1 (Shift: 0.5)      Backspace  clear
-//   ←           back to the previous word      Space      say it
+//   ← →         back and forward through this sitting's words; → on the
+//               newest unrated word skips it (with a note, in case)
+//   Space       say it      / or Ctrl+K  search
 //   F favorite  C comment  A add to playlist   M playlists
 export default function Play ({ mode, setMode, modes, settings, refreshTop, focusWord, clearFocusWord, active }) {
   const toast = useToast()
@@ -17,7 +20,11 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   const [stampKey, setStampKey] = useState(0)
   const [panel, setPanel] = useState(null) // 'comment' | 'add' | 'modes'
   const [showAll, setShowAll] = useState(false)
-  const back = useRef([]) // words seen this sitting, for ←
+  // Every word seen this sitting, in order, and where we are in it. Going
+  // back and forward walks this list; only stepping past the end deals.
+  const trail = useRef({ items: [], pos: -1 })
+  const [where, setWhere] = useState({ pos: -1, len: 0 })
+  const [skipNote, setSkipNote] = useState(null) // { word, index } just skipped
   const inputRef = useRef(null)
   const autoTimer = useRef(null)
 
@@ -32,21 +39,68 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     if (dealt.word && settings.speakOnReveal) speak(dealt.word)
   }, [settings.speakOnReveal])
 
-  const next = useCallback(async (m = mode) => {
+  const sync = () => setWhere({ pos: trail.current.pos, len: trail.current.items.length })
+
+  const push = (item) => {
+    const t = trail.current
+    t.items = [...t.items, item].slice(-200)
+    t.pos = t.items.length - 1
+    sync()
+  }
+
+  const goTo = useCallback(async (i) => {
+    const t = trail.current
+    const item = t.items[i]
+    if (!item) return
+    const info = await api('wordInfo', item.word)
+    if (!info) return
+    t.pos = i
+    sync()
+    setSkipNote(null)
+    show({ ...item, chain: i === t.items.length - 1 ? item.chain : null, info })
+  }, [show])
+
+  // A new word from the current playlist, added to the end of the trail.
+  const dealNew = useCallback(async (m = mode) => {
     try {
-      if (card?.word) back.current = [...back.current.slice(-49), card.word]
-      show(await api('deal', m, card?.word || null))
+      const dealt = await api('deal', m, card?.word || null)
+      if (dealt.word) push({ word: dealt.word, mode: m, chain: dealt.chain, note: dealt.note })
+      show(dealt)
     } catch (err) { toast({ error: true, title: 'Couldn’t deal a word', text: err.message }) }
   }, [mode, card, show, toast])
 
+  // Forward: the next word already seen, or a new one at the end.
+  const next = useCallback(() => {
+    const t = trail.current
+    setSkipNote(null)
+    if (t.pos < t.items.length - 1) goTo(t.pos + 1)
+    else dealNew()
+  }, [goTo, dealNew])
+
+  const back = useCallback(() => {
+    if (trail.current.pos > 0) goTo(trail.current.pos - 1)
+  }, [goTo])
+
+  // → on the newest word without a rating: move on, but say so.
+  const skip = useCallback(() => {
+    const t = trail.current
+    const item = t.items[t.pos]
+    if (!item) return dealNew()
+    item.skipped = true
+    setSkipNote({ word: item.word, index: t.pos })
+    dealNew()
+  }, [dealNew])
+
+  // Opening a word (search, synonyms, collection) adds it to the trail.
   const open = useCallback(async (word) => {
     const info = await api('wordInfo', word)
     if (!info) return
-    if (card?.word && card.word !== word) back.current = [...back.current.slice(-49), card.word]
+    setSkipNote(null)
+    push({ word, mode })
     show({ mode, word, info })
-  }, [card, mode, show])
+  }, [mode, show])
 
-  useEffect(() => { next(mode) }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { dealNew(mode) }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (focusWord) { open(focusWord); clearFocusWord() } }, [focusWord]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Friends' ratings arrive in the background.
@@ -69,7 +123,8 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       setStampKey((k) => k + 1)
       setFloats(earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` })))
       setTimeout(() => setFloats([]), 1900)
-      if (settings.sounds) { if (r > 4) play('good'); else if (r <= 1) play('bad') }
+      playRating(r, settings)
+      setSkipNote(null)
       celebrate(toast, earned)
       if (earned.twins.length) toast({ emoji: '👯', title: `Same as ${earned.twins.join(' and ')}`, text: `You both gave “${card.word}” a ${formatRating(r)}.` })
       refreshTop()
@@ -108,11 +163,15 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       if (card?.word) speak(card.word)
     } else if (k === 'ArrowLeft') {
       e.preventDefault()
-      const prev = back.current.pop()
-      if (prev) api('wordInfo', prev).then((info) => info && show({ mode, word: prev, info }))
-    } else if (k === 'ArrowRight' && isRated) {
+      back()
+    } else if (k === 'ArrowRight') {
       e.preventDefault()
-      next()
+      if (card?.empty) return
+      const t = trail.current
+      const atNewest = t.pos >= t.items.length - 1
+      const hasRating = isRated || (card?.info?.mine?.r ?? null) !== null
+      if (atNewest && !hasRating) skip()
+      else next()
     } else if (k === 'f' || k === 'F') {
       toggleFav()
     } else if (k === 'c' || k === 'C') {
@@ -122,7 +181,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     } else if (k === 'm' || k === 'M') {
       e.preventDefault(); setPanel('modes')
     }
-  }, [active, panel, card, text, rated, isRated, next, submit, show, mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, panel, card, text, rated, isRated, next, back, skip, submit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [onKey])
 
@@ -147,6 +206,20 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
           </button>
           {current.total > 1 && <span className='prog'>{current.done.toLocaleString()} of {current.total.toLocaleString()} rated</span>}
           {card?.note && <span className='note'>{card.note}</span>}
+        </div>
+        <div className='trailbar' aria-live='polite'>
+          {skipNote && (
+            <span className='skipnote'>
+              Skipped “{skipNote.word}”.
+              <button onClick={() => { setSkipNote(null); goTo(skipNote.index) }}>Undo</button>
+            </span>
+          )}
+          {!skipNote && where.pos < where.len - 1 && (
+            <span className='looking-back'>
+              {where.len - 1 - where.pos === 1 ? 'One word back.' : `${where.len - 1 - where.pos} words back.`} <Kbd>→</Kbd> goes forward without dealing new words.
+            </span>
+          )}
+          {!skipNote && trail.current.items[where.pos]?.skipped && (card?.info?.mine?.r ?? null) === null && <span className='skipped-tag'>You skipped this one</span>}
         </div>
 
         {card?.empty
@@ -209,7 +282,8 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
           <span><Kbd>0–5</Kbd> rate</span>
           <span><Kbd>Enter</Kbd> submit, then next</span>
           <span><Kbd>↑</Kbd><Kbd>↓</Kbd> nudge</span>
-          <span><Kbd>←</Kbd> back</span>
+          <span><Kbd>←</Kbd><Kbd>→</Kbd> back, forward or skip</span>
+          <span><Kbd>/</Kbd> search</span>
           <span><Kbd>Space</Kbd> say it</span>
           <span><Kbd>F</Kbd> favorite</span>
           <span><Kbd>C</Kbd> comment</span>
@@ -242,7 +316,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
         )}
       </aside>
 
-      {panel === 'modes' && <ModePicker modes={modes} mode={mode} onPick={(m) => { setPanel(null); if (m === mode) next(m); else setMode(m) }} onClose={() => setPanel(null)} />}
+      {panel === 'modes' && <ModePicker modes={modes} mode={mode} onPick={(m) => { setPanel(null); if (m === mode) dealNew(m); else setMode(m) }} onClose={() => setPanel(null)} />}
     </div>
   )
 }

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
+import { playRating } from './sound.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player. While rating, a seat shows a face-down card once that
 // player locks in; when everyone has, every card flips at the same moment.
-export default function Lobby ({ lobby, choices, me, active, events }) {
+export default function Lobby ({ lobby, choices, me, active, events, settings }) {
   if (!lobby) return <Entry />
-  return <Table lobby={lobby} choices={choices} active={active} events={events} />
+  return <Table lobby={lobby} choices={choices} active={active} events={events} settings={settings} />
 }
 
 function Entry () {
@@ -61,7 +62,7 @@ function around (i, n, rx, ry) {
   return { left: `${50 + Math.cos(a) * rx}%`, top: `${50 + Math.sin(a) * ry}%` }
 }
 
-function Table ({ lobby, choices, active, events }) {
+function Table ({ lobby, choices, active, events, settings }) {
   const toast = useToast()
   const [text, setText] = useState('')
   const [, tick] = useState(0)
@@ -98,13 +99,13 @@ function Table ({ lobby, choices, active, events }) {
       return
     }
     if (phase === 'rating') {
-      if (k === 'Enter') { e.preventDefault(); const r = ratingValue(text); if (r !== null && !locked) { act('rate', r); setText(formatRating(r)) } } else if (k === 'Backspace') { e.preventDefault(); if (locked) act('rate', null); setText('') } else if (/^[0-9.]$/.test(k) && !locked) { e.preventDefault(); setText((t) => typeRating((t.length === 3 ? '' : t) + k)) } else if ((k === 'ArrowUp' || k === 'ArrowDown') && !locked) { e.preventDefault(); setText((t) => formatRating(nudge(ratingValue(t) ?? 2.5, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.5 : 0.1)))) } else if (k === ' ') { e.preventDefault(); speak(c.word) }
+      if (k === 'Enter') { e.preventDefault(); const r = ratingValue(text); if (r !== null && !locked) { act('rate', r); setText(formatRating(r)); playRating(r, settings) } } else if (k === 'Backspace') { e.preventDefault(); if (locked) act('rate', null); setText('') } else if (/^[0-9.]$/.test(k) && !locked) { e.preventDefault(); setText((t) => typeRating((t.length === 3 ? '' : t) + k)) } else if ((k === 'ArrowUp' || k === 'ArrowDown') && !locked) { e.preventDefault(); setText((t) => formatRating(nudge(ratingValue(t) ?? 2.5, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.5 : 0.1)))) } else if (k === ' ') { e.preventDefault(); speak(c.word) }
     } else if (phase === 'reveal' && k === 'Enter') {
       e.preventDefault(); act('next')
     } else if ((phase === 'waiting' || phase === 'results') && k === 'Enter' && lobby.isHost) {
       e.preventDefault(); act('begin')
     }
-  }, [active, phase, text, locked, act, c, lobby.isHost, choices])
+  }, [active, phase, text, locked, act, c, lobby.isHost, choices, settings])
   useEffect(() => { window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [onKey])
 
   // Me at the bottom, everyone else around.

@@ -13,7 +13,9 @@ The game is built for the keyboard:
 | `0`–`5` | Type a rating. `4` gives 4.0 and `4` `7` gives 4.7 |
 | `Enter` | Rate the word. Press it again for the next one |
 | `↑` `↓` | Nudge the rating by 0.1 (hold Shift for 0.5) |
-| `←` | Go back to the previous word |
+| `←` `→` | Go back and forward through the words you’ve seen this sitting, without dealing new ones |
+| `→` on the newest word | Skip it. A note says “Skipped …” with Undo, and the word is marked if you go back |
+| `/` or `Ctrl/⌘+K` | Search for a word by spelling or by meaning (“fear of spiders” finds *arachnophobia*) |
 | `Space` | Say the word out loud |
 | `F` / `C` / `A` | Favorite, comment, add to a playlist |
 | `M` | Choose what to rate |
@@ -28,6 +30,14 @@ The game is built for the keyboard:
 - 14 topic playlists (animals, food, feelings, and so on), each with a progress bar
 
 **Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 31 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+
+## Sound
+
+Every rating makes a sound. Choose from Chime, Marimba, Pop, Bubble, Coin, Typewriter, Original (wirdwatcher 1’s two sounds, only at the extremes) or Off, or use **your own file** (MP3, WAV, OGG, M4A, AAC, FLAC or WebM, up to 3 MB). Your file is copied into the app’s data folder and stays on this computer.
+
+The presets are synthesized, so they don’t need sound files. Their pitch climbs a pentatonic scale with the rating, so a 5.0 rings and a 0.0 thuds, and a run of ratings sounds like a tune. A custom file speeds up slightly for higher ratings.
+
+You can turn pitch-following off, set the volume, or keep v1’s sounds for ratings above 4.0 and at 1.0 or below. Settings → Sound has a row of buttons that play each rating with your current settings.
 
 ## Appearance
 
@@ -83,7 +93,7 @@ The design follows [commonplace](https://github.com/HarvielArcilla/commonplace):
 - **Lobbies.** A lobby is a star around the host, and players get fresh keys for each lobby. Ratings go only to the host, which reveals them only when everyone has locked in.
 - **Limits.** Every limit is a setting you can change: the most friends, how many records to keep from each friend, comment length, lobby size, and how many messages a player can send per minute.
 
-Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json` and `appearance.json`.
+Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json`, `appearance.json` and `sounds/` (your custom rating sound).
 
 ## Running it
 

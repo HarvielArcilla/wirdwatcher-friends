@@ -104,6 +104,35 @@ export class Words {
     return out
   }
 
+  // For the search box: words that start with or contain the text, then
+  // words whose definitions mention it ("a word for being happy by chance").
+  // Each result: { word, match: 'word' | 'meaning', pos, def, ipa }.
+  searchDetailed (text, limit = 30) {
+    const raw = String(text || '').toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 60)
+    if (!raw) return []
+    const out = []
+    const seen = new Set()
+    const add = (form, match, def = null) => {
+      if (seen.has(form) || out.length >= limit) return
+      seen.add(form)
+      const [, ipa, senses] = this.list[this.index.get(form)]
+      const sense = def ? senses.find((x) => x[2] === def) : senses[0]
+      out.push({ word: form, match, pos: POS_NAMES[sense[0]], def: sense[2], ipa: ipa[0] || null })
+    }
+    if (/^[a-z]+$/.test(raw)) for (const w of this.search(raw, limit)) add(w, 'word')
+    if (raw.length >= 3 && out.length < limit) {
+      const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`\\b${esc}`)
+      for (const [form, , senses] of this.list) {
+        if (out.length >= limit) break
+        if (seen.has(form)) continue
+        const hit = senses.find((x) => re.test(x[2]))
+        if (hit) add(form, 'meaning', hit[2])
+      }
+    }
+    return out
+  }
+
   // The same word for everyone on a given day (YYYY-MM-DD), from everyday words.
   daily (day) {
     const h = crypto.createHash('sha256').update(`wirdwatcher/daily/${day}`).digest().readUInt32BE(0)

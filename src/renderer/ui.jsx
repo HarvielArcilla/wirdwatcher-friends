@@ -45,15 +45,7 @@ export const wordSize = (word, base = 128, min = 44) => {
   return Math.round(k * Math.max(min, Math.min(base, base * 9 / Math.max(9, word.length))))
 }
 
-// --- sounds (the original wirdwatcher's) -------------------------------------
-const sounds = {}
-export function play (name) {
-  try {
-    sounds[name] = sounds[name] || new Audio(`../assets/audio/${name === 'good' ? 'poole_rsvp' : 'poole_cancel'}.m4a`)
-    sounds[name].currentTime = 0
-    sounds[name].play().catch(() => {})
-  } catch {}
-}
+// Rating sounds live in sound.js.
 
 export function speak (word) {
   try {

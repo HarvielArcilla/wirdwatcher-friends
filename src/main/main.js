@@ -2,7 +2,7 @@
 // network (src/core), and hosts the window. The window never touches the
 // network or the disk; it talks to this process through preload.cjs.
 
-import { app, BrowserWindow, ipcMain, clipboard, shell, Menu, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, clipboard, shell, Menu, nativeTheme, dialog } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WirdApp } from '../core/app.js'
@@ -74,6 +74,7 @@ function handlers () {
     comment: (word, text) => g.comment(word, text),
     favorite: (word, on) => g.favorite(word, on),
     search: (text) => ww.words.search(text, 40),
+    searchWords: (text) => ww.words.searchDetailed(text, 40).map((h) => ({ ...h, r: ww.store.rating(h.word) })),
     modes: () => g.modes(),
     profile: () => g.profile(),
     allRatings: () => g.allRatings(),
@@ -94,6 +95,13 @@ function handlers () {
     lobbyAction: (action, arg) => ww.lobbyAction(action, arg),
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
+    customSound: () => ww.customSound(),
+    chooseSound: async () => {
+      const res = await dialog.showOpenDialog(win, { title: 'Choose a rating sound', properties: ['openFile'], filters: [{ name: 'Sounds', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'webm'] }] })
+      if (res.canceled || !res.filePaths[0]) return { canceled: true }
+      return { sound: ww.setCustomSound(res.filePaths[0]), settings: ww.settingsView() }
+    },
+    clearCustomSound: () => { ww.clearCustomSound(); return ww.settingsView() },
     settings: () => ww.settingsView(),
     setSettings: (patch) => ww.setSettings(patch),
     copy: (text) => { clipboard.writeText(String(text)); return true },

@@ -20,6 +20,9 @@ import { normalizeAppearance } from '../shared/appearance.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const WORDS_FILE = path.join(here, '..', '..', 'data', 'words.json.gz')
 
+const SOUND_TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.webm': 'audio/webm' }
+const MAX_SOUND_BYTES = 3 * 1024 * 1024
+
 let sharedWords = null // the list is read-only, so copies in one process share it
 
 export class WirdApp extends EventEmitter {
@@ -89,6 +92,40 @@ export class WirdApp extends EventEmitter {
     this._appearance = normalizeAppearance(merged)
     fs.writeFileSync(path.join(this.dataDir, 'appearance.json'), JSON.stringify(this._appearance, null, 2))
     return this._appearance
+  }
+
+  // A sound file of your own for ratings, copied into sounds/ here. It never
+  // leaves this computer.
+  setCustomSound (file) {
+    const ext = path.extname(file).toLowerCase()
+    if (!SOUND_TYPES[ext]) throw new Error('Choose an MP3, WAV, OGG, M4A, AAC, FLAC or WebM file.')
+    const size = fs.statSync(file).size
+    if (size > MAX_SOUND_BYTES) throw new Error('Choose a shorter sound: up to 3 MB.')
+    const dir = path.join(this.dataDir, 'sounds')
+    fs.rmSync(dir, { recursive: true, force: true })
+    fs.mkdirSync(dir, { recursive: true })
+    fs.copyFileSync(file, path.join(dir, `custom${ext}`))
+    fs.writeFileSync(path.join(dir, 'custom.json'), JSON.stringify({ name: path.basename(file), file: `custom${ext}` }))
+    this.settings.set({ ratingSound: 'custom' })
+    return this.customSound()
+  }
+
+  customSound () {
+    try {
+      const dir = path.join(this.dataDir, 'sounds')
+      const meta = JSON.parse(fs.readFileSync(path.join(dir, 'custom.json'), 'utf8'))
+      const ext = path.extname(meta.file)
+      const bytes = fs.readFileSync(path.join(dir, path.basename(meta.file)))
+      return { name: String(meta.name).slice(0, 120), dataUrl: `data:${SOUND_TYPES[ext]};base64,${bytes.toString('base64')}` }
+    } catch {
+      return null
+    }
+  }
+
+  clearCustomSound () {
+    fs.rmSync(path.join(this.dataDir, 'sounds'), { recursive: true, force: true })
+    if (this.settings.get('ratingSound') === 'custom') this.settings.set({ ratingSound: 'chime' })
+    return null
   }
 
   settingsView () {

@@ -6,10 +6,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-// kind: 'count' | 'bool' | 'choice'. group orders the settings screen.
+// kind: 'count' | 'bool' | 'choice'. group orders the settings screen; the
+// 'sound' group has its own section in Settings.
 export const SETTING_FIELDS = {
   // Playing
-  sounds: { group: 'play', kind: 'bool', default: true, label: 'Sounds for very high and very low ratings' },
+  ratingSound: { group: 'sound', kind: 'choice', default: 'chime', options: ['chime', 'marimba', 'pop', 'bubble', 'coin', 'typewriter', 'original', 'custom', 'off'], label: 'Sound when you rate a word' },
+  soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
+  soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
+  sounds: { group: 'sound', kind: 'bool', default: false, label: 'The original sounds for very high and very low ratings', hint: 'Above 4.0 and at 1.0 or below, play wirdwatcher 1’s sounds instead.' },
   speakOnReveal: { group: 'play', kind: 'bool', default: false, label: 'Say each new word out loud' },
   skipRated: { group: 'play', kind: 'bool', default: true, label: 'Don’t deal words I’ve already rated', hint: 'Turn off to see old words again in shuffles.' },
   autoAdvanceMs: { group: 'play', kind: 'count', default: 0, min: 0, max: 10000, label: 'Move to the next word by itself after (ms)', hint: '0 waits for a second Enter.' },
@@ -27,7 +31,7 @@ export const SETTING_FIELDS = {
   internet: { group: 'network', kind: 'bool', default: true, label: 'Use the internet peer-to-peer network', hint: 'Off means same-network only.' }
 }
 
-export const SETTING_GROUPS = { play: 'Playing', friends: 'Friends', lobbies: 'Lobbies', network: 'Network' }
+export const SETTING_GROUPS = { play: 'Playing', sound: 'Sound', friends: 'Friends', lobbies: 'Lobbies', network: 'Network' }
 
 export const DEFAULT_SETTINGS = Object.fromEntries(Object.entries(SETTING_FIELDS).map(([k, f]) => [k, f.default]))
 
@@ -36,6 +40,7 @@ export function normalizeSettings (s = {}) {
   for (const [k, f] of Object.entries(SETTING_FIELDS)) {
     const v = s[k]
     if (f.kind === 'bool') out[k] = typeof v === 'boolean' ? v : f.default
+    else if (f.kind === 'choice') out[k] = f.options.includes(v) ? v : f.default
     else {
       const n = Number(v)
       out[k] = Number.isFinite(n) ? Math.round(Math.max(f.min, Math.min(f.max, n))) : f.default

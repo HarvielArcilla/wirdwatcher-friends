@@ -1,4 +1,6 @@
 import test from 'node:test'
+import fs from 'node:fs'
+import path from 'node:path'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
 import { typeRating, ratingValue, nudge, levelFor, roundVerdict } from '../src/shared/progress.js'
@@ -103,4 +105,38 @@ test('lobby verdicts', () => {
   assert.equal(roundVerdict({ a: 4, b: 4.3 }).hive, true)
   assert.equal(roundVerdict({ a: 0, b: 4, c: 4.5 }).hotTake, 'a')
   assert.deepEqual(roundVerdict({ a: 3, b: 3, c: 1 }).twins, [['a', 'b']])
+})
+
+test('search finds words by spelling and by meaning', () => {
+  const app = offline()
+  const hits = app.words.searchDetailed('happy')
+  assert.equal(hits[0].word, 'happy')
+  assert.equal(hits[0].match, 'word')
+  assert.ok(hits.some((h) => h.word === 'unhappy'))
+  const meaning = app.words.searchDetailed('fear of spiders')
+  assert.equal(meaning[0].word, 'arachnophobia')
+  assert.equal(meaning[0].match, 'meaning')
+  assert.match(meaning[0].def, /spiders/)
+  assert.deepEqual(app.words.searchDetailed('(*'), [])
+})
+
+test('rating sound settings, and a custom sound file', () => {
+  const dir = tmp()
+  const app = offline(dir)
+  assert.equal(app.settings.get('ratingSound'), 'chime')
+  assert.equal(app.settings.set({ ratingSound: 'nope' }).ratingSound, 'chime')
+  assert.equal(app.settings.set({ ratingSound: 'coin', soundVolume: 400 }).soundVolume, 100)
+  const wav = path.join(dir, 'ding.wav')
+  fs.writeFileSync(wav, Buffer.from('RIFF0000WAVEfmt '))
+  const snd = app.setCustomSound(wav)
+  assert.equal(snd.name, 'ding.wav')
+  assert.match(snd.dataUrl, /^data:audio\/wav;base64,/)
+  assert.equal(app.settings.get('ratingSound'), 'custom')
+  assert.throws(() => app.setCustomSound(path.join(dir, 'me.json')), /MP3/)
+  const big = path.join(dir, 'big.mp3')
+  fs.writeFileSync(big, Buffer.alloc(4 * 1024 * 1024))
+  assert.throws(() => app.setCustomSound(big), /3 MB/)
+  app.clearCustomSound()
+  assert.equal(app.customSound(), null)
+  assert.equal(app.settings.get('ratingSound'), 'chime')
 })
