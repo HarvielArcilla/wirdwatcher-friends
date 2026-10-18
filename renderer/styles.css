@@ -280,7 +280,7 @@ kbd { font: 600 12px Fredoka, sans-serif; background: var(--ink); color: var(--c
 .seat .pts { font-weight: 600; font-size: 12px; color: var(--mint); margin-top: -4px; }
 .seat .tag { font-size: 11px; font-weight: 600; background: var(--coral); color: var(--ink); border-radius: 10px; padding: 1px 7px; }
 .seat .tag.ok { background: var(--mint); }
-.seat .reaction { position: absolute; top: -10px; font-size: 30px; animation: react 1.6s ease-out forwards; pointer-events: none; }
+.seat .reaction { position: absolute; top: -40px; z-index: 3; font-size: 30px; animation: react 1.6s ease-out forwards; pointer-events: none; }
 @keyframes react { 0% { opacity: 0; transform: translateY(10px) scale(.5); } 15% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: translateY(-60px); } }
 .lobby-bottom { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 6px; min-height: 96px; flex: none; }
 .lobby-bottom .rating-input { font-size: 64px; width: 150px; }
