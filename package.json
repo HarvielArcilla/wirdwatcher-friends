@@ -11,11 +11,13 @@
     "start": "node build.mjs && electron .",
     "dev": "node build.mjs && electron .",
     "build": "node build.mjs",
-    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "smoke": "node build.mjs && electron . --smoke-test",
     "words": "node scripts/build-words.mjs",
     "dist": "node build.mjs && electron-builder",
     "dist:mac": "node build.mjs && electron-builder --mac",
-    "dist:win": "node build.mjs && electron-builder --win"
+    "dist:win": "node build.mjs && electron-builder --win",
+    "postinstall": "node scripts/brand.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -37,7 +39,8 @@
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "hyperdht": "^6.34.1",
-    "playwright-core": "^1.56.0"
+    "playwright-core": "^1.56.0",
+    "rcedit": "^5.0.2"
   },
   "build": {
     "appId": "com.harvielarcilla.wirdwatcher",
@@ -47,6 +50,7 @@
     },
     "files": [
       "build/icon.png",
+      "build/icon.ico",
       "src/**",
       "renderer/index.html",
       "renderer/styles.css",
@@ -72,7 +76,9 @@
         }
       ],
       "category": "public.app-category.word-games",
-      "identity": null
+      "identity": null,
+      "icon": "build/icon.png",
+      "artifactName": "wirdwatcher-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -83,12 +89,15 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "wirdwatcher-setup-${version}.${ext}"
     },
     "linux": {
       "target": [

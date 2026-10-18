@@ -3,6 +3,7 @@
 // network or the disk; it talks to this process through preload.cjs.
 
 import { app, BrowserWindow, ipcMain, clipboard, shell, Menu, nativeTheme, dialog } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WirdApp } from '../core/app.js'
@@ -13,6 +14,11 @@ const root = path.join(here, '..', '..')
 
 // WIRDWATCHER_PROFILE=bob runs a second, independent copy on one computer
 // (its own identity and ratings), handy for trying friends and lobbies.
+// --smoke-test: start with a throwaway profile, check the window comes up
+// and can talk to the background process, then quit (0 = fine). CI runs this
+// on Windows, macOS and Linux.
+const smoke = process.argv.includes('--smoke-test')
+if (smoke) process.env.WIRDWATCHER_PROFILE = `smoke-${process.pid}`
 const profile = process.env.WIRDWATCHER_PROFILE
 if (profile) app.setPath('userData', `${app.getPath('userData')}-${profile.replace(/[^a-z0-9-]/gi, '')}`)
 if (!profile && !app.requestSingleInstanceLock()) app.quit()
@@ -148,6 +154,7 @@ app.whenReady().then(async () => {
   ww.on('lobby-closed', (reason) => send('lobby-closed', reason))
   createWindow()
   app.on('activate', () => { if (!win) createWindow() })
+  if (smoke) runSmokeTest()
 })
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus() } })
@@ -161,3 +168,28 @@ app.on('before-quit', async (e) => {
   app.quit()
 })
 app.on('window-all-closed', () => app.quit())
+
+async function runSmokeTest () {
+  const fail = (why) => { console.error(`smoke test failed: ${why}`); app.exit(1) }
+  const timer = setTimeout(() => fail('timed out'), 60000)
+  win.webContents.on('render-process-gone', (_e, d) => fail(`renderer ${d.reason}`))
+  win.webContents.on('console-message', (e) => { if (e.level === 'error') console.error(`renderer: ${e.message}`) })
+  await new Promise((resolve) => win.webContents.once('did-finish-load', resolve))
+  for (let i = 0; i < 100; i++) {
+    const ok = await win.webContents.executeJavaScript("Boolean(document.querySelector('.welcome input') && document.querySelector('.rail'))").catch(() => false)
+    if (ok) {
+      const word = await win.webContents.executeJavaScript("window.ww.call('deal', 'everyday').then((d) => d.word)")
+      const fonts = await win.webContents.executeJavaScript("document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === 'error').map((f) => f.family))")
+      if (!word) return fail('no word dealt')
+      if (fonts.length) return fail(`fonts failed to load: ${fonts.join(', ')}`)
+      console.log(`smoke test passed on ${process.platform}: window up, dealt “${word}”, data in ${app.getPath('userData')}`)
+      clearTimeout(timer)
+      await ww.stop().catch(() => {})
+      fs.rmSync(app.getPath('userData'), { recursive: true, force: true })
+      app.exit(0)
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  fail('the window never showed the app')
+}

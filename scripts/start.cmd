@@ -1,5 +1,5 @@
 @echo off
-rem Starts wirdwatcher from this folder (installs what it needs the first time).
-cd /d "%~dp0\.."
-if not exist node_modules call npm.cmd install
+rem Starts wirdwatcher (Windows). Used by the Desktop shortcut.
+cd /d "%~dp0.."
 call npm.cmd start
+if errorlevel 1 pause

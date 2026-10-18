@@ -55,7 +55,7 @@ export class Mesh extends EventEmitter {
         accept: (remote) => this.accept(remote),
         ...this.lanOpts
       })
-      try { await this.lan.start() } catch { this.lan = null } // port busy: internet only
+      try { await this.lan.start() } catch { await this.lan.destroy().catch(() => {}); this.lan = null } // port busy: internet only
     }
     return this
   }

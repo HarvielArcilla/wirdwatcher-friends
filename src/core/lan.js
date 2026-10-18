@@ -53,9 +53,14 @@ export class LanTransport {
     await new Promise((resolve, reject) => { this.server.once('error', reject); this.server.listen(0, () => resolve()) })
     this.server.on('error', () => {})
     this.udp = dgram.createSocket({ type: 'udp4', reuseAddr: true })
-    this.udp.on('error', () => {}) // no network, or multicast not allowed: stay quiet
     this.udp.on('message', (msg, from) => this._onAnnounce(msg, from))
-    await new Promise((resolve) => this.udp.bind(this.port, () => resolve()))
+    // If the port can't be had (another program, or a firewall), give up on
+    // same-network discovery instead of waiting forever; the internet still works.
+    await new Promise((resolve, reject) => {
+      this.udp.once('error', reject)
+      this.udp.bind({ port: this.port, exclusive: false }, () => { this.udp.off('error', reject); resolve() })
+    })
+    this.udp.on('error', () => {}) // later network hiccups: stay quiet
     try { this.udp.addMembership(this.group); this.udp.setMulticastLoopback(true) } catch {}
     this.timer = setInterval(() => this.announce(), this.intervalMs)
     this.timer.unref?.()

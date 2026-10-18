@@ -1,0 +1,116 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The tests, and a real launch of the app, on all three systems.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - name: launch the app (smoke test)
+        if: runner.os != 'Linux'
+        run: npm run smoke
+      - name: launch the app (smoke test, Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb >/dev/null
+          node build.mjs
+          xvfb-run -a npx electron . --smoke-test --no-sandbox
+
+  # Installers: wirdwatcher-setup-<version>.exe (Windows, x64 and ARM) and
+  # .dmg (macOS, Apple silicon and Intel). Unsigned: code signing needs paid
+  # certificates, so Windows SmartScreen and macOS Gatekeeper will ask first.
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+          - os: macos-latest
+            script: dist:mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run ${{ matrix.script }} -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          NODE_ENV: production
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wirdwatcher-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+          if-no-files-found: error
+
+  # The one-command installers, on clean machines.
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$env:RUNNER_TEMP\wirdwatcher\node_modules\.bin\electron.cmd")) { throw 'electron missing' }
+          if (-not (Test-Path ([Environment]::GetFolderPath('Desktop') + '\wirdwatcher.lnk'))) { throw 'shortcut missing' }
+          Push-Location "$env:RUNNER_TEMP\wirdwatcher"
+          & npm.cmd run smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          WIRDWATCHER_REPO: ${{ github.workspace }}
+          WIRDWATCHER_DIR: ${{ runner.temp }}\wirdwatcher
+      - name: install.sh
+        if: runner.os == 'macOS'
+        run: |
+          bash scripts/install.sh
+          test -x "$RUNNER_TEMP/wirdwatcher/node_modules/.bin/electron"
+          cd "$RUNNER_TEMP/wirdwatcher" && npm run smoke
+        env:
+          WIRDWATCHER_REPO: ${{ github.workspace }}
+          WIRDWATCHER_DIR: ${{ runner.temp }}/wirdwatcher
+          WIRDWATCHER_NO_SHORTCUT: '1'
+
+  # Tagging a version (git tag v2.0.0 && git push --tags) publishes the
+  # installers on the Releases page.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package, installers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
