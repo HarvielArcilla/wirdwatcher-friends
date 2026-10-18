@@ -90,7 +90,7 @@ The 64,000 words come from [Open English WordNet 2025](https://en-word.net) (CC 
 
 ## Version 1
 
-The original was an Expo/React Native web app on Firebase and Google App Engine. It was retired because the hosting cost too much. Version 2 keeps its slate-and-gold look, the Fredoka font, the rating sounds and the type-then-Enter flow.
+The original ([HarvielArcilla/wirdwatcher](https://github.com/HarvielArcilla/wirdwatcher)) was an Expo/React Native web app on Firebase and Google App Engine. It was retired because the hosting cost too much. Version 2 keeps its slate-and-gold look, the Fredoka font, the rating sounds and the type-then-Enter flow.
 
 ## License
 

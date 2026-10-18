@@ -22,7 +22,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/HarvielArcilla/wirdwatcher.git"
+    "url": "https://github.com/HarvielArcilla/wirdwatcher-friends.git"
   },
   "dependencies": {
     "@hyperswarm/secret-stream": "^6.9.2",
