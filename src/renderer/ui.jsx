@@ -3,15 +3,12 @@ import { formatRating } from '../shared/progress.js'
 
 export const api = (name, ...args) => window.ww.call(name, ...args)
 
-// 0 → coral, 2.5 → brass, 5 → mint.
-const STOPS = [[0, [232, 138, 107]], [2.5, [232, 198, 134]], [5, [127, 196, 168]]]
+// The theme's rating scale: 0.0 → bad, 2.5 → mid, 5.0 → good.
 export function ratingColor (r) {
-  if (r === null || r === undefined) return 'var(--chalk)'
+  if (r === null || r === undefined) return 'var(--text)'
   const v = Math.max(0, Math.min(5, r))
-  const [a, b] = v <= 2.5 ? [STOPS[0], STOPS[1]] : [STOPS[1], STOPS[2]]
-  const t = (v - a[0]) / (b[0] - a[0])
-  const c = a[1].map((x, i) => Math.round(x + (b[1][i] - x) * t))
-  return `rgb(${c.join(',')})`
+  if (v <= 2.5) return `color-mix(in oklab, var(--bad) ${Math.round((1 - v / 2.5) * 100)}%, var(--mid))`
+  return `color-mix(in oklab, var(--mid) ${Math.round((1 - (v - 2.5) / 2.5) * 100)}%, var(--good))`
 }
 
 export function R ({ r, className = 'r' }) {
@@ -41,7 +38,12 @@ export const timeAgo = (t) => {
 export const plural = (n, word, many = `${word}s`) => `${n.toLocaleString()} ${n === 1 ? word : many}`
 
 // Size the word to fit: long words get smaller.
-export const wordSize = (word, base = 128, min = 44) => Math.max(min, Math.min(base, Math.round(base * 9 / Math.max(9, word.length))))
+// Size the word to fit: long words get smaller. The word-size setting and
+// the font's own width (wide fonts set a bit smaller) scale it.
+export const wordSize = (word, base = 128, min = 44) => {
+  const k = window.__wordScale || 1
+  return Math.round(k * Math.max(min, Math.min(base, base * 9 / Math.max(9, word.length))))
+}
 
 // --- sounds (the original wirdwatcher's) -------------------------------------
 const sounds = {}

@@ -2,10 +2,11 @@
 // network (src/core), and hosts the window. The window never touches the
 // network or the disk; it talks to this process through preload.cjs.
 
-import { app, BrowserWindow, ipcMain, clipboard, shell, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, clipboard, shell, Menu, nativeTheme } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WirdApp } from '../core/app.js'
+import { themeById, themeColors } from '../shared/appearance.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
@@ -24,6 +25,13 @@ let ww = null
 
 const send = (channel, ...args) => { if (win && !win.isDestroyed()) win.webContents.send(channel, ...args) }
 
+// The window's color before the page paints, so it doesn't flash.
+function windowColor () {
+  const a = ww.appearance()
+  const mode = a.mode === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : a.mode
+  return themeColors(themeById(a[mode].theme)).bg
+}
+
 function createWindow () {
   win = new BrowserWindow({
     width: 1240,
@@ -31,7 +39,7 @@ function createWindow () {
     minWidth: 860,
     minHeight: 600,
     title: 'wirdwatcher',
-    backgroundColor: '#353c43',
+    backgroundColor: windowColor(),
     icon: path.join(root, 'build', 'icon.png'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 18, y: 18 },
@@ -56,7 +64,7 @@ function createWindow () {
 function handlers () {
   const g = ww.game
   return {
-    boot: () => ({ me: ww.me(), settings: ww.settingsView(), modes: g.modes(), profile: g.profile(), friends: ww.friends.list(), lobby: ww.lobbyState, lobbyChoices: ww.lobbyChoices(), wordCount: ww.words.size, source: ww.words.source, platform: process.platform }),
+    boot: () => ({ appearance: ww.appearance(), me: ww.me(), settings: ww.settingsView(), modes: g.modes(), profile: g.profile(), friends: ww.friends.list(), lobby: ww.lobbyState, lobbyChoices: ww.lobbyChoices(), wordCount: ww.words.size, source: ww.words.source, platform: process.platform }),
     me: () => ww.me(),
     setProfile: (patch) => ww.setProfile(patch),
     deal: (mode, after) => g.deal(mode, { after }),
@@ -84,6 +92,8 @@ function handlers () {
     joinLobby: (code) => ww.joinLobby(code),
     leaveLobby: () => ww.leaveLobby(),
     lobbyAction: (action, arg) => ww.lobbyAction(action, arg),
+    appearance: () => ww.appearance(),
+    setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
     settings: () => ww.settingsView(),
     setSettings: (patch) => ww.setSettings(patch),
     copy: (text) => { clipboard.writeText(String(text)); return true },

@@ -29,6 +29,33 @@ The game is built for the keyboard:
 
 **Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 31 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
+## Appearance
+
+**Settings → Appearance** sets light and dark mode separately. Choose “Match computer” to follow your system: for example, Parchment by day and Inkwell at night.
+
+- **Themes:**
+  - Dark: Inkwell (the default), Slate (the original v1 colors), Espresso, Forest, Velvet and Blackout (high contrast).
+  - Light: Paper (the default), Parchment, Newsprint, Sage, Blush and Daylight (high contrast).
+  - Every theme is checked for readable contrast in `test/appearance.test.js`.
+- **Accent:** use the theme’s own, or pick any color. The app warns you if the color is hard to see on that theme.
+- **Texture:** none, paper or film grain, set for each mode.
+- **Fonts:**
+  - Presets:
+    - Playful (Fredoka)
+    - Classic serif (Newsreader)
+    - Literary (EB Garamond)
+    - Editorial (Fraunces over Inter)
+    - Modern (Inter)
+    - Grotesk (Bricolage Grotesque)
+    - Typewriter (IBM Plex Mono)
+    - Hyperlegible (Atkinson Hyperlegible)
+    - OpenDyslexic
+  - You can also pick the word font, the font for buttons and labels, and the definition font separately.
+  - All the fonts are bundled under the SIL Open Font License, so they work offline.
+- **Also:** word size, square, soft or round corners, and reduced motion.
+
+A preview in Settings shows a sample word in either mode as you change things. Appearance is saved on this computer only and is never sent to friends.
+
 ## Friends
 
 1. Open **Friends → Make a friend code** and send the code (`WW-XXXXX-XXXXX-XXXXX-XXXXX`) to a friend.
@@ -56,7 +83,7 @@ The design follows [commonplace](https://github.com/HarvielArcilla/commonplace):
 - **Lobbies.** A lobby is a star around the host, and players get fresh keys for each lobby. Ratings go only to the host, which reveals them only when everyone has locked in.
 - **Limits.** Every limit is a setting you can change: the most friends, how many records to keep from each friend, comment length, lobby size, and how many messages a player can send per minute.
 
-Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/` and `settings.json`.
+Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json` and `appearance.json`.
 
 ## Running it
 
@@ -90,7 +117,7 @@ The 64,000 words come from [Open English WordNet 2025](https://en-word.net) (CC 
 
 ## Version 1
 
-The original ([HarvielArcilla/wirdwatcher](https://github.com/HarvielArcilla/wirdwatcher)) was an Expo/React Native web app on Firebase and Google App Engine. It was retired because the hosting cost too much. Version 2 keeps its slate-and-gold look, the Fredoka font, the rating sounds and the type-then-Enter flow.
+The original ([HarvielArcilla/wirdwatcher](https://github.com/HarvielArcilla/wirdwatcher)) was an Expo/React Native web app on Firebase and Google App Engine. It was retired because the hosting cost too much. Version 2 keeps its Fredoka font, the rating sounds and the type-then-Enter flow, and its slate-and-gold colors live on as the Slate theme.
 
 ## License
 

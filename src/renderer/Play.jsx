@@ -229,7 +229,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
               <button className='chip' onClick={() => setPanel('comment')}>✍️ {info.mine.comment ? 'Edit comment' : 'Comment'}</button>
               <button className='chip' onClick={() => setPanel('add')}>➕ Playlist</button>
             </div>
-            {info.mine.comment && panel !== 'comment' && <p className='cmt' style={{ fontFamily: 'var(--serif)', color: 'var(--dim)', marginBottom: 0 }}>“{info.mine.comment}”</p>}
+            {info.mine.comment && panel !== 'comment' && <p className='cmt' style={{ fontFamily: 'var(--font-read)', color: 'var(--dim)', marginBottom: 0 }}>“{info.mine.comment}”</p>}
             {panel === 'comment' && <CommentBox word={card.word} initial={info.mine.comment || ''} onDone={(res) => { setPanel(null); if (res) { setCard((c) => ({ ...c, info: res.info })); celebrate(toast, res); refreshTop() } }} />}
             {panel === 'add' && <AddToPlaylist word={card.word} lists={modes.playlists} onDone={() => { setPanel(null); refreshTop() }} />}
           </div>

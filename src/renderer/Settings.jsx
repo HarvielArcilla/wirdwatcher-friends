@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { api } from './ui.jsx'
+import Appearance from './Appearance.jsx'
 
 const COLORS = ['#e8c686', '#e88a6b', '#7fc4a8', '#8ab4e8', '#c49ae8', '#e89ac0', '#a8d46f', '#6fd4d4']
 
 // Your name and color, then every setting, including each limit that
 // protects this computer from what others send.
-export default function Settings ({ me, settings, setSettings, setMe, wordCount, source }) {
+export default function Settings ({ appearance, setAppearance, me, settings, setSettings, setMe, wordCount, source }) {
   const [name, setName] = useState(me.hasChosenName ? me.name : '')
   const save = async (patch) => setSettings(await api('setSettings', patch))
   const saveMe = async (patch) => setMe(await api('setProfile', patch))
   return (
-    <div className='page settings'>
+    <div className='page settings wide'>
       <h1>Settings</h1>
+      <Appearance appearance={appearance} setAppearance={setAppearance} />
+      <div style={{ maxWidth: 720 }}>
       <h2>You</h2>
       <div className='setting'>
         <div>Name<small>Friends and lobby players see this.</small></div>
@@ -38,7 +41,9 @@ export default function Settings ({ me, settings, setSettings, setMe, wordCount,
       <p className='lede'>
         wirdwatcher 2, free and open source (MIT). {wordCount.toLocaleString()} words from {source.replace(/, https:.*/, '')}, <a href='https://en-word.net' target='_blank' rel='noreferrer'>en-word.net</a>.
         Your ratings live on this computer and on your friends’ computers, nowhere else.
+        Fonts: Fredoka, Newsreader, Source Serif 4, EB Garamond, Fraunces, Inter, Bricolage Grotesque, Atkinson Hyperlegible, IBM Plex Mono and OpenDyslexic, all under the SIL Open Font License.
       </p>
+      </div>
     </div>
   )
 }

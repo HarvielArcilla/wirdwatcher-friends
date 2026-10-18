@@ -137,7 +137,7 @@ function Table ({ lobby, choices, active, events }) {
         <div className='table'>
           {left !== null && phase === 'rating' && c.endsIn != null && (
             <svg className='timer' viewBox='0 0 100 100' preserveAspectRatio='none' aria-hidden='true'>
-              <ellipse cx='50' cy='50' rx='49' ry='49' fill='none' stroke='var(--brass)' strokeWidth='1.2' vectorEffect='non-scaling-stroke' pathLength='100' strokeDasharray={`${(left / (lobby.options.timer * 1000)) * 100} 100`} transform='rotate(-90 50 50)' />
+              <ellipse cx='50' cy='50' rx='49' ry='49' fill='none' stroke='var(--accent)' strokeWidth='1.2' vectorEffect='non-scaling-stroke' pathLength='100' strokeDasharray={`${(left / (lobby.options.timer * 1000)) * 100} 100`} transform='rotate(-90 50 50)' />
             </svg>
           )}
           <div className='felt' />
@@ -154,7 +154,7 @@ function Table ({ lobby, choices, active, events }) {
               <>
                 <div className='tword' key={c.word} style={{ fontSize: wordSize(c.word, 64, 26) }}>{c.word}</div>
                 {c.info?.ipa?.[0] && <div className='tipa'>/{c.info.ipa[0]}/</div>}
-                {c.info?.senses?.[0] && <div className='tdef'><i style={{ color: 'var(--faint)', fontStyle: 'normal', fontFamily: 'Fredoka', fontSize: 12 }}>{c.info.senses[0].posName}</i> {c.info.senses[0].def}</div>}
+                {c.info?.senses?.[0] && <div className='tdef'><i style={{ color: 'var(--faint)', fontStyle: 'normal', fontFamily: 'var(--font-ui)', fontSize: 12 }}>{c.info.senses[0].posName}</i> {c.info.senses[0].def}</div>}
                 <div className='tsub' style={{ marginTop: 12 }}>{lockedCount} of {lobby.players.length} locked in</div>
               </>
             )}
@@ -174,7 +174,7 @@ function Table ({ lobby, choices, active, events }) {
                 <div key={`c${p.id}`} className={`card ${p.locked ? 'locked' : ''} ${flip ? 'flip' : ''}`} style={cardPos}>
                   <div style={{ transitionDelay: `${i * 90}ms` }}>
                     <div className='back'>{p.locked ? '✓' : ''}</div>
-                    <div className='face' style={{ background: flip ? ratingColor(rv) : undefined }}>{flip ? formatRating(rv) : ''}{flip && <small>+{res.points[p.id]}</small>}</div>
+                    <div className='face' style={flip ? { '--rc': ratingColor(rv) } : undefined}>{flip ? formatRating(rv) : ''}{flip && <small>+{res.points[p.id]}</small>}</div>
                   </div>
                 </div>
               ),

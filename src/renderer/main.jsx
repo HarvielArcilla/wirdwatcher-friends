@@ -6,6 +6,7 @@ import Lobby from './Lobby.jsx'
 import Collection from './Collection.jsx'
 import Friends from './Friends.jsx'
 import Settings from './Settings.jsx'
+import { applyAppearance, onSystemScheme } from './theme.js'
 
 const TABS = [
   { id: 'play', label: 'Play', icon: icons.play },
@@ -23,6 +24,7 @@ function App () {
   const [modes, setModes] = useState(null)
   const [friends, setFriends] = useState([])
   const [settings, setSettings] = useState(null)
+  const [appearance, setAppearance] = useState(null)
   const [lobby, setLobby] = useState(null)
   const [events, setEvents] = useState([])
   const [mode, setMode] = useState(() => { try { return localStorage.getItem('mode') || 'everyday' } catch { return 'everyday' } })
@@ -30,10 +32,17 @@ function App () {
 
   useEffect(() => {
     api('boot').then((b) => {
-      setBoot(b); setMe(b.me); setProfile(b.profile); setModes(b.modes); setFriends(b.friends); setSettings(b.settings); setLobby(b.lobby)
+      setBoot(b); setAppearance(b.appearance); setMe(b.me); setProfile(b.profile); setModes(b.modes); setFriends(b.friends); setSettings(b.settings); setLobby(b.lobby)
       if (b.platform === 'darwin') document.body.classList.add('mac')
     })
   }, [])
+
+  // Appearance: apply on every change, and when the system flips light/dark.
+  useEffect(() => {
+    if (!appearance) return
+    applyAppearance(appearance)
+    return onSystemScheme(() => applyAppearance(appearance))
+  }, [appearance])
 
   const refreshTop = useCallback(async () => {
     const [m, p, md] = await Promise.all([api('me'), api('profile'), api('modes')])
@@ -57,7 +66,7 @@ function App () {
 
   const pickMode = (m) => { setMode(m); try { localStorage.setItem('mode', m) } catch {} }
 
-  if (!boot || !me || !modes || !settings) return null
+  if (!boot || !me || !modes || !settings || !appearance) return null
   const allModes = { ...modes, all: [...modes.modes, ...modes.topics, ...modes.playlists, ...modes.friendPlaylists] }
   const lvl = me.level
   const pct = lvl.into / lvl.step
@@ -82,8 +91,8 @@ function App () {
         <button className='levelchip' onClick={() => setTab('collection')} title={`${lvl.into} / ${lvl.step} XP`}>
           <span className='ring'>
             <svg viewBox='0 0 40 40' aria-hidden='true'>
-              <circle cx='20' cy='20' r='17' fill='none' stroke='var(--ink)' strokeWidth='4' />
-              <circle cx='20' cy='20' r='17' fill='none' stroke='var(--brass)' strokeWidth='4' strokeLinecap='round' strokeDasharray={`${pct * 106.8} 106.8`} style={{ transition: 'stroke-dasharray .6s' }} />
+              <circle cx='20' cy='20' r='17' fill='none' stroke='var(--panel)' strokeWidth='4' />
+              <circle cx='20' cy='20' r='17' fill='none' stroke='var(--accent)' strokeWidth='4' strokeLinecap='round' strokeDasharray={`${pct * 106.8} 106.8`} style={{ transition: 'stroke-dasharray .6s' }} />
             </svg>
             <b>{lvl.level}</b>
           </span>
@@ -104,7 +113,7 @@ function App () {
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
           <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby'} events={events} />
         </div>
-        {tab === 'settings' && <Settings me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
+        {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
       </main>
 
       {!me.hasChosenName && <Welcome onDone={(m) => { setMe(m); refreshTop() }} />}

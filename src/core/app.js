@@ -3,6 +3,7 @@
 // in. The Electron main process wraps this in IPC; the tests drive it
 // directly, two or three at a time on a local test network.
 
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { EventEmitter } from 'node:events'
@@ -14,6 +15,7 @@ import { Game } from './game.js'
 import { Friends } from './friends.js'
 import { LobbyHost, LobbyClient, LOBBY_ROUNDS, LOBBY_TIMERS, REACTIONS } from './lobby.js'
 import { XP } from '../shared/progress.js'
+import { normalizeAppearance } from '../shared/appearance.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const WORDS_FILE = path.join(here, '..', '..', 'data', 'words.json.gz')
@@ -67,6 +69,26 @@ export class WirdApp extends EventEmitter {
     this.game._refreshProfile()
     this.lobby?.setProfile({ name: me.name, color: me.color })
     return this.me()
+  }
+
+  // How the app looks on this computer (appearance.json). Never shared.
+  appearance () {
+    if (!this._appearance) {
+      let saved = {}
+      try { saved = JSON.parse(fs.readFileSync(path.join(this.dataDir, 'appearance.json'), 'utf8')) } catch {}
+      this._appearance = normalizeAppearance(saved)
+    }
+    return this._appearance
+  }
+
+  // patch may be partial: { dark: { accent } } keeps everything else.
+  setAppearance (patch = {}) {
+    const cur = this.appearance()
+    const merged = { ...cur, ...patch }
+    for (const k of ['dark', 'light', 'fonts']) if (patch[k]) merged[k] = { ...cur[k], ...patch[k] }
+    this._appearance = normalizeAppearance(merged)
+    fs.writeFileSync(path.join(this.dataDir, 'appearance.json'), JSON.stringify(this._appearance, null, 2))
+    return this._appearance
   }
 
   settingsView () {
