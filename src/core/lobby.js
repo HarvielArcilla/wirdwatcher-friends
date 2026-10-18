@@ -21,7 +21,7 @@
 // word, so lobbies feed your collection, XP and badges.
 //
 // Scoring is for being in tune with the table: each round you score up to 100
-// for how close you were to everyone else's average. Hive mind (everyone
+// for how close you were to everyone else's average (losing 25 per point off). Hive mind (everyone
 // within 0.5) and hot take (2.0 away from everyone) are called out.
 
 import { EventEmitter } from 'node:events'
@@ -43,7 +43,7 @@ const lobbyProof = (connKey, hostKey) => `wirdwatcher/v2/lobby|${connKey}|${host
 export function closeness (r, others) {
   if (!others.length) return 0
   const mean = others.reduce((a, b) => a + b, 0) / others.length
-  return Math.round(100 * Math.max(0, 1 - Math.abs(r - mean) / 2.5))
+  return Math.round(100 * Math.max(0, 1 - Math.abs(r - mean) / 4))
 }
 
 const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 24) || 'Guest'

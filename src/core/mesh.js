@@ -87,7 +87,9 @@ export class Mesh extends EventEmitter {
     if (this.lan && server) this.lan.announce()
     if (!this.swarm) return
     entry.discovery = this.swarm.join(topic, { server, client })
-    await entry.discovery.flushed().catch(() => {})
+    // Announcing can take a while (or never finish with no internet); the
+    // same Wi-Fi works meanwhile, so wait a little at most.
+    await Promise.race([entry.discovery.flushed().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 3000).unref?.())])
   }
 
   async leave (topic) {

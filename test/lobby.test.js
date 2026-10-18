@@ -6,7 +6,7 @@ import { closeness, summarize } from '../src/core/lobby.js'
 test('closeness scores up to 100 for matching the table', () => {
   assert.equal(closeness(4, [4, 4]), 100)
   assert.equal(closeness(0, [5]), 0)
-  assert.equal(closeness(3, [4]), 60)
+  assert.equal(closeness(3, [4]), 75)
 })
 
 test('three players rate together; ratings stay hidden until everyone locks in', async (t) => {

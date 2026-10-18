@@ -76,7 +76,13 @@ export function typeRating (text) {
   return `${a}.${digits[1]}`
 }
 
-export const ratingValue = (text) => /^[0-5]\.[0-9]$/.test(text) && Number(text) <= 5 ? Number(text) : null
+// "4.7" → 4.7, and "4." → 4.0, so one key and Enter is enough.
+export function ratingValue (text) {
+  const m = /^([0-5])\.([0-9]?)$/.exec(String(text || ''))
+  if (!m) return null
+  const v = Number(`${m[1]}.${m[2] || 0}`)
+  return v <= 5 ? v : null
+}
 export const formatRating = (r) => (Math.round(r * 10) / 10).toFixed(1)
 
 // Nudges a rating by delta, staying within 0.0–5.0.

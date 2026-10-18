@@ -60,7 +60,8 @@ export class Friends extends EventEmitter {
     await this.mesh.start()
     this.mesh.on('connection', (socket, remote) => this._link(socket, remote))
     this.store.on('records', this._onRecords)
-    await Promise.all(this.store.listFriends().map((f) => this.mesh.join(friendTopic(f.pairSecret))))
+    // Not awaited: the window can open while the network finds friends.
+    for (const f of this.store.listFriends()) this.mesh.join(friendTopic(f.pairSecret)).catch(() => {})
   }
 
   async stop () {
