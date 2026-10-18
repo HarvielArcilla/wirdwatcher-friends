@@ -21,6 +21,7 @@
 import dgram from 'node:dgram'
 import net from 'node:net'
 import crypto from 'node:crypto'
+import os from 'node:os'
 import SecretStream from '@hyperswarm/secret-stream'
 
 const MAGIC = Buffer.from('WWL2')
@@ -61,10 +62,35 @@ export class LanTransport {
       this.udp.bind({ port: this.port, exclusive: false }, () => { this.udp.off('error', reject); resolve() })
     })
     this.udp.on('error', () => {}) // later network hiccups: stay quiet
-    try { this.udp.addMembership(this.group); this.udp.setMulticastLoopback(true) } catch {}
+    try { this.udp.setMulticastLoopback(true) } catch {}
+    this._join()
     this.timer = setInterval(() => this.announce(), this.intervalMs)
     this.timer.unref?.()
     this.announce()
+  }
+
+  // Every IPv4 interface, loopback included. Joining and announcing on each
+  // one (not just the system's default) matters on computers with a VPN or
+  // several adapters, where the default route isn't the Wi-Fi.
+  _interfaces () {
+    const out = []
+    for (const list of Object.values(os.networkInterfaces())) {
+      for (const a of list || []) if (a.family === 'IPv4' || a.family === 4) out.push(a.address)
+    }
+    return out.length ? out : ['127.0.0.1']
+  }
+
+  _join () {
+    const ifaces = this._interfaces()
+    const key = ifaces.join(',')
+    if (key === this._joined) return
+    for (const addr of ifaces) {
+      if (this._joinedSet?.has(addr)) continue
+      try { this.udp.addMembership(this.group, addr) } catch {}
+    }
+    try { this.udp.addMembership(this.group) } catch {} // and the default, for good measure
+    this._joinedSet = new Set(ifaces)
+    this._joined = key
   }
 
   announce () {
@@ -78,8 +104,20 @@ export class LanTransport {
       head.writeUInt16BE(this.server.address().port, 36)
       nonce.copy(head, 38)
       const tags = topics.slice(i, i + MAX_TAGS).map((t) => tagFor(t, nonce))
-      try { this.udp.send(Buffer.concat([head, ...tags]), this.port, this.group, () => {}) } catch {}
+      const packet = Buffer.concat([head, ...tags])
+      // Out of every interface: the network you share with a friend may not
+      // be the one the system would pick.
+      // One at a time: the interface applies to the next send, and sends
+      // are asynchronous.
+      const ifaces = this._interfaces()
+      const next = (i) => {
+        if (i >= ifaces.length || this.closed) return
+        try { this.udp.setMulticastInterface(ifaces[i]) } catch {}
+        try { this.udp.send(packet, this.port, this.group, () => next(i + 1)) } catch { next(i + 1) }
+      }
+      next(0)
     }
+    this._join() // Wi-Fi changed, a VPN came up: pick up new interfaces
   }
 
   _onAnnounce (msg, from) {
