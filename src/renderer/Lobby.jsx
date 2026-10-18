@@ -70,6 +70,10 @@ function around (i, n, rx, ry) {
   return { left: `${50 + Math.cos(a) * rx}%`, top: `${50 + Math.sin(a) * ry}%` }
 }
 
+// Is this element somewhere you type words (chat, the hive finder)? Keys
+// pressed there stay there; everywhere else, they go to the table.
+const typingIn = (el) => Boolean(el && ((el.tagName === 'INPUT' && !el.readOnly) || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable))
+
 const list = (xs) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
 function Table ({ lobby, choices, active, events, settings }) {
@@ -81,6 +85,7 @@ function Table ({ lobby, choices, active, events, settings }) {
   const [guess, setGuess] = useState({ high: null, low: null })
   const [details, setDetails] = useState(false)
   const [peek, setPeek] = useState(null) // a word to show in the details panel (a choice being considered)
+  const [chatting, setChatting] = useState(false) // the chat box has the keyboard
   const deadline = useRef(null)
   const me = lobby.players.find((p) => p.me)
   const you = me?.id
@@ -94,8 +99,14 @@ function Table ({ lobby, choices, active, events, settings }) {
   const name = (id) => { const p = lobby.players.find((x) => x.id === id); return p ? (p.me ? 'you' : p.name) : 'someone' }
   const Name = (id) => { const p = lobby.players.find((x) => x.id === id); return p ? (p.me ? 'You' : p.name) : 'Someone' }
 
-  // Resets for each phase of each word.
-  useEffect(() => { setText(''); setGuess({ high: null, low: null }); setPeek(null) }, [lobby.round, phase])
+  // Resets for each phase of each word. The keyboard comes back to the table
+  // too: whatever was focused (the chat, a button, a menu) lets go, so typing a
+  // number always rates. The hive finder keeps it; it's where you type then.
+  useEffect(() => {
+    setText(''); setGuess({ high: null, low: null }); setPeek(null)
+    const el = document.activeElement
+    if (el && el !== document.body && !el.closest?.('.finder')) el.blur?.()
+  }, [lobby.round, phase])
   // Celebrations at the reveal, from the card that earned them.
   useEffect(() => {
     if (phase !== 'reveal' || !res) return
@@ -138,7 +149,7 @@ function Table ({ lobby, choices, active, events, settings }) {
   const lockGuess = () => { if (guess.high && guess.low) act('guess', guess) }
 
   const onKey = useCallback((e) => {
-    if (!active || ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || e.metaKey || e.ctrlKey) return
+    if (!active || typingIn(e.target) || e.metaKey || e.ctrlKey) return
     if (e.repeat && e.key === 'Enter') { e.preventDefault(); return }
     const k = e.key
     if (e.altKey) {
@@ -166,6 +177,7 @@ function Table ({ lobby, choices, active, events, settings }) {
   const left = deadline.current ? Math.max(0, deadline.current - Date.now()) : null
   const total = c ? c.roster.filter((id) => lobby.players.some((p) => p.id === id)).length : lobby.players.length
   const nextCount = lobby.players.filter((p) => p.next).length
+  const notReady = c ? lobby.players.filter((p) => c.roster.includes(p.id) && !p.next).map((p) => p.id) : []
   const r = ratingValue(text)
   const scored = style !== 'classic'
   const timerSecs = lobby.options.timer * (phase === 'choosing' ? 3 : 1)
@@ -179,16 +191,19 @@ function Table ({ lobby, choices, active, events, settings }) {
       return pr === undefined ? null : { v: pr, note: res.points[p.id] ? `+${res.points[p.id]}` : 'guess' }
     }
     if (style === 'hive') {
-      const e = res.entries.find((x) => x.picker === p.id)
-      return e && e.r !== null ? { v: e.r, note: `aim ${formatRating(e.target)}` } : null
+      // What this person gave the word they were handed, and what its
+      // chooser was hoping they'd give it.
+      const e = res.entries.find((x) => x.rater === p.id && x.word)
+      return e && e.r !== null ? { v: e.r, note: `aim ${formatRating(e.target)}`, picker: e.picker, title: `${Name(p.id)} gave “${e.word}” ${formatRating(e.r)}. ${Name(e.picker)} chose it, aiming for ${formatRating(e.target)}.` } : null
     }
     const v = res.ratings[p.id]
     return v === undefined ? null : { v, note: style === 'highlow' && res.points[p.id] ? `+${res.points[p.id]}` : null }
   }
 
   return (
-    <div className='lobby'>
+    <div className='lobby' onClickCapture={(e) => { const b = e.target.closest?.('button'); if (b) setTimeout(() => { if (document.activeElement === b) b.blur() }, 0) }}>
       <section className='lobby-stage' onMouseDown={(e) => { if (!['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) document.activeElement?.blur?.() }}>
+        {lobby.reconnecting && <div className='reconnecting' role='status'>Lost the host for a moment. Reconnecting… your seat is saved.</div>}
         <div className='lobby-top'>
           <span className='round'>
             <span className='mode-chip'>{styleOf(style).emoji} {styleOf(style).name}</span>
@@ -220,10 +235,16 @@ function Table ({ lobby, choices, active, events, settings }) {
           {Array.from({ length: n }, (_, i) => {
             const p = ordered[i]
             const pos = around(i, n, 45, 45)
+            // The seats at the very top and bottom lie flat (name beside the
+            // face), so they don't reach into the bar above or the text below.
+            const flat = Math.abs(Math.sin(Math.PI / 2 + (i / n) * Math.PI * 2)) > 0.92
             const cardPos = around(i, n, 26, 25)
             if (!p) return <div key={`e${i}`} className='seat empty' style={pos}><span className='avatar' /><span className='sname'>Open seat</span></div>
             const inRound = c && c.roster.includes(p.id)
             const face = phase === 'reveal' ? cardFor(p) : null
+            // In hive mind a card is lit by how well its chooser aimed.
+            const cardHi = style === 'hive' ? Boolean(face && res?.best?.includes(face.picker)) : null
+            const cardLo = style === 'hive' ? Boolean(face && res?.worst?.includes(face.picker)) : null
             const showCard = inRound && phase !== 'waiting' && phase !== 'results' && !(style === 'hotseat' && phase === 'picking')
             const hi = res?.highest?.includes(p.id)
             const lo = res?.lowest?.includes(p.id)
@@ -234,29 +255,36 @@ function Table ({ lobby, choices, active, events, settings }) {
             const clickable = phase === 'guessing' && iMustAct && guessIndex >= 0
             return [
               showCard && (
-                <div key={`c${p.id}`} data-card={p.id} className={`card ${p.locked || phase === 'guessing' ? 'locked' : ''} ${face ? 'flip' : ''} ${face && (hi || best) ? 'card-hi' : ''} ${face && (lo || worst) ? 'card-lo' : ''} ${face && face.v <= 0.5 && settings?.animations !== 'off' ? 'crack' : ''} ${style === 'hotseat' && p.id === c.seat ? 'card-seat' : ''}`} style={cardPos}>
+                <div key={`c${p.id}`} data-card={p.id} className={`card ${p.locked || phase === 'guessing' ? 'locked' : ''} ${face ? 'flip' : ''} ${face && (cardHi ?? (hi || best)) ? 'card-hi' : ''} ${face && (cardLo ?? (lo || worst)) ? 'card-lo' : ''} ${face && face.v <= 0.5 && settings?.animations !== 'off' ? 'crack' : ''} ${style === 'hotseat' && p.id === c.seat ? 'card-seat' : ''}`} style={cardPos} title={face?.title}>
                   <div style={{ transitionDelay: `${i * 90}ms` }}>
                     <div className='back'>{p.locked || phase === 'guessing' ? '✓' : ''}</div>
                     <div className='face' style={face ? { '--rc': ratingColor(face.v) } : undefined}>{face ? formatRating(face.v) : ''}{face?.note && <small>{face.note}</small>}</div>
                   </div>
                 </div>
               ),
-              <div key={p.id} className={`seat ${clickable ? 'pickable' : ''} ${guess.high === p.id ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${style === 'hotseat' && c && p.id === c.seat ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => pickGuess(p.id) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `Guess ${p.me ? 'yourself' : p.name}` : undefined}>
+              <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${style === 'hotseat' && c && p.id === c.seat ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => pickGuess(p.id) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `Guess ${p.me ? 'yourself' : p.name}` : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
                 {clickable && <span className='seat-key'>{guessIndex + 1}</span>}
                 <Avatar name={p.name} color={p.color} />
-                <span className='sname'>{p.me ? 'You' : p.name}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
-                <span className='slvl'>{style === 'hotseat' && c && phase !== 'results' && p.role ? (p.role === 'seat' ? 'in the hot seat' : 'picking') : `Level ${p.level}`}</span>
-                {phase !== 'waiting' && scored && <span className='pts'>{p.score} pts</span>}
-                {guess.high === p.id && phase === 'guessing' && <span className='tag hi'>your highest</span>}
-                {guess.low === p.id && phase === 'guessing' && <span className='tag lo'>your lowest</span>}
-                {phase === 'reveal' && hi && <span className='tag hi'>highest</span>}
-                {phase === 'reveal' && lo && <span className='tag lo'>lowest</span>}
-                {phase === 'reveal' && best && <span className='tag hi'>{style === 'hive' ? 'closest' : 'best guess'}</span>}
-                {phase === 'reveal' && worst && <span className='tag lo'>furthest</span>}
-                {phase === 'reveal' && res?.hotTake === p.id && <span className='tag'>hot take</span>}
-                {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
-                {phase === 'reveal' && p.next && <span className='tag ok'>ready</span>}
+                <div className='seat-text'>
+                  <span className='sname'>{p.me ? 'You' : p.name}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
+                  <span className='slvl'>
+                    {style === 'hotseat' && c && phase !== 'results' && p.role ? (p.role === 'seat' ? 'in the hot seat' : 'picking') : `Level ${p.level}`}
+                    {phase !== 'waiting' && scored && <b className='pts'> · {p.score} pts</b>}
+                  </span>
+                  <span className='seat-tags'>
+                    {p.away && <span className='tag away'>reconnecting…</span>}
+                    {guess.high === p.id && phase === 'guessing' && <span className='tag hi'>your highest</span>}
+                    {guess.low === p.id && phase === 'guessing' && <span className='tag lo'>your lowest</span>}
+                    {phase === 'reveal' && hi && <span className='tag hi'>highest</span>}
+                    {phase === 'reveal' && lo && <span className='tag lo'>lowest</span>}
+                    {phase === 'reveal' && best && <span className='tag hi'>{style === 'hive' ? 'closest aim' : 'best guess'}</span>}
+                    {phase === 'reveal' && worst && <span className='tag lo'>{style === 'hive' ? 'furthest aim' : 'furthest'}</span>}
+                    {phase === 'reveal' && res?.hotTake === p.id && <span className='tag'>hot take</span>}
+                    {phase === 'reveal' && p.next && <span className='tag ok'>ready</span>}
+                  </span>
+                  {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
+                </div>
                 {lobby.isHost && !p.me && phase === 'waiting' && <button className='btn small ghost' onClick={() => act('kick', p.id)}>Remove</button>}
               </div>
             ]
@@ -266,10 +294,10 @@ function Table ({ lobby, choices, active, events, settings }) {
         <div className='lobby-bottom'>
           {rating && (
             <>
-              <input className={`rating-input ${locked ? 'locked' : ''}`} value={text} readOnly placeholder='0.0' aria-label={predicting ? 'Your prediction' : 'Your rating'} style={{ color: r !== null ? ratingColor(r) : undefined }} />
+              <div className={`rating-input ${locked ? 'locked' : ''} ${text ? '' : 'empty'} ${chatting ? 'away' : ''}`} role='status' aria-label={predicting ? 'Your prediction' : 'Your rating'} style={{ color: r !== null ? ratingColor(r) : undefined }}>{text || '0.0'}</div>
               <div className='rate-help'>
                 <span className='prompt'>{predicting ? <>What will <b>{name(c.seat)}</b> give it?</> : style === 'hotseat' ? 'You’re in the hot seat. Rate it honestly.' : style === 'hive' ? 'Rate the word you were given. You don’t know who chose it, or why.' : 'Your rating'}</span>
-                {locked ? <span>Locked in. <Kbd>Backspace</Kbd> to change it.</span> : r !== null ? <span><Kbd>Enter</Kbd> to lock in <b>{text}</b></span> : <span>Type a number out of 5</span>}
+                {chatting ? <span className='warn'>Your keys are going to the chat. <Kbd>Esc</Kbd> to rate.</span> : locked ? <span>Locked in. <Kbd>Backspace</Kbd> to change it.</span> : r !== null ? <span><Kbd>Enter</Kbd> to lock in <b>{text}</b></span> : <span>Type a number out of 5</span>}
                 <span>Waiting on {[...waiting].map(name).join(', ') || 'nobody'}</span>
               </div>
             </>
@@ -286,7 +314,7 @@ function Table ({ lobby, choices, active, events, settings }) {
           {phase === 'choosing' && <div className='rate-help' style={{ textAlign: 'center' }}><span>{waiting.has(you) ? <>Find your word in the panel on the right. <Kbd>↑</Kbd> <Kbd>↓</Kbd> to look, <Kbd>Enter</Kbd> to choose.</> : <>Chosen: <b>{mine.pick}</b>. Pick another to change it.</>}</span><span>Waiting on {[...waiting].map(name).join(', ') || 'nobody'}</span></div>}
           {phase === 'reveal' && (
             <div className='rate-help' style={{ textAlign: 'center' }}>
-              <span>{me?.next ? `Waiting for ${total - nextCount} more` : <><Kbd>Enter</Kbd> when you’re ready for the next word{style === 'classic' ? ', after you’ve talked it over' : ''}</>}</span>
+              <span>{me?.next ? <>Waiting on {list(notReady.map(name))}{lobby.isHost && <> <button className='btn small ghost' onClick={() => act('advance')}>Go on without them</button></>}</> : <><Kbd>Enter</Kbd> when you’re ready for the next word{style === 'classic' ? ', after you’ve talked it over' : ''}</>}</span>
               <span>{nextCount} of {total} ready</span>
             </div>
           )}
@@ -354,11 +382,12 @@ function Table ({ lobby, choices, active, events, settings }) {
             const who = p ? (p.me ? 'You' : p.name) : (e.name || 'Someone')
             if (e.kind === 'join') return <div key={i} className='sys'>{who} sat down.</div>
             if (e.kind === 'leave') return <div key={i} className='sys'>{who} left.</div>
+            if (e.kind === 'back') return <div key={i} className='sys'>{who} reconnected.</div>
             return <div key={i}><b style={{ color: p?.color }}>{who}</b> {e.text}</div>
           })}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); if (chat.trim()) { act('chat', chat); setChat('') } e.currentTarget.querySelector('input')?.blur() }}>
-          <input className='field' value={chat} maxLength={140} onChange={(e) => setChat(e.target.value)} placeholder='Say something to the table' onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur() }} />
+          <input className='field' value={chat} maxLength={140} onChange={(e) => setChat(e.target.value)} placeholder='Say something to the table' onFocus={() => setChatting(true)} onBlur={() => setChatting(false)} onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur() }} />
         </form>
       </aside>
     </div>
@@ -457,7 +486,10 @@ function WordBlock ({ w, info }) {
   return (
     <>
       <div className='tword' key={w} style={{ fontSize: wordSize(w, 64, 26) }}>{w}</div>
-      {info?.ipa?.[0] && <div className='tipa'>/{info.ipa[0]}/</div>}
+      <div className='tipa'>
+        <button className='say' onClick={() => speak(w)} title='Hear it (Space)' aria-label={`Hear “${w}”`}><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'><path d='M11 5 6 9H3v6h3l5 4z' /><path d='M15.5 8.5a5 5 0 0 1 0 7' /><path d='M18.5 5.5a9 9 0 0 1 0 13' /></svg></button>
+        {info?.ipa?.[0] && <span>/{info.ipa[0]}/</span>}
+      </div>
       {info?.senses?.[0] && <div className='tdef'><i className='tpos'>{info.senses[0].posName}</i> {info.senses[0].def}</div>}
     </>
   )
@@ -567,9 +599,9 @@ function Verdict ({ word, res, name, style }) {
       <div className='tmean' style={{ color: ratingColor(res.mean) }}>{res.mean === null ? '–' : formatRating(res.mean)}</div>
       <div className='tverdict'>{verdict}</div>
       {hiR !== null && (
-        <div className='extremes'>
-          <span><b style={{ color: ratingColor(hiR) }}>{formatRating(hiR)}</b> highest, {list(res.highest.map(name))}</span>
-          <span><b style={{ color: ratingColor(loR) }}>{formatRating(loR)}</b> lowest, {list(res.lowest.map(name))}</span>
+        <div className='extremes one'>
+          <span title='Highest'>↑ <b style={{ color: ratingColor(hiR) }}>{formatRating(hiR)}</b>{list(res.highest.map(name))}</span>
+          <span title='Lowest'>↓ <b style={{ color: ratingColor(loR) }}>{formatRating(loR)}</b>{list(res.lowest.map(name))}</span>
         </div>
       )}
       {style === 'classic' && hiR !== null && hiR - loR >= 1.5 && <div className='tsub talk'>{res.highest.length === 1 ? name(res.highest[0]) : 'The highs'} and {res.lowest.length === 1 ? name(res.lowest[0]) : 'the lows'}, explain yourselves.</div>}

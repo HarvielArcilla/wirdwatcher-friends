@@ -18,6 +18,14 @@ import { EventEmitter } from 'node:events'
 import Hyperswarm from 'hyperswarm'
 import hcrypto from 'hypercore-crypto'
 import { LanTransport } from './lan.js'
+import { netlog, short } from './netlog.js'
+
+// A link that has been silent this long is dead, whatever the socket thinks.
+// Both transports send a small keepalive every few seconds, so a live link is
+// never this quiet; a path that stopped passing data (a router dropped it, a
+// laptop slept) would otherwise sit "open" forever, swallowing messages.
+export const KEEPALIVE_MS = 4000
+export const DEAD_AFTER_MS = 16000
 
 export class Mesh extends EventEmitter {
   // swarm: Hyperswarm options, or a function returning them (tests pass a
@@ -26,8 +34,10 @@ export class Mesh extends EventEmitter {
   //   true while nobody is connected for that topic, so it gets looked up
   //   again every refreshMs (two peers joining at the same moment can miss
   //   each other otherwise).
-  constructor ({ keyPair = hcrypto.keyPair(), swarm = {}, internet = true, lan = {}, accept = () => true, isLonely = () => true, refreshMs = 15000 } = {}) {
+  constructor ({ keyPair = hcrypto.keyPair(), swarm = {}, internet = true, lan = {}, accept = () => true, isLonely = () => true, refreshMs = 15000, label = 'mesh', deadAfterMs = DEAD_AFTER_MS } = {}) {
     super()
+    this.label = label
+    this.deadAfterMs = deadAfterMs
     this.keyPair = keyPair
     this.publicKey = keyPair.publicKey.toString('hex')
     this.accept = accept
@@ -37,9 +47,12 @@ export class Mesh extends EventEmitter {
     if (internet) {
       const opts = typeof swarm === 'function' ? swarm() : swarm
       this.swarm = new Hyperswarm({ ...opts, keyPair, firewall: (remote) => !this.accept(remote.toString('hex')) })
-      this.swarm.on('connection', (socket) => this._connection(socket, socket.remotePublicKey.toString('hex')))
-      this.swarm.on('error', () => {})
+      this.swarm.on('connection', (socket) => this._connection(socket, socket.remotePublicKey.toString('hex'), 'internet'))
+      this.swarm.on('error', (err) => netlog(this.label, 'swarm error', err?.code || err?.message))
+      const dht = this.swarm.dht
+      dht.ready?.().then(() => netlog(this.label, `internet ready: firewalled=${dht.firewalled} nat-randomized=${dht.randomized}`)).catch((err) => netlog(this.label, 'internet not ready', err?.code || err?.message))
     }
+    netlog(this.label, `start (${internet ? 'internet' : 'no internet'}, ${lan ? 'same network' : 'no same network'})`)
     this.lanOpts = lan
     this._timer = setInterval(() => this.refresh(), refreshMs)
     this._timer.unref?.()
@@ -50,23 +63,29 @@ export class Mesh extends EventEmitter {
       this.lan = new LanTransport({
         keyPair: this.keyPair,
         topics: () => [...this.topics.values()].map((t) => t.topic),
-        onConnection: (stream, remote) => this._connection(stream, remote),
+        onConnection: (stream, remote) => this._connection(stream, remote, 'same network'),
         isConnected: (remote) => this.connected(remote),
         accept: (remote) => this.accept(remote),
         ...this.lanOpts
       })
-      try { await this.lan.start() } catch { await this.lan.destroy().catch(() => {}); this.lan = null } // port busy: internet only
+      try { await this.lan.start() } catch (err) { netlog(this.label, 'same-network discovery off:', err?.code || err?.message); await this.lan.destroy().catch(() => {}); this.lan = null } // port busy: internet only
     }
     return this
   }
 
-  _connection (socket, remote) {
+  _connection (socket, remote, via = 'internet') {
     socket.on('error', () => {})
-    if (!this.accept(remote)) { socket.destroy(); return }
+    if (!this.accept(remote)) { netlog(this.label, 'turned away', short(remote)); socket.destroy(); return }
+    try { socket.setKeepAlive?.(KEEPALIVE_MS) } catch {}
+    try { socket.setTimeout?.(this.deadAfterMs) } catch {}
+    const since = Date.now()
+    netlog(this.label, 'connected', short(remote), 'over', via)
     let set = this.sockets.get(remote)
     if (!set) this.sockets.set(remote, set = new Set())
     set.add(socket)
     socket.once('close', () => {
+      const err = socket.destroyed && (socket.error || socket._readableState?.errored || socket._writableState?.errored)
+      netlog(this.label, 'closed', short(remote), `after ${Math.round((Date.now() - since) / 1000)}s`, err ? `(${err.code || err.message})` : '')
       set.delete(socket)
       if (!set.size) this.sockets.delete(remote)
       this.emit('disconnect', remote)
@@ -84,6 +103,7 @@ export class Mesh extends EventEmitter {
     if (this.topics.has(hex)) return
     const entry = { topic, opts: { server, client }, discovery: null }
     this.topics.set(hex, entry)
+    netlog(this.label, 'looking on', short(hex), server && client ? '(both ways)' : server ? '(waiting to be found)' : '(searching)')
     if (this.lan && server) this.lan.announce()
     if (!this.swarm) return
     entry.discovery = this.swarm.join(topic, { server, client })

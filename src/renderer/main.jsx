@@ -92,7 +92,7 @@ function App () {
   const pickMode = (m) => { setMode(m); try { localStorage.setItem('mode', m) } catch {} }
 
   if (!boot || !me || !modes || !settings || !appearance) return null
-  const allModes = { ...modes, all: [...modes.modes, ...modes.topics, ...modes.playlists, ...modes.friendPlaylists] }
+  const allModes = { ...modes, all: [...modes.modes, ...modes.topics, ...modes.playlists, ...modes.friendPlaylists, ...(modes.friendWords || [])] }
   const lvl = me.level
   const pct = lvl.into / lvl.step
   const onlineFriends = friends.filter((f) => f.online).length
@@ -138,7 +138,7 @@ function App () {
           <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play' && !searching} />
         </div>
         {tab === 'collection' && <Collection profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
-        {tab === 'friends' && <Friends friends={friends} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
+        {tab === 'friends' && <Friends friends={friends} profile={profile} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
           <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} />
         </div>

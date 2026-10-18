@@ -48,6 +48,11 @@ import { channel } from './channel.js'
 import { codeKeys, newLobbyCode, parseLobbyCode, normalizeCode } from './crypto.js'
 import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
+import { netlog, short } from './netlog.js'
+
+// How long a player who lost their connection keeps their seat while their
+// computer reconnects.
+export const SEAT_GRACE_MS = 45000
 
 const PROTOCOL = 3
 export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive']
@@ -127,7 +132,8 @@ export class LobbyHost extends EventEmitter {
       lan: this.settings.get('lan') ? this.lanOpts : false,
       accept: (remote) => !this.banned.has(remote) && !this.closed,
       isLonely: () => true,
-      refreshMs: 10000
+      refreshMs: 10000,
+      label: 'lobby (hosting)'
     })
     await this.mesh.start()
     this.mesh.on('connection', (socket, remote) => this._connection(socket, remote))
@@ -136,8 +142,10 @@ export class LobbyHost extends EventEmitter {
     return this
   }
 
+  // Every connection is heard out, even from someone already seated: the
+  // newest one they join on replaces the old (theirs may have died without
+  // either side noticing, or the network replaced it with a better path).
   _connection (socket, remote) {
-    if (this.links.has(remote)) { socket.destroy(); return } // already here (Wi-Fi and internet both reached me)
     const rate = { window: Date.now(), count: 0 }
     const send = channel(socket, {
       key: this.key,
@@ -159,10 +167,25 @@ export class LobbyHost extends EventEmitter {
     if (msg.type === 'join') {
       if (this.players.has(id) && this.links.get(id) === send) return
       if (Number(msg.v) !== PROTOCOL) { send({ type: 'closed', reason: 'That lobby is running a different version of wirdwatcher. Update both copies.' }); return send.close() }
-      if (this.order.length >= this.max) { send({ type: 'closed', reason: 'That lobby is full.' }); return send.close() }
+      const back = this.order.includes(id)
+      if (!back && this.order.length >= this.max) { send({ type: 'closed', reason: 'That lobby is full.' }); return send.close() }
       let userId = null
       if (/^[0-9a-f]{64}$/.test(String(msg.userId)) && verify(msg.userId, lobbyProof(id, this.hostId), String(msg.sig || ''))) userId = msg.userId
+      const old = this.links.get(id)
       this.links.set(id, send)
+      if (old && old !== send) old.close()
+      const p = this.players.get(id)
+      if (back && p) {
+        // Back on a new connection: same seat, same score, same answers.
+        clearTimeout(p.awayTimer)
+        const wasAway = Boolean(p.away)
+        p.away = null
+        p.awayTimer = null
+        netlog('lobby (hosting)', 'player', short(id), wasAway ? 'reconnected' : 'switched connection')
+        send({ type: 'welcome', you: id, host: this.hostId })
+        if (wasAway) this._event({ kind: 'back', id })
+        return this._changed()
+      }
       this._addPlayer(id, { name: msg.name, color: msg.color, level: msg.level, title: msg.title, userId })
       send({ type: 'welcome', you: id, host: this.hostId })
       this._event({ kind: 'join', id })
@@ -200,6 +223,11 @@ export class LobbyHost extends EventEmitter {
       case 'ready': {
         p.ready = Boolean(msg.ready)
         return this._changed()
+      }
+      case 'leave': {
+        // Leaving on purpose: no seat held.
+        this.links.delete(id)
+        return this._remove(id)
       }
       case 'profile': {
         p.name = cleanName(msg.name)
@@ -345,9 +373,27 @@ export class LobbyHost extends EventEmitter {
     if (!this.order.includes(id)) this.order.push(id)
   }
 
+  // A connection ended. The player keeps their seat for a while in case
+  // their computer is reconnecting; then they're gone.
   _drop (id, send) {
     if (this.links.get(id) !== send) return
     this.links.delete(id)
+    const p = this.players.get(id)
+    if (p && !this.closed && !this.banned.has(id) && this.order.includes(id)) {
+      p.away = Date.now()
+      clearTimeout(p.awayTimer)
+      p.awayTimer = setTimeout(() => { if (p.away && !this.links.has(id)) this._remove(id) }, SEAT_GRACE_MS)
+      p.awayTimer.unref?.()
+      netlog('lobby (hosting)', 'player', short(id), 'lost connection; holding the seat')
+      return this._changed()
+    }
+    this._remove(id)
+  }
+
+  _remove (id) {
+    const p = this.players.get(id)
+    if (p) { clearTimeout(p.awayTimer); p.away = null }
+    if (!this.order.includes(id)) return
     this.order = this.order.filter((x) => x !== id)
     this._event({ kind: 'leave', id, name: this.players.get(id)?.name })
     const c = this.current
@@ -372,6 +418,7 @@ export class LobbyHost extends EventEmitter {
     for (const p of this.players.values()) p.score = 0
     this.history = []
     this.round = 0
+    this.game = (this.game || 0) + 1
     this._nextRound()
   }
 
@@ -386,7 +433,8 @@ export class LobbyHost extends EventEmitter {
     this.banned.add(id)
     const send = this.links.get(id)
     send?.({ type: 'closed', reason: 'The host removed you from the lobby.' })
-    if (send) { this._drop(id, send); send.close() }
+    if (send) { this.links.delete(id); send.close() }
+    this._remove(id)
   }
 
   backToLobby () {
@@ -526,6 +574,7 @@ export class LobbyHost extends EventEmitter {
     if (this.closed) return
     this.closed = true
     clearTimeout(this._timer)
+    for (const p of this.players.values()) clearTimeout(p.awayTimer)
     for (const send of this.links.values()) { send({ type: 'closed', reason }); send.close() }
     setTimeout(() => this.mesh?.destroy().catch(() => {}), 500).unref?.()
     this.emit('closed', { reason: null })
@@ -587,11 +636,12 @@ export class LobbyHost extends EventEmitter {
       max: this.max,
       options: this.options,
       phase: this.phase,
+      game: this.game || 0,
       round: this.round,
       players: this.order.map((id) => {
         const p = this.players.get(id)
         const inRound = Boolean(c && c.roster.includes(id))
-        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
+        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
       }),
       waitingOn: [...waiting],
       current,
@@ -693,49 +743,90 @@ export class LobbyClient extends EventEmitter {
     this.closed = false
   }
 
-  // Resolves once the host has let you in.
-  async start ({ timeoutMs = 45000 } = {}) {
+  // Resolves once the host has let you in. After that, a lost connection is
+  // retried for a while (the host keeps your seat), and a newer connection
+  // to the host always replaces the one in use: the network may have found a
+  // better path, or the old one may be dead without either side knowing.
+  async start ({ timeoutMs = 45000, reconnectMs = SEAT_GRACE_MS - 5000 } = {}) {
     const { topic, key } = codeKeys(parseLobbyCode(this.code))
+    this.key = key
+    this.reconnectMs = reconnectMs
     this.mesh = new Mesh({
       keyPair: this.keyPair,
       swarm: this.swarmOpts,
       internet: this.settings.get('internet'),
       lan: this.settings.get('lan') ? { ...this.lanOpts, announce: false, dialAll: true } : false,
       isLonely: () => !this.send,
-      refreshMs: 2000
+      refreshMs: 2000,
+      label: 'lobby (joining)'
     })
     await this.mesh.start()
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { reject(new Error('Couldn’t find that lobby. Check the code, and that the host still has it open.')); this.leave() }, timeoutMs)
-      this.mesh.on('connection', (socket, remote) => {
-        if (this.send || this.closed) { socket.destroy(); return }
-        const send = channel(socket, {
-          key,
-          maxBytes: 4 * 1024 * 1024,
-          onMessage: (msg) => {
-            if (msg.type === 'closed') { clearTimeout(timer); reject(new Error(msg.reason)); return this._end(msg.reason) }
-            this._message(msg)
-            if (msg.type === 'state') { clearTimeout(timer); resolve() } // in, and we know the table
-          },
-          onClose: () => {
-            if (this.send !== send) return
-            this.send = null
-            if (!this.closed) this._end('Lost the connection to the host.')
-          }
-        })
-        this.send = send
-        const proof = this.me.userId && this.me.sign ? { userId: this.me.userId, sig: this.me.sign(lobbyProof(this.you, remote)) } : {}
-        send({ type: 'join', v: PROTOCOL, name: this.me.name, color: this.me.color, level: this.me.level, title: this.me.title, ...proof })
-      })
+      this._joined = { resolve, reject }
+      this._joinTimer = setTimeout(() => { this._joined = null; reject(new Error('Couldn’t find that lobby. Check the code, and that the host still has it open.')); this.leave() }, timeoutMs)
+      this.mesh.on('connection', (socket, remote) => this._connection(socket, remote))
       this.mesh.join(topic, { server: false, client: true })
     })
     return this
   }
 
+  _connection (socket, remote) {
+    if (this.closed) { socket.destroy(); return }
+    const old = this.send
+    const send = channel(socket, {
+      key: this.key,
+      maxBytes: 4 * 1024 * 1024,
+      onMessage: (msg) => {
+        if (this.send !== send) return
+        if (msg.type === 'closed') {
+          if (this._joined) { clearTimeout(this._joinTimer); this._joined.reject(new Error(msg.reason)); this._joined = null }
+          return this._end(msg.reason)
+        }
+        this._message(msg)
+        if (msg.type === 'state' && this._joined) { clearTimeout(this._joinTimer); this._joined.resolve(); this._joined = null } // in, and we know the table
+      },
+      onClose: () => {
+        if (this.send !== send) return
+        this.send = null
+        if (!this.closed) this._lost()
+      }
+    })
+    this.send = send
+    if (old) old.close() // the newer connection wins
+    this._found()
+    const proof = this.me.userId && this.me.sign ? { userId: this.me.userId, sig: this.me.sign(lobbyProof(this.you, remote)) } : {}
+    send({ type: 'join', v: PROTOCOL, name: this.me.name, color: this.me.color, level: this.me.level, title: this.me.title, ...proof })
+  }
+
+  // The connection to the host dropped: look for it again until the host
+  // would give the seat away.
+  _lost () {
+    if (this._joined) return // still joining: start() is waiting anyway
+    netlog('lobby (joining)', 'lost the host; reconnecting')
+    this.reconnecting = Date.now()
+    this.mesh.refresh()
+    this._emitState()
+    clearTimeout(this._lostTimer)
+    this._lostTimer = setTimeout(() => { if (!this.send) this._end('Lost the connection to the host.') }, this.reconnectMs)
+    this._lostTimer.unref?.()
+  }
+
+  _found () {
+    clearTimeout(this._lostTimer)
+    if (!this.reconnecting) return
+    netlog('lobby (joining)', 'back with the host')
+    this.reconnecting = null
+    this._emitState()
+  }
+
+  _emitState () {
+    if (this.state) this.emit('state', { ...this.state, you: this.you, isHost: false, reconnecting: Boolean(this.reconnecting) })
+  }
+
   _message (msg) {
     if (msg.type === 'state' && msg.state && typeof msg.state === 'object') {
       this.state = msg.state
-      this.emit('state', { ...msg.state, you: this.you, isHost: false })
+      this._emitState()
     } else if (msg.type === 'event' && msg.event) {
       this.emit('event', msg.event)
     }
@@ -744,6 +835,8 @@ export class LobbyClient extends EventEmitter {
   _end (reason) {
     if (this.closed) return
     this.closed = true
+    clearTimeout(this._lostTimer)
+    clearTimeout(this._joinTimer)
     setTimeout(() => this.mesh?.destroy().catch(() => {}), 300).unref?.()
     this.emit('closed', { reason })
   }
@@ -760,6 +853,7 @@ export class LobbyClient extends EventEmitter {
 
   async leave () {
     if (this.closed) return
+    this.send?.({ type: 'leave' })
     this.send?.close()
     this._end(null)
   }

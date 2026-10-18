@@ -25,7 +25,7 @@ export const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', '..'
 
 const SOUND_TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.webm': 'audio/webm' }
 const MAX_SOUND_BYTES = 3 * 1024 * 1024
-const OUR_FILES = new Set(['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'version.json', 'friends', 'sounds', 'backups'])
+const OUR_FILES = new Set(['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'version.json', 'friends', 'sounds', 'backups', 'network.log', 'network.log.1'])
 
 let sharedWords = null // the list is read-only, so copies in one process share it
 
@@ -182,7 +182,7 @@ export class WirdApp extends EventEmitter {
     const view = { ...s, players: s.players.map((p) => ({ ...p, friend: Boolean(p.userId && friendIds.has(p.userId)), me: p.id === s.you })) }
     this.lobbyState = view
     const res = s.current?.result
-    const key = `${s.round}:${s.current?.style}`
+    const key = `${s.game || 0}:${s.round}:${s.current?.style}`
     if (s.phase === 'reveal' && res && !this.lobbyRated.has(key)) {
       this.lobbyRated.add(key)
       const xp = []

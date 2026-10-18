@@ -249,3 +249,79 @@ test('end-of-game awards for each mode', () => {
   assert.ok(summarize([{ style: 'hotseat', seat: 'a', picker: 'b', word: 'cat', r: 5, diffs: { b: 0.1 }, beaten: 0, reaction: true }], players, 'hotseat').awards.some((x) => x.title === 'Knows you best'))
   assert.ok(summarize([{ style: 'hive', entries: [{ picker: 'a', rater: 'b', target: 2, word: 'cat', r: 2.1, diff: 0.1 }, { picker: 'b', rater: 'a', target: 4, word: 'dog', r: 1, diff: 3 }] }], players, 'hive').awards.some((x) => x.title === 'Wildest miss'))
 })
+
+test('a dropped or replaced connection keeps your seat, and your answers still count', async (t) => {
+  const { make } = await network(t)
+  const host = await make()
+  const pip = await make()
+  const state = await host.hostLobby({ rounds: 2, mode: 'everyday', style: 'classic' })
+  await pip.joinLobby(state.code)
+  await until(() => host.lobbyState.players.length === 2)
+  host.lobbyAction('begin')
+  await until(() => pip.lobbyState?.phase === 'rating')
+  const pipId = pip.lobbyState.you
+  const hostLobby = host.lobby
+
+  // 1. The link dies under Pip (as when the network swaps in a new path and
+  //    closes the old one). Pip reconnects; the seat was held.
+  hostLobby.mesh.drop(pipId)
+  await until(() => host.lobbyState.players.find((p) => p.id === pipId)?.away === true || pip.lobbyState?.reconnecting === true, { timeout: 10000 }).catch(() => {})
+  assert.equal(host.lobbyState.players.length, 2, 'seat held while reconnecting')
+  await until(() => host.lobby.links.has(pipId) && !host.lobbyState.players.find((p) => p.id === pipId).away, { timeout: 30000 })
+  await until(() => pip.lobbyState && !pip.lobbyState.reconnecting)
+  pip.lobbyAction('rate', 3.3)
+  host.lobbyAction('rate', 4)
+  await until(() => host.lobbyState.phase === 'reveal')
+  assert.equal(host.lobbyState.current.result.ratings[pipId], 3.3)
+
+  // 2. A second, newer connection to the host: Pip switches to it, and the
+  //    host follows; nothing is lost and nobody leaves.
+  const before = pip.lobby.send
+  const events = []
+  host.on('lobby-event', (e) => events.push(e.kind))
+  const hostKey = host.lobby.hostId
+  const { codeKeys, parseLobbyCode } = await import('../src/core/crypto.js')
+  const { topic } = codeKeys(parseLobbyCode(state.code))
+  pip.lobby.mesh.refresh?.()
+  // Make a fresh connection by dialing the host directly over the DHT.
+  const conn = pip.lobby.mesh.swarm.dht.connect(Buffer.from(hostKey, 'hex'), { keyPair: pip.lobby.keyPair })
+  conn.on('error', () => {})
+  await new Promise((resolve) => conn.once('open', resolve))
+  pip.lobby.mesh._connection(conn, hostKey, 'internet')
+  await until(() => pip.lobby.send !== before)
+  await until(() => host.lobby.links.get(pipId) && host.lobbyState.players.length === 2)
+  pip.lobbyAction('next')
+  host.lobbyAction('next')
+  await until(() => pip.lobbyState.phase === 'rating' && pip.lobbyState.round === 2, { timeout: 15000 })
+  assert.ok(!events.includes('leave'), 'nobody left')
+  void topic
+
+  // 3. Leaving on purpose gives the seat up straight away.
+  await pip.leaveLobby()
+  await until(() => host.lobbyState.players.length === 1, { timeout: 5000 })
+})
+
+test('a link that goes silent is noticed and replaced', async (t) => {
+  const { make } = await network(t)
+  const host = await make()
+  const pip = await make()
+  const state = await host.hostLobby({ rounds: 1, mode: 'everyday' })
+  await pip.joinLobby(state.code)
+  await until(() => host.lobbyState.players.length === 2)
+  const pipId = pip.lobbyState.you
+  // Pip's side stops sending anything at all, like a path that died.
+  const sock = [...pip.lobby.mesh.sockets.values()][0].values().next().value
+  sock.setKeepAlive(0)
+  const send = pip.lobby.send
+  pip.lobby.send = Object.assign(() => true, { close: send.close }) // swallow messages too
+  await until(() => host.lobbyState.players.find((p) => p.id === pipId)?.away, { timeout: 30000 })
+  pip.lobby.send = send
+  // Pip hears the close and comes back on a fresh connection.
+  await until(() => host.lobby.links.has(pipId) && !host.lobbyState.players.find((p) => p.id === pipId).away, { timeout: 40000 })
+  host.lobbyAction('begin')
+  await until(() => pip.lobbyState?.phase === 'rating')
+  pip.lobbyAction('rate', 2.2)
+  host.lobbyAction('rate', 2)
+  await until(() => host.lobbyState.phase === 'reveal')
+  assert.equal(host.lobbyState.current.result.ratings[pipId], 2.2)
+})

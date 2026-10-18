@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { formatRating } from '../shared/progress.js'
-import { api, Avatar, ratingColor, timeAgo, plural, useToast, useInterval } from './ui.jsx'
+import { api, Avatar, timeAgo, plural, useToast, useInterval } from './ui.jsx'
+import FriendProfile from './FriendProfile.jsx'
 
 // Friends: make or use a one-time code, see who's online and what they rated.
-export default function Friends ({ friends, openWord, refreshTop }) {
+export default function Friends ({ friends, openWord, refreshTop, playMode, profile }) {
   const toast = useToast()
   const [code, setCode] = useState(null) // { code, expiresAt }
   const [input, setInput] = useState('')
@@ -33,6 +33,8 @@ export default function Friends ({ friends, openWord, refreshTop }) {
     setBusy(false)
   }
   const left = code ? Math.max(0, code.expiresAt - Date.now()) : 0
+  const viewing = open && friends.find((f) => f.userId === open)
+  if (viewing) return <FriendProfile userId={open} online={viewing.online} myProfile={profile} openWord={openWord} playMode={playMode} refreshTop={refreshTop} onBack={() => setOpen(null)} />
 
   return (
     <div className='page'>
@@ -68,7 +70,7 @@ export default function Friends ({ friends, openWord, refreshTop }) {
           {!friends.length && <div className='empty-state' style={{ marginTop: 40 }}><div className='big'>🫂</div><p>No friends yet. Make a code and send it to someone you’d like to compare words with.</p></div>}
           {friends.map((f) => (
             <div key={f.userId}>
-              <div className='friend-row'>
+              <div className='friend-row openable' onClick={(e) => { if (!e.target.closest('button')) setOpen(f.userId) }} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setOpen(f.userId) }} aria-label={`${f.name}’s profile`}>
                 <Avatar name={f.name} color={f.color}><i className={f.online ? 'on' : ''} /></Avatar>
                 <div>
                   <strong>{f.name}</strong>
@@ -76,27 +78,14 @@ export default function Friends ({ friends, openWord, refreshTop }) {
                   <small className='match'>{f.match?.pct != null ? <><b style={{ color: f.match.pct >= 80 ? 'var(--good)' : f.match.pct < 55 ? 'var(--bad)' : 'var(--mid)' }}>{f.match.pct}%</b> taste match over {plural(f.match.shared, 'word')} you both rated</> : f.match?.shared ? `${f.match.shared} of 5 shared words for a taste match` : 'Rate the same words to see your taste match'}</small>
                 </div>
                 <span>
-                  <button className='btn small ghost' onClick={() => setOpen(open === f.userId ? null : f.userId)}>{open === f.userId ? 'Hide' : 'Their words'}</button>
+                  <button className='btn small ghost' onClick={() => setOpen(f.userId)}>Profile</button>
                   <button className='btn small ghost danger' onClick={async () => { if (window.confirm?.(`Remove ${f.name}? You’ll both stop getting each other’s ratings.`) !== false) { await api('removeFriend', f.userId); refreshTop() } }}>Remove</button>
                 </span>
               </div>
-              {open === f.userId && <TheirWords id={f.userId} openWord={openWord} />}
             </div>
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function TheirWords ({ id, openWord }) {
-  const [list, setList] = useState(null)
-  useEffect(() => { api('friendRatings', id).then((l) => setList(l.sort((a, b) => b.t - a.t))) }, [id])
-  if (!list) return null
-  if (!list.length) return <p className='lede' style={{ margin: '10px 0' }}>Nothing from them yet. It arrives the next time you’re both online.</p>
-  return (
-    <div className='wordcloud' style={{ padding: '12px 0 4px' }}>
-      {list.slice(0, 80).map((x) => <button key={x.word} className='chip' onClick={() => openWord(x.word)}>{x.word} <span className='r' style={{ color: ratingColor(x.r) }}>{formatRating(x.r)}</span></button>)}
     </div>
   )
 }

@@ -55,7 +55,8 @@ export class Friends extends EventEmitter {
       internet: this.settings.get('internet'),
       lan: this.settings.get('lan') ? this.lanOpts : false,
       accept: (remote) => Boolean(this.store.friend(remote)),
-      isLonely: (topicHex) => !this._topicOnline(topicHex)
+      isLonely: (topicHex) => !this._topicOnline(topicHex),
+      label: 'friends'
     })
     await this.mesh.start()
     this.mesh.on('connection', (socket, remote) => this._link(socket, remote))
@@ -133,7 +134,7 @@ export class Friends extends EventEmitter {
     if (this.store.listFriends().length >= this.settings.get('maxFriends')) throw new Error('You’re at your friend limit (Settings → Friends).')
     const code = newFriendCode()
     const { topic, key } = codeKeys(parseFriendCode(code))
-    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? this.lanOpts : false })
+    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? this.lanOpts : false, label: 'friend code (made)' })
     const expiresAt = Date.now() + this.settings.get('friendCodeMinutes') * 60000
     const pairing = this.pairing = { code, mesh, expiresAt }
     pairing.timer = setTimeout(() => { if (this.pairing === pairing) { this.cancelCode(); this.emit('code', { code, expired: true }) } }, expiresAt - Date.now())
@@ -169,7 +170,7 @@ export class Friends extends EventEmitter {
     if (this.store.listFriends().length >= this.settings.get('maxFriends')) throw new Error('You’re at your friend limit (Settings → Friends).')
     if (this.pairing?.code && parseFriendCode(this.pairing.code).equals(secret)) throw new Error('That’s your own code. Send it to a friend.')
     const { topic, key } = codeKeys(secret)
-    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? { ...this.lanOpts, announce: false, dialAll: true } : false, refreshMs: 2000 })
+    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? { ...this.lanOpts, announce: false, dialAll: true } : false, refreshMs: 2000, label: 'friend code (used)' })
     await mesh.start()
     try {
       return await new Promise((resolve, reject) => {
@@ -217,12 +218,15 @@ export class Friends extends EventEmitter {
         const name = String(msg.name || '').slice(0, 24) || `Watcher ${userId.slice(0, 4).toUpperCase()}`
         const color = /^#[0-9a-f]{6}$/i.test(msg.color) ? msg.color : '#e8c686'
         const old = this.store.friend(userId)
-        if (old) await this.mesh?.leave(friendTopic(old.info.pairSecret))
         const friend = this.store.addFriend({ userId, name, color, pairSecret })
-        await this.mesh?.join(friendTopic(pairSecret))
+        // Done as soon as both sides have what they need. Finding each other
+        // on the new friendship's topic can take a few seconds on the
+        // internet, and the other side may hang up meanwhile; that's fine.
         send({ type: 'done' })
         finish(null, friend)
         this.emit('friends')
+        if (old) await this.mesh?.leave(friendTopic(old.info.pairSecret)).catch(() => {})
+        this.mesh?.join(friendTopic(pairSecret)).catch(() => {})
       }
     })
     const me = this.identity.toPublic()

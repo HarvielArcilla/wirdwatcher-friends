@@ -500,6 +500,7 @@ export function ModePicker ({ modes, mode, onPick, onClose }) {
         <Group title='Ways to play' items={modes.modes} />
         <Group title='Your playlists' items={modes.playlists} />
         <Group title='Friends’ playlists' items={modes.friendPlaylists} />
+        <Group title='Friends’ words' items={modes.friendWords || []} />
         <Group title='Topics' items={modes.topics} />
       </div>
     </div>

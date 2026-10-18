@@ -86,6 +86,8 @@ A preview in Settings shows a sample word in either mode as you change things. A
 
 From then on, whenever you’re both online, your ratings, comments, favorites and playlists sync both ways. Your friends’ ratings stay hidden on each word until you’ve rated it, so they don’t sway you. Removing a friend removes their data from both computers.
 
+Click a friend to open their profile, laid out like your Collection: their numbers, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
+
 ## Lobbies
 
 The host opens **Lobby → Host a lobby**, then picks a mode, which words to use, how many rounds (3 to 20) and a timer (none, 15s, 30s or 60s). Everyone else types the code under **Join a table**. Up to 8 people fit around the table. Cards go face down as people lock in, and flip together.
@@ -94,6 +96,10 @@ The host opens **Lobby → Host a lobby**, then picks a mode, which words to use
 - **High/Low:** everyone rates, then guesses who went highest and who went lowest (click a seat or press its number). 100 points for each right guess.
 - **Hot seat:** each word, one player takes the seat and the next player picks the word for them from three. Everyone else predicts the seat’s rating. Predictors score up to 100 for getting close. The picker gets 50 if the seat goes 4.5 or higher or 0.5 or lower. The seat gets 25 for every prediction that was off by more than 1.0.
 - **Hive mind:** everyone secretly gets a target score and a rater. You search for a word (by spelling or meaning) that you think your rater will give that score. Then each rater rates the word they were given without knowing who chose it or why. Up to 100 points for landing close, plus 50 for being within 0.1.
+
+Typing a number always rates, wherever you clicked last; only the chat box keeps your keys (the table says so, and `Esc` hands them back). `Space` says the word.
+
+If a player’s connection drops, their seat, score and answers are held for 45 seconds while their computer reconnects, and a connection that goes silent is noticed within about 15 seconds instead of hanging. The host can always move on without anyone who isn’t ready.
 
 The word’s definitions, pronunciation and synonyms are one press away: **Word details** at the top of the table, or `D`. There are emoji reactions (Alt+1–8) and chat, awards at the end, and ratings you make at a table count as your own.
 
@@ -110,6 +116,8 @@ The design follows [commonplace](https://github.com/HarvielArcilla/commonplace):
 - **Sync.** Your records (ratings, comments, favorites, playlists and a short profile) have a single writer, you, plus a sequence number. Catching a friend up means sending everything after the last number they have, so records never conflict.
 - **Lobbies.** A lobby is a star around the host, and players get fresh keys for each lobby. Ratings go only to the host, which reveals them only when everyone has locked in.
 - **Limits.** Every limit is a setting you can change: the most friends, how many records to keep from each friend, comment length, lobby size, and how many messages a player can send per minute.
+
+If two computers can’t reach each other, **Settings → About → Network log** shows what the network tried (`network.log` in the data folder). It contains no codes, keys or addresses, so it’s safe to share.
 
 Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json`, `appearance.json` and `sounds/` (your custom rating sound).
 

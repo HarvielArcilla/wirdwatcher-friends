@@ -109,6 +109,10 @@ function About ({ wordCount, source }) {
         <div>Data folder<small className='path'>{folder}</small></div>
         <span style={{ justifySelf: 'end' }}><button className='btn small' onClick={() => api('openDataFolder')}>Open folder</button></span>
       </div>
+      <div className='setting'>
+        <div>Network log<small>If friends or lobbies won’t connect, this file shows what the network tried. It has no codes, keys or addresses in it, so it’s safe to send to whoever is helping you.</small></div>
+        <span style={{ justifySelf: 'end' }}><button className='btn small' onClick={() => api('openNetworkLog')}>Show file</button></span>
+      </div>
     </section>
   )
 }

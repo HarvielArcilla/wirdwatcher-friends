@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WirdApp } from '../core/app.js'
+import { setNetlogFolder } from '../core/netlog.js'
 import { themeById, themeColors } from '../shared/appearance.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -91,6 +92,7 @@ function handlers () {
     savePlaylist: (owner, id) => g.savePlaylist(owner, id),
     friends: () => ww.friends.list(),
     friendRatings: (id) => ww.store.friendRatings(id),
+    friendProfile: (id) => g.friendProfile(id),
     makeFriendCode: () => ww.friends.makeCode(),
     cancelFriendCode: () => ww.friends.cancelCode(),
     redeemFriendCode: (code) => ww.friends.redeem(code),
@@ -112,6 +114,7 @@ function handlers () {
     count: (name) => ww.count(name),
     dataFolder: () => app.getPath('userData'),
     openDataFolder: () => shell.openPath(app.getPath('userData')),
+    openNetworkLog: () => { const f = path.join(app.getPath('userData'), 'network.log'); if (fs.existsSync(f)) shell.showItemInFolder(f); else shell.openPath(app.getPath('userData')); return true },
     deleteProfile: async () => {
       await ww.deleteProfile()
       ww = null
@@ -137,6 +140,7 @@ app.whenReady().then(async () => {
   stage('electron ready')
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null)
   try {
+    setNetlogFolder(app.getPath('userData'))
     ww = new WirdApp({ dataDir: app.getPath('userData') })
   } catch (err) {
     // Most likely data from a newer version. Say so, and change nothing.

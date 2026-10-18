@@ -34,7 +34,12 @@ export class Game extends EventEmitter {
     const topics = TOPICS.map((t) => ({ id: `topic:${t.id}`, name: t.name, emoji: t.emoji, kind: 'topic', ...this.words.progress(`topic:${t.id}`, rated) }))
     const mine = this.store.playlists().map((p) => ({ id: `list:${p.id}`, name: p.name, emoji: p.emoji, kind: 'playlist', words: p.words, done: p.words.filter((w) => rated.has(w)).length, total: p.words.length }))
     const theirs = this.store.friendPlaylists().map((p) => ({ id: `flist:${p.owner}:${p.id}`, name: p.name, emoji: p.emoji, kind: 'friend-playlist', ownerName: p.ownerName, ownerColor: p.ownerColor, words: p.words, done: p.words.filter((w) => rated.has(w)).length, total: p.words.length }))
-    return { modes: built, topics, playlists: mine, friendPlaylists: theirs }
+    // Each friend's rated words, to play through from their profile.
+    const friendWords = this.store.listFriends().map((f) => {
+      const words = this.store.friendRatings(f.userId).map((x) => x.word)
+      return { id: `friend:${f.userId}`, name: `${f.name}’s words`, emoji: '🫂', kind: 'friend', done: words.filter((w) => rated.has(w)).length, total: words.length }
+    })
+    return { modes: built, topics, playlists: mine, friendPlaylists: theirs, friendWords }
   }
 
   _modeProgress (id, rated) {
@@ -49,6 +54,7 @@ export class Game extends EventEmitter {
       const [, owner, id] = mode.split(':')
       return this.store.friendPlaylists().find((p) => p.owner === owner && p.id === id)?.words || []
     }
+    if (mode.startsWith('friend:')) return this.store.friendRatings(mode.slice(7)).map((x) => x.word)
     return null
   }
 
@@ -73,7 +79,7 @@ export class Game extends EventEmitter {
       if (list) {
         const left = list.filter((w) => !rated.has(w) && this.words.has(w))
         word = left.length ? left[crypto.randomInt(left.length)] : null
-        if (!word) return { mode, empty: list.length ? 'Every word in this playlist is rated.' : 'This playlist is empty. Add words with the + button on any word.' }
+        if (!word) return { mode, empty: mode.startsWith('friend:') ? (list.length ? 'You’ve rated every word they have. Nice.' : 'Nothing from them yet. Their words arrive when you’re both online.') : list.length ? 'Every word in this playlist is rated.' : 'This playlist is empty. Add words with the + button on any word.' }
       } else {
         word = this.words.random(mode, skip)
       }
@@ -416,6 +422,55 @@ export class Game extends EventEmitter {
   _refreshProfile (stats = null) {
     const s = stats || this.stats()
     const lvl = levelFor(this.store.progress.xp)
-    this.store.put('me', { name: this.identityName?.() || '', color: this.identityColor?.() || '#e8c686', level: lvl.level, xp: this.store.progress.xp, title: titleFor(lvl.level), rated: s.rated, badges: Object.keys(this.store.progress.badges).length })
+    this.store.put('me', { name: this.identityName?.() || '', color: this.identityColor?.() || '#e8c686', level: lvl.level, xp: this.store.progress.xp, title: titleFor(lvl.level), rated: s.rated, badges: Object.keys(this.store.progress.badges).length, badgeIds: Object.keys(this.store.progress.badges), bestStreak: s.bestStreak })
+  }
+
+  // A friend's profile, the way you see your own: their numbers, how they
+  // rate, their words, favorites, comments and playlists, and how the two of
+  // you compare. Everything here came from them when you were last online
+  // together.
+  friendProfile (userId) {
+    const data = this.store.friend(userId)
+    if (!data) return null
+    const info = data.info
+    const me = data.records.me?.v || {}
+    const ratings = []
+    const comments = []
+    const favorites = []
+    for (const [k, rec] of Object.entries(data.records)) {
+      if (rec.v === null || rec.v === undefined) continue
+      if (k.startsWith('r/')) ratings.push({ word: k.slice(2), r: rec.v, t: rec.t, mine: this.store.rating(k.slice(2)) ?? null })
+      else if (k.startsWith('c/') && rec.v) comments.push({ word: k.slice(2), text: rec.v, t: rec.t })
+      else if (k.startsWith('f/') && rec.v) favorites.push({ word: k.slice(2), t: rec.t })
+    }
+    const rs = ratings.map((x) => x.r).sort((a, b) => a - b)
+    const histogram = new Array(11).fill(0)
+    for (const r of rs) histogram[Math.min(10, Math.floor(r * 2))]++
+    const average = rs.length ? Math.round((rs.reduce((a, b) => a + b, 0) / rs.length) * 10) / 10 : null
+    const median = rs.length ? (rs.length % 2 ? rs[(rs.length - 1) / 2] : Math.round(((rs[rs.length / 2 - 1] + rs[rs.length / 2]) / 2) * 10) / 10) : null
+    const shared = ratings.filter((x) => x.mine !== null).map((x) => ({ ...x, diff: Math.round(Math.abs(x.r - x.mine) * 10) / 10 }))
+    const earned = new Set(Array.isArray(me.badgeIds) ? me.badgeIds : [])
+    return {
+      userId,
+      name: info.name,
+      color: info.color,
+      addedAt: info.addedAt,
+      lastSeen: info.lastSeen || null,
+      level: me.level || 1,
+      title: me.title || titleFor(me.level || 1),
+      badgeCount: me.badges || earned.size,
+      badges: earned.size ? BADGES.filter((b) => earned.has(b.id)).map(({ id, emoji, name, hint }) => ({ id, emoji, name, hint })) : null,
+      bestStreak: me.bestStreak ?? null,
+      stats: { rated: ratings.length, average, median, histogram },
+      ratings: ratings.sort((a, b) => b.t - a.t),
+      favorites: favorites.sort((a, b) => b.t - a.t),
+      comments: comments.sort((a, b) => b.t - a.t),
+      playlists: this.modes().friendPlaylists.filter((l) => l.id.startsWith(`flist:${userId}:`)),
+      match: this.store.tasteMatch(userId),
+      agree: shared.filter((x) => x.diff <= 0.5).sort((a, b) => a.diff - b.diff || b.t - a.t).slice(0, 8),
+      disagree: [...shared].filter((x) => x.diff >= 1).sort((a, b) => b.diff - a.diff).slice(0, 8),
+      shared: shared.length,
+      unrated: ratings.filter((x) => x.mine === null).length
+    }
   }
 }
