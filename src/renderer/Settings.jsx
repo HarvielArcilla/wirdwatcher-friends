@@ -79,7 +79,7 @@ function Profile ({ me, setMe }) {
           ? <button className='btn danger-btn' onClick={() => setConfirm('')}>Delete my profile…</button>
           : (
             <form onSubmit={async (e) => { e.preventDefault(); if (confirm !== word) return; setBusy(true); await api('deleteProfile') }}>
-              <label>Type <b>{word}</b> to confirm
+              <label><span>Type <b>{word}</b> to confirm</span>
                 <input autoFocus className='field' value={confirm} onChange={(e) => setConfirm(e.target.value.toLowerCase())} disabled={busy} />
               </label>
               <span style={{ display: 'flex', gap: 8, marginTop: 10 }}>

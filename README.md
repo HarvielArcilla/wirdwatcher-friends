@@ -29,15 +29,24 @@ The game is built for the keyboard:
 - Your own playlists, and your friends’ playlists
 - 14 topic playlists (animals, food, feelings, and so on), each with a progress bar
 
-**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 31 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+**After you rate:** you see where your rating landed on a line from 0 to 5, next to each friend’s rating of the same word, your friends’ average and your own average. A one-line verdict sums it up (“Hot take: 1.9 above your friends”, “Exactly what Pip said”, “Toughest of your friends on this one”), and each friend’s taste match is shown. For a word no friend has rated, you see how it ranks among your own ratings (“One of your highest ratings ever”). The Friends page shows your taste match with each friend.
 
-## Sound
+**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 65 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
-Every rating makes a sound. Choose from Chime, Marimba, Pop, Bubble, Coin, Typewriter, Original (wirdwatcher 1’s two sounds, only at the extremes) or Off, or use **your own file** (MP3, WAV, OGG, M4A, AAC, FLAC or WebM, up to 3 MB). Your file is copied into the app’s data folder and stays on this computer.
+## Sound and effects
+
+Every rating makes a sound, and better ratings get more notes: a 1.0 is one low blip, and a 4.7 is a little run up. Choose from Arcade (the default), Coin, Gem, Harp, Kalimba, Chime, Marimba, Pop, Bubble, Typewriter, Original (wirdwatcher 1’s two sounds, only at the extremes) or Off, or use **your own file** (MP3, WAV, OGG, M4A, AAC, FLAC or WebM, up to 3 MB). Your file is copied into the app’s data folder and stays on this computer.
 
 The presets are synthesized, so they don’t need sound files. Their pitch climbs a pentatonic scale with the rating, so a 5.0 rings and a 0.0 thuds, and a run of ratings sounds like a tune. A custom file speeds up slightly for higher ratings.
 
-You can turn pitch-following off, set the volume, or keep v1’s sounds for ratings above 4.0 and at 1.0 or below. Settings → Sound has a row of buttons that play each rating with your current settings.
+The extremes get their own moment:
+
+- **5.0:** a fanfare and confetti.
+- **4.5 and up:** a sparkle.
+- **0.0:** a sad trombone, and the word falls apart letter by letter.
+- **Under 1.0:** the word wilts.
+
+Reduced motion turns off the animations. You can turn the celebrations off, turn pitch-following off, set the volume, or keep v1’s sounds for ratings above 4.0 and at 1.0 or below. Settings → Sound has a row of buttons that play each rating with your current settings.
 
 ## Appearance
 
@@ -77,7 +86,12 @@ From then on, whenever you’re both online, your ratings, comments, favorites a
 
 The host opens **Lobby → Host a lobby**, then picks which words to use, how many rounds (5 to 30) and a timer (none, 15s, 30s or 60s). Everyone else types the code under **Join a table**.
 
-Each player locks in a rating with `Enter`. Their card goes face down on the table, and when the last player locks in, every card flips at once. You score up to 100 points for how close you were to everyone else. The game also calls out a hive mind, when everyone is within 0.5 of each other, and a hot take, when one player is 2.0 or more away from all the others. At the end there’s a podium and awards: table favorite, most divisive word, toughest critic and more. Players can send emoji reactions (Alt+1–8) and chat. Ratings you make at a table also count as your own.
+Each player locks in a rating with `Enter`. Their card goes face down on the table, and when the last player locks in, every card flips at once. Up to 8 people fit around the table. There are two styles:
+
+- **Chill** (the default) is a conversation piece. The middle of the table shows the average, and the highest and lowest cards are outlined and named (“5.0 highest, Pip” and “0.5 lowest, Quinn”). There are no points. The game ends with the table’s favorite and least favorite words.
+- **In tune** scores up to 100 points a word for rating close to everyone else, and ends with a podium.
+
+Both call out a hive mind, when everyone is within 0.5 of each other, and a hot take, when one player is 2.0 or more away from all the others. A 5.0 card throws confetti and a 0.0 card shakes. At the end there are awards: most divisive word, toughest critic, most generous and more. Players can send emoji reactions (Alt+1–8) and chat. Ratings you make at a table also count as your own.
 
 ## How the network works
 
@@ -95,7 +109,54 @@ The design follows [commonplace](https://github.com/HarvielArcilla/commonplace):
 
 Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json`, `appearance.json` and `sounds/` (your custom rating sound).
 
-## Running it
+## Install
+
+### Windows 10 or 11
+
+**Option 1: the installer.**
+
+1. Download `wirdwatcher-setup-<version>.exe` from the [Releases page](https://github.com/HarvielArcilla/wirdwatcher-friends/releases). Each push to `main` also builds one, under the latest run on the [Actions page](https://github.com/HarvielArcilla/wirdwatcher-friends/actions) → *wirdwatcher-Windows*.
+2. Run it. The installer isn’t code-signed (that needs a paid certificate), so Windows SmartScreen may say “Windows protected your PC”. Choose **More info → Run anyway**.
+3. The first time wirdwatcher starts, Windows Firewall asks about it. Click **Allow** and tick **Private networks**, or friends’ computers can’t reach yours.
+
+**Option 2: one command (installs from source and updates the same way).** Open PowerShell and paste:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/HarvielArcilla/wirdwatcher-friends/main/scripts/install.ps1 | iex"
+```
+
+This installs Git and Node.js with winget if they’re missing, downloads wirdwatcher to `%USERPROFILE%\wirdwatcher` and adds a **wirdwatcher** shortcut to your Desktop. To update, run the same command again. [Read the script](scripts/install.ps1) first if you like.
+
+### macOS
+
+Download the `.dmg` from Releases (Apple silicon or Intel), or run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/HarvielArcilla/wirdwatcher-friends/main/scripts/install.sh | bash
+```
+
+The `.dmg` isn’t notarized, so the first time, right-click wirdwatcher in Applications and choose **Open**.
+
+### Your data through updates
+
+Your ratings, friends and settings are kept in your user data folder, not inside the app:
+
+| System | Folder |
+| --- | --- |
+| Windows | `%APPDATA%\wirdwatcher` |
+| macOS | `~/Library/Application Support/wirdwatcher` |
+| Linux | `~/.config/wirdwatcher` |
+
+So updating, reinstalling or uninstalling the app doesn’t touch them. The folder also has a few safety measures:
+
+- Only the settings you changed are saved, so better defaults in a new version still reach you.
+- When an update changes how data is stored, it first copies the folder to `backups/`.
+- A file that can’t be read is kept aside, never silently replaced.
+- Data written by a newer version is left untouched.
+
+**Settings → About → Open folder** shows the folder. **Settings → Profile → Delete profile** erases it.
+
+## Running from source
 
 You need Node.js 20 or newer.
 
@@ -104,7 +165,7 @@ npm install
 npm start
 ```
 
-To try friends and lobbies on one computer, run a second copy with its own identity:
+To try friends and lobbies on one computer, run a second copy with its own identity (on Windows: `set WIRDWATCHER_PROFILE=bob && npm start`):
 
 ```sh
 WIRDWATCHER_PROFILE=bob npm start
@@ -113,7 +174,10 @@ WIRDWATCHER_PROFILE=bob npm start
 Other commands:
 
 - `npm test` runs the tests, including friends and lobbies on a local DHT and on the same network.
-- `npm run dist:mac` or `npm run dist:win` builds an installer.
+- `npm run smoke` launches the app with a throwaway profile, checks it works, and quits.
+- `npm run dist:win` or `npm run dist:mac` builds an installer.
+
+GitHub Actions runs the tests and the launch check on Windows, macOS and Linux for every push, builds both installers, and tries the one-command installers on clean machines. Tagging a version (`git tag v2.1.0 && git push --tags`) publishes the installers on the Releases page.
 
 ## The word list
 

@@ -373,27 +373,18 @@ function Compare ({ c, r }) {
       <div className='scale' role='img' aria-label={`You rated ${formatRating(r)}${c.table ? `, your friends averaged ${formatRating(c.table.avg)}` : ''}`}>
         <div className='track' />
         {[0, 1, 2, 3, 4, 5].map((t) => <span key={t} className='tick' style={{ left: `${t * 20}%` }}>{t}</span>)}
-        {c.self && <span className='mark self' style={{ left: at(c.self.avg) }} title={`Your average: ${formatRating(c.self.avg)}`}><i />your avg</span>}
-        {c.table && c.table.n > 1 && <span className='mark avg' style={{ left: at(c.table.avg) }}><i />friends {formatRating(c.table.avg)}</span>}
+        {c.self && <span className='mark self' style={{ left: at(c.self.avg) }} title={`Your average: ${formatRating(c.self.avg)}`} />}
+        {c.table && c.table.n > 1 && <span className='mark avg' style={{ left: at(c.table.avg) }} title={`Friends’ average: ${formatRating(c.table.avg)}`} />}
         {dots.map((f) => (
-          <span key={f.userId} className='dot' style={{ left: at(f.r), bottom: `${18 + (f.level - 1) * 26}px`, background: f.color }} title={`${f.name}: ${formatRating(f.r)}`}>{f.name[0].toUpperCase()}</span>
+          <span key={f.userId} className='dot' style={{ left: at(f.r), bottom: `${7 + (f.level - 1) * 26}px`, background: f.color }} title={`${f.name}: ${formatRating(f.r)}`}>{f.name[0].toUpperCase()}</span>
         ))}
         <span className='me' style={{ left: at(r), color: ratingColor(r) }}>{formatRating(r)}<b>you</b></span>
       </div>
-      {c.friends.length > 0 && (
-        <div className='compare-list'>
-          {c.friends.slice(0, 4).map((f) => (
-            <div key={f.userId} className='cmp'>
-              <Avatar name={f.name} color={f.color} />
-              <span className='who'>{f.name}{f.match !== null && <small>{f.match}% taste match</small>}</span>
-              <span className='cmp-r' style={{ color: ratingColor(f.r) }}>{formatRating(f.r)}</span>
-              <span className='cmp-d'>{f.diff === 0 ? 'same' : `${f.diff > 0 ? 'you +' : 'you '}${f.diff.toFixed(1)}`}</span>
-              {f.comment && <span className='cmt'>“{f.comment}”</span>}
-            </div>
-          ))}
-          {c.friends.length > 4 && <div className='more-friends'>and {c.friends.length - 4} more</div>}
-        </div>
-      )}
+      <div className='legend'>
+        {c.table && c.table.n > 1 && <span><i className='l-avg' />Friends’ average {formatRating(c.table.avg)}</span>}
+        {c.table && c.table.n === 1 && <span>{c.friends[0].name} said {formatRating(c.friends[0].r)}</span>}
+        {c.self && <span><i className='l-self' />Your average {formatRating(c.self.avg)}</span>}
+      </div>
       {!c.friends.length && c.self && c.self.n < 10 && <div className='verdict tone-self'>Rate {10 - c.self.n} more to see how your words stack up. Add friends to compare with them.</div>}
     </div>
   )
@@ -402,6 +393,7 @@ function Compare ({ c, r }) {
 function Friends ({ info, revealed }) {
   if (!info) return null
   const takes = info.friends
+  const cmp = Object.fromEntries((info.compare?.friends || []).map((f) => [f.userId, f]))
   return (
     <div>
       <h3>Friends {takes.length > 0 && !revealed && <span style={{ fontWeight: 400, fontSize: 13 }}>Rate it to see theirs</span>}</h3>
@@ -411,6 +403,7 @@ function Friends ({ info, revealed }) {
           <Avatar name={f.name} color={f.color} />
           <div>
             <div className='name'>{f.name}{f.favorite && ' 💛'}</div>
+            {revealed && (cmp[f.userId]?.match ?? null) !== null && <div className='meta'>{cmp[f.userId].match}% taste match{cmp[f.userId].diff !== 0 ? `, you ${cmp[f.userId].diff > 0 ? '+' : ''}${cmp[f.userId].diff.toFixed(1)}` : ', same as you'}</div>}
             {revealed && f.comment && <div className='cmt'>“{f.comment}”</div>}
           </div>
           {f.r === null ? <span /> : revealed ? <R r={f.r} /> : <span className='hidden-r' aria-label='Hidden until you rate' />}
