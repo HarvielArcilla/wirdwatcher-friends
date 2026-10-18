@@ -1,0 +1,362 @@
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
+import { api, R, Avatar, Kbd, Bar, icons, play, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
+
+// The solo game. Keyboard first, like the original:
+//   digits      type a rating (4 → 4., 7 → 4.7, 5 → 5.0)
+//   Enter       rate; Enter again for the next word
+//   ↑ ↓         nudge by 0.1 (Shift: 0.5)      Backspace  clear
+//   ←           back to the previous word      Space      say it
+//   F favorite  C comment  A add to playlist   M playlists
+export default function Play ({ mode, setMode, modes, settings, refreshTop, focusWord, clearFocusWord, active }) {
+  const toast = useToast()
+  const [card, setCard] = useState(null) // { word, info, chain, note, empty }
+  const [text, setText] = useState('')
+  const [rated, setRated] = useState(null) // the result of rating this card
+  const [floats, setFloats] = useState([])
+  const [stampKey, setStampKey] = useState(0)
+  const [panel, setPanel] = useState(null) // 'comment' | 'add' | 'modes'
+  const [showAll, setShowAll] = useState(false)
+  const back = useRef([]) // words seen this sitting, for ←
+  const inputRef = useRef(null)
+  const autoTimer = useRef(null)
+
+  const show = useCallback((dealt) => {
+    clearTimeout(autoTimer.current)
+    setCard(dealt)
+    setShowAll(false)
+    setFloats([])
+    const mine = dealt.info?.mine?.r
+    setRated(mine !== null && mine !== undefined ? { r: mine, again: true } : null)
+    setText(mine !== null && mine !== undefined ? formatRating(mine) : '')
+    if (dealt.word && settings.speakOnReveal) speak(dealt.word)
+  }, [settings.speakOnReveal])
+
+  const next = useCallback(async (m = mode) => {
+    try {
+      if (card?.word) back.current = [...back.current.slice(-49), card.word]
+      show(await api('deal', m, card?.word || null))
+    } catch (err) { toast({ error: true, title: 'Couldn’t deal a word', text: err.message }) }
+  }, [mode, card, show, toast])
+
+  const open = useCallback(async (word) => {
+    const info = await api('wordInfo', word)
+    if (!info) return
+    if (card?.word && card.word !== word) back.current = [...back.current.slice(-49), card.word]
+    show({ mode, word, info })
+  }, [card, mode, show])
+
+  useEffect(() => { next(mode) }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (focusWord) { open(focusWord); clearFocusWord() } }, [focusWord]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Friends' ratings arrive in the background.
+  useEffect(() => window.ww.on.friendRecords(async () => {
+    if (card?.word) {
+      const info = await api('wordInfo', card.word)
+      setCard((c) => (c && c.word === info?.word ? { ...c, info } : c))
+    }
+  }), [card?.word])
+
+  const submit = useCallback(async () => {
+    const r = ratingValue(text)
+    if (r === null || !card?.word) return
+    try {
+      const earned = await api('rate', card.word, r)
+      const info = await api('wordInfo', card.word)
+      setCard((c) => ({ ...c, info, chain: earned.chain || c.chain }))
+      setRated({ ...earned, r })
+      setText(formatRating(r))
+      setStampKey((k) => k + 1)
+      setFloats(earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` })))
+      setTimeout(() => setFloats([]), 1900)
+      if (settings.sounds) { if (r > 4) play('good'); else if (r <= 1) play('bad') }
+      celebrate(toast, earned)
+      if (earned.twins.length) toast({ emoji: '👯', title: `Same as ${earned.twins.join(' and ')}`, text: `You both gave “${card.word}” a ${formatRating(r)}.` })
+      refreshTop()
+      if (settings.autoAdvanceMs) autoTimer.current = setTimeout(() => next(), settings.autoAdvanceMs)
+    } catch (err) { toast({ error: true, title: 'Couldn’t save that rating', text: err.message }) }
+  }, [text, card, settings, toast, refreshTop, next, stampKey])
+
+  const isRated = rated && ratingValue(text) === rated.r
+
+  const onKey = useCallback((e) => {
+    if (!active || panel === 'comment' || panel === 'add' || panel === 'modes') {
+      if (e.key === 'Escape') setPanel(null)
+      return
+    }
+    if (e.target.tagName === 'INPUT' && e.target !== inputRef.current) return
+    if (e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return
+    const k = e.key
+    if (k === 'Enter') {
+      e.preventDefault()
+      if (card?.empty) return
+      if (isRated) next()
+      else if (ratingValue(text) !== null) submit()
+    } else if (k === 'ArrowUp' || k === 'ArrowDown') {
+      e.preventDefault()
+      const base = ratingValue(text) ?? (rated?.r ?? 2.5)
+      setText(formatRating(nudge(base, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.5 : 0.1))))
+    } else if (k === 'Backspace') {
+      e.preventDefault()
+      setText('')
+    } else if (/^[0-9.]$/.test(k)) {
+      e.preventDefault()
+      const start = text.length === 3 || isRated ? '' : text
+      setText(typeRating(start + k))
+    } else if (k === ' ') {
+      e.preventDefault()
+      if (card?.word) speak(card.word)
+    } else if (k === 'ArrowLeft') {
+      e.preventDefault()
+      const prev = back.current.pop()
+      if (prev) api('wordInfo', prev).then((info) => info && show({ mode, word: prev, info }))
+    } else if (k === 'ArrowRight' && isRated) {
+      e.preventDefault()
+      next()
+    } else if (k === 'f' || k === 'F') {
+      toggleFav()
+    } else if (k === 'c' || k === 'C') {
+      e.preventDefault(); setPanel('comment')
+    } else if (k === 'a' || k === 'A') {
+      e.preventDefault(); setPanel('add')
+    } else if (k === 'm' || k === 'M') {
+      e.preventDefault(); setPanel('modes')
+    }
+  }, [active, panel, card, text, rated, isRated, next, submit, show, mode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [onKey])
+
+  async function toggleFav () {
+    if (!card?.word) return
+    const res = await api('favorite', card.word, !card.info.mine.favorite)
+    setCard((c) => ({ ...c, info: res.info }))
+    celebrate(toast, res)
+  }
+
+  const current = modes.all.find((m) => m.id === mode) || { name: 'Shuffle', emoji: '🎲' }
+  const info = card?.info
+  const senses = info ? (showAll ? info.senses : info.senses.slice(0, 3)) : []
+  const r = ratingValue(text)
+
+  return (
+    <div className='play'>
+      <section className='stage'>
+        <div className='modebar'>
+          <button className='modebtn' onClick={() => setPanel('modes')} title='Choose a playlist (M)'>
+            <span className='em'>{current.emoji}</span>{current.name}{icons.chevron()}
+          </button>
+          {current.total > 1 && <span className='prog'>{current.done.toLocaleString()} of {current.total.toLocaleString()} rated</span>}
+          {card?.note && <span className='note'>{card.note}</span>}
+        </div>
+
+        {card?.empty
+          ? (
+            <div className='empty-state'>
+              <div className='big'>🏁</div>
+              <p>{card.empty}</p>
+              <button className='btn primary' onClick={() => setPanel('modes')}>Choose another playlist</button>
+            </div>
+            )
+          : card?.word && (
+            <>
+              <div className='word-area'>
+                <h1 key={card.word} className='word' style={{ fontSize: wordSize(card.word) }}>{card.word}</h1>
+                <div className='say'>
+                  <button onClick={() => speak(card.word)} title='Say it (Space)' aria-label='Say it'>{icons.speaker()}</button>
+                  {info.ipa.length ? <span>/{info.ipa[0]}/</span> : null}
+                  <span className='pos'>{[...new Set(info.senses.map((s) => s.posName))].join(', ')}</span>
+                </div>
+
+                <div className='rate-row'>
+                  <div className='rating-box'>
+                    <input
+                      ref={inputRef}
+                      key={stampKey}
+                      className={`rating-input ${isRated ? 'locked stamp' : ''}`}
+                      value={text}
+                      readOnly
+                      placeholder='0.0'
+                      aria-label='Your rating out of 5'
+                      style={{ color: r !== null ? ratingColor(r) : undefined }}
+                    />
+                    <div className='xp-float' aria-hidden='true'>
+                      {floats.map((f) => <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
+                    </div>
+                  </div>
+                  <div className='rate-help'>
+                    <div className='stars' aria-hidden='true'>
+                      {[0, 1, 2, 3, 4].map((i) => <span key={i}><i style={{ width: `${Math.max(0, Math.min(1, (r ?? 0) - i)) * 100}%`, background: ratingColor(r) }} /></span>)}
+                    </div>
+                    {isRated
+                      ? <span><Kbd>Enter</Kbd> next word{rated.again && !rated.xp ? ', or type to change your rating' : ''}</span>
+                      : r !== null ? <span><Kbd>Enter</Kbd> to rate <b>{text}</b></span> : <span>Type a rating out of 5</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className='entry'>
+                <ol>
+                  {senses.map((s, i) => (
+                    <li key={i}><span className='pos'>{s.posName}</span>{s.def}{s.ex[0] && <span className='ex'>{' '}“{s.ex[0]}”</span>}</li>
+                  ))}
+                </ol>
+                {info.senses.length > 3 && <button className='more' onClick={() => setShowAll((v) => !v)}>{showAll ? 'Fewer meanings' : `${info.senses.length - 3} more meanings`}</button>}
+              </div>
+            </>
+            )}
+
+        <div className='keys'>
+          <span><Kbd>0–5</Kbd> rate</span>
+          <span><Kbd>Enter</Kbd> submit, then next</span>
+          <span><Kbd>↑</Kbd><Kbd>↓</Kbd> nudge</span>
+          <span><Kbd>←</Kbd> back</span>
+          <span><Kbd>Space</Kbd> say it</span>
+          <span><Kbd>F</Kbd> favorite</span>
+          <span><Kbd>C</Kbd> comment</span>
+          <span><Kbd>A</Kbd> add to playlist</span>
+          <span><Kbd>M</Kbd> playlists</span>
+        </div>
+      </section>
+
+      <aside className='side'>
+        {card?.chain && <Chain chain={card.chain} current={card.word} />}
+        <Friends info={info} revealed={Boolean(isRated || info?.mine?.r !== null)} />
+        {info && (
+          <div>
+            <h3>You</h3>
+            <div className='my-actions'>
+              <button className='chip' onClick={toggleFav} aria-pressed={info.mine.favorite}>{info.mine.favorite ? '💛 Favorite' : '🤍 Favorite'}</button>
+              <button className='chip' onClick={() => setPanel('comment')}>✍️ {info.mine.comment ? 'Edit comment' : 'Comment'}</button>
+              <button className='chip' onClick={() => setPanel('add')}>➕ Playlist</button>
+            </div>
+            {info.mine.comment && panel !== 'comment' && <p className='cmt' style={{ fontFamily: 'var(--serif)', color: 'var(--dim)', marginBottom: 0 }}>“{info.mine.comment}”</p>}
+            {panel === 'comment' && <CommentBox word={card.word} initial={info.mine.comment || ''} onDone={(res) => { setPanel(null); if (res) { setCard((c) => ({ ...c, info: res.info })); celebrate(toast, res); refreshTop() } }} />}
+            {panel === 'add' && <AddToPlaylist word={card.word} lists={modes.playlists} onDone={() => { setPanel(null); refreshTop() }} />}
+          </div>
+        )}
+        {info?.synonyms.length > 0 && (
+          <div>
+            <h3>Synonyms</h3>
+            <div className='syns'>{info.synonyms.slice(0, 16).map((w) => <button key={w} className='chip' onClick={() => open(w)}>{w}</button>)}</div>
+          </div>
+        )}
+      </aside>
+
+      {panel === 'modes' && <ModePicker modes={modes} mode={mode} onPick={(m) => { setPanel(null); if (m === mode) next(m); else setMode(m) }} onClose={() => setPanel(null)} />}
+    </div>
+  )
+}
+
+function Friends ({ info, revealed }) {
+  if (!info) return null
+  const takes = info.friends
+  return (
+    <div>
+      <h3>Friends {takes.length > 0 && !revealed && <span style={{ fontWeight: 400, fontSize: 13 }}>Rate it to see theirs</span>}</h3>
+      {!takes.length && <div className='empty'>None of your friends has rated this one yet.</div>}
+      {takes.map((f) => (
+        <div key={f.userId} className='friend-take'>
+          <Avatar name={f.name} color={f.color} />
+          <div>
+            <div className='name'>{f.name}{f.favorite && ' 💛'}</div>
+            {revealed && f.comment && <div className='cmt'>“{f.comment}”</div>}
+          </div>
+          {f.r === null ? <span /> : revealed ? <R r={f.r} /> : <span className='hidden-r' aria-label='Hidden until you rate' />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Chain ({ chain, current }) {
+  const done = chain.words.filter((w) => w.rated).length
+  return (
+    <div>
+      <h3>Synonym chain <span style={{ fontWeight: 400, fontSize: 13 }}>{done} of {chain.words.length}</span></h3>
+      <div className='chain'>
+        {chain.words.map((w) => <span key={w.word} className={`link ${w.word === current ? 'now' : w.rated ? 'done' : ''}`}>{w.word}</span>)}
+      </div>
+    </div>
+  )
+}
+
+function CommentBox ({ word, initial, onDone }) {
+  const [text, setText] = useState(initial)
+  const ref = useRef(null)
+  useEffect(() => { ref.current?.focus() }, [])
+  const save = async () => onDone(await api('comment', word, text))
+  return (
+    <div className='comment-box' style={{ marginTop: 10 }}>
+      <textarea
+        ref={ref}
+        className='field'
+        maxLength={280}
+        value={text}
+        placeholder={`What do you think of “${word}”?`}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save() }
+          if (e.key === 'Escape') { e.stopPropagation(); onDone(null) }
+        }}
+      />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+        <small style={{ color: 'var(--faint)' }}>{280 - text.length} left. Friends see this.</small>
+        <span><button className='btn small ghost' onClick={() => onDone(null)}>Cancel</button> <button className='btn small primary' onClick={save}>Save comment</button></span>
+      </div>
+    </div>
+  )
+}
+
+function AddToPlaylist ({ word, lists, onDone }) {
+  const [name, setName] = useState('')
+  const toast = useToast()
+  const add = async (id) => {
+    const res = await api('updatePlaylist', id, { add: word })
+    toast({ emoji: res.playlist.emoji, title: `Added to ${res.playlist.name}`, text: `${res.playlist.words.length} words` })
+    onDone()
+  }
+  const create = async () => {
+    if (!name.trim()) return
+    await api('createPlaylist', { name, words: [word] })
+    toast({ emoji: '🎧', title: `Made “${name.trim()}”`, text: `with “${word}” in it` })
+    onDone()
+  }
+  return (
+    <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+      {lists.map((l) => <button key={l.id} className='chip' style={{ justifyContent: 'space-between' }} disabled={l.words.includes(word)} onClick={() => add(l.id.slice(5))}><span>{l.emoji} {l.name}</span><span style={{ color: 'var(--dim)' }}>{l.words.includes(word) ? 'added' : l.total}</span></button>)}
+      <form onSubmit={(e) => { e.preventDefault(); create() }} style={{ display: 'flex', gap: 6 }}>
+        <input autoFocus className='field' style={{ padding: '7px 10px' }} placeholder='New playlist name' value={name} maxLength={40} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onDone() }} />
+        <button className='btn small primary'>Make</button>
+      </form>
+    </div>
+  )
+}
+
+export function ModePicker ({ modes, mode, onPick, onClose }) {
+  const Group = ({ title, items }) => items.length > 0 && (
+    <>
+      <h4>{title}</h4>
+      <div className='modes'>
+        {items.map((m) => (
+          <button key={m.id} className={`mode ${m.id === mode ? 'on' : ''}`} onClick={() => onPick(m.id)} title={m.blurb || ''}>
+            <span className='em'>{m.emoji}</span>
+            <strong>{m.name}</strong>
+            <small>{m.ownerName ? `from ${m.ownerName}` : m.id === 'friends' ? `${m.total} waiting` : m.total > 1 ? `${m.done.toLocaleString()} / ${m.total.toLocaleString()}` : m.done ? 'Done today' : 'Not yet today'}</small>
+            {m.total > 1 && m.id !== 'friends' && <Bar done={m.done} total={m.total} />}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+  return (
+    <div className='overlay' onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className='sheet' role='dialog' aria-label='Choose a playlist'>
+        <h2>What do you want to rate?</h2>
+        <Group title='Ways to play' items={modes.modes} />
+        <Group title='Your playlists' items={modes.playlists} />
+        <Group title='Friends’ playlists' items={modes.friendPlaylists} />
+        <Group title='Topics' items={modes.topics} />
+      </div>
+    </div>
+  )
+}
