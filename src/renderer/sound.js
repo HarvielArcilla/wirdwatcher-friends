@@ -22,7 +22,7 @@ export const SOUND_PRESETS = [
   { id: 'pop', name: 'Pop', blurb: 'A bubble-wrap pop' },
   { id: 'bubble', name: 'Bubble', blurb: 'A rising bloop' },
   { id: 'typewriter', name: 'Typewriter', blurb: 'Key strike, bell for the best' },
-  { id: 'original', name: 'Original', blurb: 'wirdwatcher 1’s sounds, only at the extremes' },
+  { id: 'original', name: 'Original', blurb: 'wirdwatcher 1’s two sounds: above 4.0 and at 1.0 or below' },
   { id: 'custom', name: 'Your file', blurb: 'Any short audio file' },
   { id: 'off', name: 'Off', blurb: 'Silence' }
 ]
@@ -217,23 +217,28 @@ const SYNTHS = {
   }
 }
 
-// The two extremes get their own moment, after the preset's own sound.
+// The ends of the scale get their own moment, after the preset's own sound:
+// 4.5 and up a fanfare (the full one with sparkles for a 5.0), 0.5 and below
+// a sad trombone (the whole slide for a 0.0).
 const EXTREMES = {
-  // A bright fanfare up a major chord, then sparkles.
-  perfect (c, out, start = 0.18) {
+  perfect (c, out, full, start = 0.18) {
     const root = 523.25
-    ;[0, 4, 7, 12].forEach((n, i) => {
-      voice(c, out, { type: 'square', freq: root * semis(n), start: start + i * 0.075, decay: i === 3 ? 0.7 : 0.1, gain: 0.14, attack: 0.002, filter: [7000, 2200] })
-      voice(c, out, { type: 'triangle', freq: root * semis(n), start: start + i * 0.075, decay: i === 3 ? 0.8 : 0.12, gain: 0.22, attack: 0.002 })
+    const notes = full ? [0, 4, 7, 12] : [0, 4, 7]
+    notes.forEach((n, i) => {
+      const last = i === notes.length - 1
+      voice(c, out, { type: 'square', freq: root * semis(n), start: start + i * 0.075, decay: last ? (full ? 0.7 : 0.4) : 0.1, gain: 0.14, attack: 0.002, filter: [7000, 2200] })
+      voice(c, out, { type: 'triangle', freq: root * semis(n), start: start + i * 0.075, decay: last ? (full ? 0.8 : 0.45) : 0.12, gain: 0.22, attack: 0.002 })
     })
-    for (let i = 0; i < 9; i++) bell(c, out, { freq: root * 4 * semis([0, 4, 7, 9, 12][i % 5]), start: start + 0.32 + i * 0.045 + Math.random() * 0.02, decay: 0.35, gain: 0.06, ratio: 2, index: 1 })
+    if (full) for (let i = 0; i < 9; i++) bell(c, out, { freq: root * 4 * semis([0, 4, 7, 9, 12][i % 5]), start: start + 0.32 + i * 0.045 + Math.random() * 0.02, decay: 0.35, gain: 0.06, ratio: 2, index: 1 })
   },
-  // A sad trombone (wah, wah, wah, waaah), then a thud.
-  zero (c, out, start = 0.12) {
-    const notes = [0, -1, -2, -3]
+  zero (c, out, full, start = 0.12) {
+    const notes = full ? [0, -1, -2, -3] : [0, -2]
     const base = 233
-    notes.forEach((n, i) => voice(c, out, { type: 'sawtooth', freq: base * semis(n), start: start + i * 0.28, attack: 0.03, decay: i === 3 ? 0.9 : 0.22, gain: 0.16, vibrato: i === 3 ? 5 : 0, filter: [1400, 500, 2] }))
-    voice(c, out, { freq: 90, glide: 40, start: start + 1.25, decay: 0.35, gain: 0.6, attack: 0.002 })
+    notes.forEach((n, i) => {
+      const last = i === notes.length - 1
+      voice(c, out, { type: 'sawtooth', freq: base * semis(n), start: start + i * 0.28, attack: 0.03, decay: last ? (full ? 0.9 : 0.5) : 0.22, gain: 0.16, vibrato: last ? 5 : 0, filter: [1400, 500, 2] })
+    })
+    if (full) voice(c, out, { freq: 90, glide: 40, start: start + 1.25, decay: 0.35, gain: 0.6, attack: 0.002 })
   }
 }
 
@@ -257,7 +262,8 @@ async function playCustom (c, out, r, follow) {
   src.start()
 }
 
-export const extremeFor = (r) => (r === 5 ? 'perfect' : r === 0 ? 'zero' : null)
+// 'perfect' from 4.5 up, 'zero' from 0.5 down; full: the very ends.
+export const extremeFor = (r) => (r >= 4.5 ? { kind: 'perfect', full: r === 5 } : r <= 0.5 ? { kind: 'zero', full: r === 0 } : null)
 
 // Plays a rating into any audio context (a live one, or an offline one for
 // checking that each preset really makes a sound).
@@ -266,25 +272,30 @@ export function renderSound (c, dest, preset, r, { follow = true, celebrate = tr
   if (preset === 'custom') playCustom(c, out, r, follow).catch(() => {})
   else if (SYNTHS[preset]) SYNTHS[preset](c, out, r, follow)
   const ex = celebrate && extremeFor(r)
-  if (ex) EXTREMES[ex](c, out)
+  if (ex) EXTREMES[ex.kind](c, out, ex.full)
 }
 
-// settings: { ratingSound, soundVolume, soundPitch, sounds, celebrate }
+// wirdwatcher 1's two sounds, exactly as it played them: one above 4.0, the
+// other at 1.0 and below, nothing in between.
+function playOriginal (r, volume) {
+  const which = r > 4 ? 'good' : r <= 1 ? 'bad' : null
+  if (!which) return
+  for (const a of Object.values(original)) { a.pause(); a.currentTime = 0 } // never two at once
+  const a = original[which] = original[which] || new Audio(`../assets/audio/${which === 'good' ? 'poole_rsvp' : 'poole_cancel'}.m4a`)
+  a.volume = volume
+  a.currentTime = 0
+  a.play().catch(() => {})
+}
+
+// settings: { ratingSound, soundVolume, soundPitch, celebrate }
 export function playRating (r, settings) {
   try {
     const preset = settings.ratingSound
     if (preset === 'off' || !settings.soundVolume) return
-    const old = r > 4 ? 'good' : r <= 1 ? 'bad' : null
-    if ((settings.sounds || preset === 'original') && old && !(settings.celebrate && extremeFor(r))) {
-      const a = original[old] = original[old] || new Audio(`../assets/audio/${old === 'good' ? 'poole_rsvp' : 'poole_cancel'}.m4a`)
-      a.volume = settings.soundVolume / 100
-      a.currentTime = 0
-      a.play().catch(() => {})
-      return
-    }
+    if (preset === 'original') return playOriginal(r, settings.soundVolume / 100)
     const c = audio()
     if (!bus) { bus = c.createGain(); bus.connect(c.destination) }
     bus.gain.value = (settings.soundVolume / 100) * 0.9
-    renderSound(c, bus, preset === 'original' ? 'none' : preset, r, { follow: settings.soundPitch, celebrate: settings.celebrate })
+    renderSound(c, bus, preset, r, { follow: settings.soundPitch, celebrate: settings.celebrate })
   } catch {}
 }

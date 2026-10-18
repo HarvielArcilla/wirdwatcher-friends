@@ -11,10 +11,10 @@ import { readJson, writeJson } from './files.js'
 export const SETTING_FIELDS = {
   // Playing
   ratingSound: { group: 'sound', kind: 'choice', default: 'arcade', options: ['arcade', 'coin', 'gem', 'harp', 'kalimba', 'chime', 'marimba', 'pop', 'bubble', 'typewriter', 'original', 'custom', 'off'], label: 'Sound when you rate a word' },
-  celebrate: { group: 'sound', kind: 'bool', default: true, label: 'Celebrate 5.0 and 0.0', hint: 'A perfect word gets a fanfare and confetti; a 0.0 gets a sad trombone and falls apart.' },
+  celebrate: { group: 'sound', kind: 'bool', default: true, label: 'Fanfare and trombone at the ends', hint: 'From 4.5 up a fanfare plays after the sound; from 0.5 down, a sad trombone. Biggest at 5.0 and 0.0.' },
+  animations: { group: 'sound', kind: 'choice', default: 'all', options: ['all', 'ends', 'off'], label: 'Animations when you rate', hint: 'Every rating gets a small reaction; the ends get confetti or a crumble.' },
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
-  sounds: { group: 'sound', kind: 'bool', default: false, label: 'The original sounds for very high and very low ratings', hint: 'Above 4.0 and at 1.0 or below, play wirdwatcher 1’s sounds instead.' },
   speakOnReveal: { group: 'play', kind: 'bool', default: false, label: 'Say each new word out loud' },
   skipRated: { group: 'play', kind: 'bool', default: true, label: 'Don’t deal words I’ve already rated', hint: 'Turn off to see old words again in shuffles.' },
   autoAdvanceMs: { group: 'play', kind: 'count', default: 0, min: 0, max: 10000, label: 'Move to the next word by itself after (ms)', hint: '0 waits for a second Enter.' },

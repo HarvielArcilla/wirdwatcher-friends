@@ -31,7 +31,7 @@ The game is built for the keyboard:
 
 **After you rate:** you see where your rating landed on a line from 0 to 5, next to each friend’s rating of the same word, your friends’ average and your own average. A one-line verdict sums it up (“Hot take: 1.9 above your friends”, “Exactly what Pip said”, “Toughest of your friends on this one”), and each friend’s taste match is shown. For a word no friend has rated, you see how it ranks among your own ratings (“One of your highest ratings ever”). The Friends page shows your taste match with each friend.
 
-**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 65 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 69 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
 ## Sound and effects
 
@@ -39,14 +39,18 @@ Every rating makes a sound, and better ratings get more notes: a 1.0 is one low 
 
 The presets are synthesized, so they don’t need sound files. Their pitch climbs a pentatonic scale with the rating, so a 5.0 rings and a 0.0 thuds, and a run of ratings sounds like a tune. A custom file speeds up slightly for higher ratings.
 
-The extremes get their own moment:
+Original plays exactly what v1 did: one sound above 4.0 and another at 1.0 or below, and silence in between.
 
-- **5.0:** a fanfare and confetti.
-- **4.5 and up:** a sparkle.
-- **0.0:** a sad trombone, and the word falls apart letter by letter.
-- **Under 1.0:** the word wilts.
+Every rating also moves the word on the Play screen:
 
-Reduced motion turns off the animations. You can turn the celebrations off, turn pitch-following off, set the volume, or keep v1’s sounds for ratings above 4.0 and at 1.0 or below. Settings → Sound has a row of buttons that play each rating with your current settings.
+- **4.5 and up:** a fanfare and confetti (a full burst for a 5.0).
+- **3.5 and up:** the word bounces, with a sparkle.
+- **2.5 and up:** a small nod.
+- **1.5 and up:** a shrug.
+- **Under 1.5:** the word wilts.
+- **0.5 and under:** a sad trombone, and the word crumbles letter by letter (all the way down for a 0.0).
+
+**Settings → Sound & effects → Animations** chooses every rating, only the ends, or off. You can also turn the fanfare and trombone off, turn pitch-following off and set the volume. Reduced motion turns all the animations off. A row of buttons plays each rating with your current settings.
 
 ## Appearance
 
@@ -84,14 +88,14 @@ From then on, whenever you’re both online, your ratings, comments, favorites a
 
 ## Lobbies
 
-The host opens **Lobby → Host a lobby**, then picks which words to use, how many rounds (5 to 30) and a timer (none, 15s, 30s or 60s). Everyone else types the code under **Join a table**.
+The host opens **Lobby → Host a lobby**, then picks a mode, which words to use, how many rounds (3 to 20) and a timer (none, 15s, 30s or 60s). Everyone else types the code under **Join a table**. Up to 8 people fit around the table. Cards go face down as people lock in, and flip together.
 
-Each player locks in a rating with `Enter`. Their card goes face down on the table, and when the last player locks in, every card flips at once. Up to 8 people fit around the table. There are two styles:
+- **Classic** is wirdwatcher together, with no points. Everyone rates, the cards flip, and the middle of the table shows the average with the highest and lowest cards outlined and named. Nobody moves on until everyone presses `Enter`, so there’s time to argue about it.
+- **High/Low:** everyone rates, then guesses who went highest and who went lowest (click a seat or press its number). 100 points for each right guess.
+- **Hot seat:** each word, one player takes the seat and the next player picks the word for them from three. Everyone else predicts the seat’s rating. Predictors score up to 100 for getting close. The picker gets 50 if the seat goes 4.5 or higher or 0.5 or lower. The seat gets 25 for every prediction that was off by more than 1.0.
+- **Hive mind:** everyone secretly gets a target score and a rater. You search for a word (by spelling or meaning) that you think your rater will give that score. Then each rater rates the word they were given without knowing who chose it or why. Up to 100 points for landing close, plus 50 for being within 0.1.
 
-- **Chill** (the default) is a conversation piece. The middle of the table shows the average, and the highest and lowest cards are outlined and named (“5.0 highest, Pip” and “0.5 lowest, Quinn”). There are no points. The game ends with the table’s favorite and least favorite words.
-- **In tune** scores up to 100 points a word for rating close to everyone else, and ends with a podium.
-
-Both call out a hive mind, when everyone is within 0.5 of each other, and a hot take, when one player is 2.0 or more away from all the others. A 5.0 card throws confetti and a 0.0 card shakes. At the end there are awards: most divisive word, toughest critic, most generous and more. Players can send emoji reactions (Alt+1–8) and chat. Ratings you make at a table also count as your own.
+The word’s definitions, pronunciation and synonyms are one press away: **Word details** at the top of the table, or `D`. There are emoji reactions (Alt+1–8) and chat, awards at the end, and ratings you make at a table count as your own.
 
 ## How the network works
 

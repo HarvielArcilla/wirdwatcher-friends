@@ -59,7 +59,7 @@ export const BADGES = [
   { id: 'twin', emoji: '👯', name: 'Twins', hint: 'Give a word the same rating as a friend.', test: (s) => s.twins >= 1 },
   { id: 'lobby', emoji: '🪑', name: 'Pull up a chair', hint: 'Finish a lobby game.', test: (s) => s.lobbyGames >= 1 },
   { id: 'fulltable', emoji: '🎱', name: 'Full table', hint: 'Finish a lobby game with eight players.', test: (s) => s.fullTables >= 1 },
-  { id: 'hive', emoji: '🐝', name: 'Hive mind', hint: 'Everyone at the table rates within 0.5 of each other.', test: (s) => s.hiveMinds >= 1 },
+  { id: 'hive', emoji: '🤝', name: 'In sync', hint: 'Everyone at a table rates a word within 0.5 of each other.', test: (s) => s.hiveMinds >= 1 },
   { id: 'hottake', emoji: '🌶️', name: 'Hot take', hint: 'Be 2.0 away from everyone else at the table.', test: (s) => s.hotTakes >= 1 },
   { id: 'owl', emoji: '🦉', name: 'Night owl', hint: 'Rate a word between 2 and 5 in the morning.', test: (s) => s.owl >= 1 },
   // Volume and dedication
@@ -99,7 +99,11 @@ export const BADGES = [
   { id: 'opposites', emoji: '🧲', name: 'Opposites attract', hint: 'Stay friends at under 50% taste match over 25 shared words.', test: (s) => s.matched > 0 && s.minMatch < 50 },
   { id: 'host', emoji: '🎩', name: 'Host with the most', hint: 'Host five lobbies.', test: (s) => s.hosted >= 5 },
   { id: 'regular', emoji: '🍻', name: 'Regular', hint: 'Finish ten lobby games.', test: (s) => s.lobbyGames >= 10 },
-  { id: 'hive10', emoji: '🍯', name: 'Honeycomb', hint: 'Ten hive-mind words at a table.', test: (s) => s.hiveMinds >= 10 },
+  { id: 'hive10', emoji: '🎼', name: 'Perfect harmony', hint: 'Ten in-sync words at a table.', test: (s) => s.hiveMinds >= 10 },
+  { id: 'mindreader', emoji: '🔮', name: 'Mind reader', hint: 'In High/Low, guess both the highest and the lowest.', test: (s) => s.mindReads >= 1 },
+  { id: 'telepath', emoji: '🧠', name: 'Telepath', hint: 'In Hot seat, predict the rating within 0.1.', test: (s) => s.exactReads >= 1 },
+  { id: 'bullseye', emoji: '🎯', name: 'Bullseye', hint: 'In Hive mind, land within 0.1 of your target.', test: (s) => s.bullseyes >= 1 },
+  { id: 'allmodes', emoji: '🎲', name: 'Tried them all', hint: 'Finish a lobby game in every mode.', test: (s) => ['classic', 'highlow', 'hotseat', 'hive'].every((m) => s[`games_${m}`] >= 1) },
   { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 }
 ]
 

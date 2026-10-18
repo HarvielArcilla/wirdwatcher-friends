@@ -99,6 +99,7 @@ function handlers () {
     joinLobby: (code) => ww.joinLobby(code),
     leaveLobby: () => ww.leaveLobby(),
     lobbyAction: (action, arg) => ww.lobbyAction(action, arg),
+    lobbyState: () => ww.lobbyState,
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
     customSound: () => ww.customSound(),

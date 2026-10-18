@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { readJson, writeJson } from './files.js'
 
-export const SCHEMA = 2
+export const SCHEMA = 3
 
 const DATA_FILES = ['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json']
 const DATA_DIRS = ['friends', 'sounds']
@@ -34,6 +34,16 @@ export const MIGRATIONS = {
     const OLD_DEFAULTS = { sounds: true, ratingSound: 'chime', soundVolume: 70, soundPitch: true, speakOnReveal: false, skipRated: true, autoAdvanceMs: 0, maxFriends: 50, maxFriendRecords: 100000, maxCommentChars: 280, showFriendComments: true, friendCodeMinutes: 15, lobbySize: 8, lobbyMessagesPerMinute: 120, lan: true, internet: true }
     const kept = Object.fromEntries(Object.entries(saved).filter(([k, v]) => !(k in OLD_DEFAULTS) || OLD_DEFAULTS[k] !== v))
     writeJson(file, kept, { pretty: true })
+  },
+  // Layout 3 drops the separate 'original sounds at the extremes' switch: if
+  // you had turned it on, you get the Original sound preset instead.
+  2 (dir) {
+    const file = path.join(dir, 'settings.json')
+    const saved = readJson(file, null)
+    if (!saved || !('sounds' in saved)) return
+    const { sounds, ...rest } = saved
+    if (sounds === true && !('ratingSound' in rest)) rest.ratingSound = 'original'
+    writeJson(file, rest, { pretty: true })
   }
 }
 

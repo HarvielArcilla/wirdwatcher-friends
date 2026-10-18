@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
 import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
 import { playRating } from './sound.js'
-import { burst, centerOf } from './effects.js'
+import { burst, centerOf, fxFor, burstFor } from './effects.js'
 
 // The solo game. Keyboard first, like the original:
 //   digits      type a rating (4 → 4., 7 → 4.7, 5 → 5.0)
@@ -137,11 +137,11 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       setTimeout(() => setFloats([]), 1900)
       playRating(r, settings)
       // The extremes get a moment of their own.
-      const kind = !settings.celebrate ? null : r === 5 ? 'perfect' : r >= 4.5 ? 'sparkle' : r === 0 ? 'zero' : r < 1 ? 'wilt' : null
+      const kind = fxFor(r, settings.animations)
       setFx(kind ? { kind, key: Date.now() } : null)
-      if (kind === 'perfect' || kind === 'sparkle') {
+      if (burstFor(kind)) {
         const at = centerOf(inputRef.current)
-        requestAnimationFrame(() => burst(at.x, at.y, kind === 'perfect' ? 'confetti' : 'sparkle'))
+        requestAnimationFrame(() => burst(at.x, at.y, burstFor(kind)))
       }
       setSkipNote(null)
       celebrate(toast, earned)
@@ -264,7 +264,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
             <>
               <div className='word-area'>
                 <h1 key={`${card.word}-${fx?.key || 0}`} className={`word ${fx ? `fx-${fx.kind}` : ''}`} style={{ fontSize: wordSize(card.word) }} aria-label={card.word}>
-                  {fx?.kind === 'zero'
+                  {fx?.kind === 'zero' || fx?.kind === 'crumble'
                     ? [...card.word].map((ch, i) => <span key={i} className='fall' aria-hidden='true' style={{ '--d': `${(i * 37) % 11 * 0.03}s`, '--x': `${((i * 53) % 9 - 4) * 14}px`, '--r': `${((i * 71) % 13 - 6) * 18}deg` }}>{ch}</span>)
                     : card.word}
                 </h1>

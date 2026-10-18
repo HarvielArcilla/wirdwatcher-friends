@@ -44,7 +44,7 @@ test('a folder from the first v2 builds is backed up and migrated', () => {
   assert.equal(app.store.rating('cat'), 3)
   assert.equal(app.settings.get('soundVolume'), 35, 'a real choice stays')
   assert.equal(app.settings.get('ratingSound'), 'arcade', 'an old default follows the new default')
-  assert.equal(app.settings.get('sounds'), false)
+  assert.equal(app.settings.get('sounds'), undefined, 'the old switch is gone')
 })
 
 test('data from a newer version is left alone', () => {
@@ -117,4 +117,14 @@ test('new badges unlock', () => {
   assert.ok(app.game.rate('owl', 3).badges.some((b) => b.id === 'weekend'))
   assert.ok(app.count('skips').badges.some((b) => b.id === 'skipper'))
   assert.throws(() => app.count('anything'), /Unknown/)
+})
+
+test('turning on the old v1-sounds switch becomes the Original preset', () => {
+  const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ schema: 2 }))
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ sounds: true, soundVolume: 50 }))
+  const app = offline(dir)
+  assert.equal(app.settings.get('ratingSound'), 'original')
+  assert.equal(app.settings.get('soundVolume'), 50)
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')), { soundVolume: 50, ratingSound: 'original' })
 })

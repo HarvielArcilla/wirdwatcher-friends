@@ -1,5 +1,4 @@
-// Lobbies: up to 8 people rate the same words together, and everyone's
-// rating stays hidden until the whole table has locked in.
+// Lobbies: up to 8 people play wirdwatcher around one table.
 //
 // Network shape: a star around the host, all of it peer-to-peer.
 //   - The host makes a lobby code (10 characters). Its computer waits on a
@@ -9,22 +8,40 @@
 //   - Players type the code and dial the host (on the internet or the same
 //     Wi-Fi). Every message is sealed with a key derived from the code, so
 //     only people with the code can take part.
-//   - The host's computer keeps the game: who is here, which word, who has
-//     locked in. Ratings go to the host only, and the host says nothing about
-//     them except who has locked in, until everyone has; then it reveals all
-//     of them at once. Nobody else's computer ever sees an early rating.
+//   - The host's computer runs the game. Each player is sent their own view
+//     of it: anything secret (ratings before the reveal, guesses, a Hive mind
+//     assignment, the word you were given to rate) goes only to the player it
+//     belongs to, and everything comes out at the reveal.
 //   - Players may include their identity key with a signature over this
 //     connection, so friends at the table are shown as friends.
 //
-// Round: rating → reveal → (everyone presses Enter, or the host moves on) →
-// next word. A rating made at a table also counts as your own rating of the
-// word, so lobbies feed your collection, XP and badges.
+// Modes (options.style), each a little sequence of phases:
+//   classic  rating → reveal
+//            Everyone rates the same word; the reveal shows every rating, the
+//            average, and who went highest and lowest. No points: it's for
+//            talking about. Next word when everyone is ready.
+//   highlow  rating → guessing → reveal
+//            Rate, then (before anything is shown) guess who went highest and
+//            who went lowest. 100 points for each right guess.
+//   hotseat  picking → rating → reveal
+//            Each word, one player is in the hot seat and the next player
+//            picks the word for them from three. The seat rates it; everyone
+//            else predicts the seat's rating. Up to 100 points for a close
+//            prediction; the picker gets 50 for drawing a strong reaction
+//            (4.5 and up, or 0.5 and below), and the seat gets 25 for each
+//            prediction they beat by more than 1.0.
+//   hive     choosing → rating → reveal
+//            Everyone gets a secret target (say 3.7) and a rater (another
+//            player), and finds a word they think that rater will rate near
+//            the target. Then each rater rates the word chosen for them, not
+//            knowing the target. Up to 100 points for landing close, plus 50
+//            for within 0.1.
 //
-// Scoring is for being in tune with the table: each round you score up to 100
-// for how close you were to everyone else's average (losing 25 per point off). Hive mind (everyone
-// within 0.5) and hot take (2.0 away from everyone) are called out.
+// A rating made at the table also counts as that player's own rating of the
+// word, so lobbies feed everyone's collection, XP and badges.
 
 import { EventEmitter } from 'node:events'
+import crypto from 'node:crypto'
 import hcrypto from 'hypercore-crypto'
 import { Mesh } from './mesh.js'
 import { channel } from './channel.js'
@@ -32,16 +49,19 @@ import { codeKeys, newLobbyCode, parseLobbyCode, normalizeCode } from './crypto.
 import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 
-const PROTOCOL = 2
-// style: 'chill' just reveals (the average, who went highest and lowest:
-// something to talk about); 'tune' also scores closeness to the table.
-export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'chill' }
-export const LOBBY_STYLES = ['chill', 'tune']
-export const LOBBY_ROUNDS = [5, 10, 15, 20, 30]
-export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds; 0 = no timer
+const PROTOCOL = 3
+export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive']
+export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic' }
+export const LOBBY_ROUNDS = [3, 5, 10, 15, 20]
+export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds per phase (finding a word gets three times as long); 0 = no timer
 export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '👏', '🙈']
 
+const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'] }
+
 const lobbyProof = (connKey, hostKey) => `wirdwatcher/v2/lobby|${connKey}|${hostKey}`
+
+// Up to 100 for being close: 40 off for every point away.
+export const closePoints = (a, b) => Math.max(0, Math.round(100 - 40 * Math.abs(a - b)))
 
 export function closeness (r, others) {
   if (!others.length) return 0
@@ -49,19 +69,33 @@ export function closeness (r, others) {
   return Math.round(100 * Math.max(0, 1 - Math.abs(r - mean) / 4))
 }
 
+// A shuffle where nobody lands on themselves (for Hive mind raters).
+export function derange (ids) {
+  if (ids.length < 2) return [...ids]
+  for (;;) {
+    const out = [...ids]
+    for (let i = out.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [out[i], out[j]] = [out[j], out[i]] }
+    if (out.every((x, i) => x !== ids[i])) return out
+  }
+}
+
+const round1 = (r) => Math.round(r * 10) / 10
+const validRating = (r) => typeof r === 'number' && r >= 0 && r <= 5
 const cleanName = (n) => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 24) || 'Guest'
 const cleanColor = (c) => /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : '#e8c686'
 
 // --- host ---------------------------------------------------------------------
 
 export class LobbyHost extends EventEmitter {
-  // me: { name, color, level, title, userId? , sign? }. dealer(mode, used):
-  // { word, info } for the next word. settings: the Settings object.
-  constructor ({ me, dealer, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
+  // me: { name, color, level, title, userId?, sign? }. dealer(mode, used):
+  // { word, info } for a new word. lookup(word): its details, or null if it
+  // isn't in the word list. settings: the Settings object.
+  constructor ({ me, dealer, lookup = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
     super()
     this.code = code
     this.me = me
     this.dealer = dealer
+    this.lookup = lookup
     this.settings = settings
     this.swarmOpts = swarm
     this.lanOpts = lan
@@ -76,7 +110,7 @@ export class LobbyHost extends EventEmitter {
     this.phase = 'waiting'
     this.round = 0
     this.history = [] // finished rounds
-    this.current = null // { word, info, ratings: Map, endsAt, next: Set }
+    this.current = null
     this.used = new Set()
     this.banned = new Set()
     this.closed = false
@@ -143,19 +177,15 @@ export class LobbyHost extends EventEmitter {
     const p = this.players.get(id)
     const c = this.current
     switch (msg.type) {
-      case 'rate': {
-        if (this.phase !== 'rating' || !c) return
-        const r = msg.r === null ? null : Number(msg.r)
-        if (r !== null && !(r >= 0 && r <= 5)) return
-        if (r === null) c.ratings.delete(id)
-        else c.ratings.set(id, Math.round(r * 10) / 10)
-        this._maybeReveal()
-        return this._changed()
-      }
+      case 'rate': return this._rate(id, msg.r === null ? null : Number(msg.r))
+      case 'guess': return this._guess(id, msg)
+      case 'pick': return this._pick(id, Number(msg.index))
+      case 'choose': return this._choose(id, msg.word)
       case 'next': {
         if (this.phase !== 'reveal' || !c) return
         c.next.add(id)
-        if (this.order.every((pid) => c.next.has(pid))) return this._nextRound()
+        // Everyone who played this word (and is still here) is ready.
+        if (this._live(c.roster).every((pid) => c.next.has(pid))) return this._nextRound()
         return this._changed()
       }
       case 'react': {
@@ -179,6 +209,126 @@ export class LobbyHost extends EventEmitter {
     }
   }
 
+  // --- the actions of each phase -------------------------------------------------
+
+  // A rating, or (in the hot seat, for everyone but the seat) a prediction.
+  // null takes it back while the phase is still open.
+  _rate (id, r) {
+    const c = this.current
+    if (this.phase !== 'rating' || !c || !c.roster.includes(id)) return
+    if (r !== null && !validRating(r)) return
+    const map = c.style === 'hotseat' && id !== c.seat ? c.predictions : c.ratings
+    if (c.style === 'hive' && !c.toRate.has(id)) return
+    if (r === null) map.delete(id)
+    else map.set(id, round1(r))
+    this._maybeAdvance()
+    this._changed()
+  }
+
+  _guess (id, { high, low }) {
+    const c = this.current
+    if (this.phase !== 'guessing' || !c || !c.roster.includes(id)) return
+    const ok = (x) => typeof x === 'string' && c.ratings.has(x)
+    if (high === null && low === null) c.guesses.delete(id)
+    else if (ok(high) && ok(low)) c.guesses.set(id, { high, low })
+    else return
+    this._maybeAdvance()
+    this._changed()
+  }
+
+  _pick (id, index) {
+    const c = this.current
+    if (this.phase !== 'picking' || !c || id !== c.picker || !c.choices[index]) return
+    c.word = c.choices[index].word
+    c.info = c.choices[index].info
+    this.used.add(c.word)
+    this._advance()
+  }
+
+  _choose (id, word) {
+    const c = this.current
+    if (this.phase !== 'choosing' || !c || !c.assign.has(id)) return
+    const w = String(word || '').toLowerCase().trim()
+    if (word === null) c.picks.delete(id)
+    else {
+      const info = this.lookup(w)
+      if (!info) return
+      c.picks.set(id, { word: w, info })
+    }
+    this._maybeAdvance()
+    this._changed()
+  }
+
+  // Who still has to act for the current phase to finish.
+  _waitingOn () {
+    const c = this.current
+    if (!c) return []
+    const live = this._live(c.roster)
+    switch (this.phase) {
+      case 'rating':
+        if (c.style === 'hotseat') return live.filter((id) => (id === c.seat ? !c.ratings.has(id) : !c.predictions.has(id)))
+        if (c.style === 'hive') return live.filter((id) => c.toRate.has(id) && !c.ratings.has(id))
+        return live.filter((id) => !c.ratings.has(id))
+      case 'guessing': return live.filter((id) => !c.guesses.has(id))
+      case 'picking': return live.includes(c.picker) ? [c.picker] : []
+      case 'choosing': return live.filter((id) => c.assign.has(id) && !c.picks.has(id))
+      default: return []
+    }
+  }
+
+  _live (ids) { return ids.filter((id) => this.order.includes(id)) }
+
+  _maybeAdvance () {
+    if (['rating', 'guessing', 'picking', 'choosing'].includes(this.phase) && this.current && !this._waitingOn().length) this._advance()
+  }
+
+  // To the next phase of this round, or to the reveal.
+  _advance () {
+    clearTimeout(this._timer)
+    const c = this.current
+    if (!c) return
+    const phases = PHASES[c.style]
+    const at = phases.indexOf(this.phase)
+    if (at < 0) return
+    if (c.style === 'hotseat') {
+      // No seat, no round. A picker who ran out of time (or left) gets the
+      // first word picked for them.
+      if (!this.order.includes(c.seat)) return this._nextRound()
+      if (this.phase === 'picking' && !c.word) {
+        c.word = c.choices[0].word
+        c.info = c.choices[0].info
+        this.used.add(c.word)
+      }
+    }
+    if (c.style === 'hive' && this.phase === 'choosing') {
+      if (!c.picks.size) return this._nextRound()
+      // Each rater gets the word chosen for them.
+      c.toRate = new Map()
+      for (const [picker, pick] of c.picks) {
+        const rater = c.assign.get(picker).rater
+        if (this.order.includes(rater)) c.toRate.set(rater, { picker, word: pick.word, info: pick.info })
+      }
+    }
+    const next = phases[at + 1]
+    if (!next) return this._reveal()
+    this.phase = next
+    c.next = new Set()
+    this._startTimer()
+    if (!this._waitingOn().length) return this._advance()
+    this._changed()
+  }
+
+  _startTimer () {
+    clearTimeout(this._timer)
+    const c = this.current
+    const secs = this.options.timer * (this.phase === 'choosing' ? 3 : 1)
+    c.endsAt = secs ? Date.now() + secs * 1000 : null
+    if (secs) {
+      this._timer = setTimeout(() => this._advance(), secs * 1000)
+      this._timer.unref?.()
+    }
+  }
+
   _addPlayer (id, info) {
     const back = this.players.get(id)
     this.players.set(id, {
@@ -199,10 +349,13 @@ export class LobbyHost extends EventEmitter {
     if (this.links.get(id) !== send) return
     this.links.delete(id)
     this.order = this.order.filter((x) => x !== id)
-    if (this.current) { this.current.ratings.delete(id); this.current.next.delete(id) }
     this._event({ kind: 'leave', id, name: this.players.get(id)?.name })
-    this._maybeReveal()
-    if (this.phase === 'reveal' && this.current && this.order.every((pid) => this.current.next.has(pid))) return this._nextRound()
+    const c = this.current
+    if (c && this.phase !== 'reveal') {
+      if (c.style === 'hotseat' && (id === c.seat || (id === c.picker && this.phase === 'picking'))) return this._advance()
+      this._maybeAdvance()
+    }
+    if (this.phase === 'reveal' && c && this._live(c.roster).every((pid) => c.next.has(pid))) return this._nextRound()
     this._changed()
   }
 
@@ -222,10 +375,10 @@ export class LobbyHost extends EventEmitter {
     this._nextRound()
   }
 
-  // Moves on now, whoever hasn't pressed Enter (or reveals now, while rating).
+  // Moves on now, whoever hasn't acted (or hasn't pressed Enter).
   advance () {
-    if (this.phase === 'rating') return this._reveal()
     if (this.phase === 'reveal') return this._nextRound()
+    if (['rating', 'guessing', 'picking', 'choosing'].includes(this.phase)) return this._advance()
   }
 
   kick (id) {
@@ -243,52 +396,121 @@ export class LobbyHost extends EventEmitter {
     this._changed()
   }
 
+  _deal () {
+    const dealt = this.dealer(this.options.mode, this.used)
+    if (dealt?.word) this.used.add(dealt.word)
+    return dealt?.word ? dealt : null
+  }
+
   _nextRound () {
     clearTimeout(this._timer)
-    if (this.round >= this.options.rounds) return this._finish()
-    const dealt = this.dealer(this.options.mode, this.used)
-    if (!dealt?.word) return this._finish()
-    this.used.add(dealt.word)
-    this.round++
-    const timer = this.options.timer
-    this.current = { word: dealt.word, info: dealt.info, ratings: new Map(), next: new Set(), endsAt: timer ? Date.now() + timer * 1000 : null }
-    this.phase = 'rating'
-    if (timer) {
-      this._timer = setTimeout(() => this._reveal(), timer * 1000)
-      this._timer.unref?.()
+    if (this.round >= this.options.rounds || !this.order.length) return this._finish()
+    const style = this.options.style
+    const roster = [...this.order]
+    const c = { style, roster, ratings: new Map(), next: new Set(), endsAt: null, result: null }
+    if (style === 'classic' || style === 'highlow') {
+      const dealt = this._deal()
+      if (!dealt) return this._finish()
+      Object.assign(c, { word: dealt.word, info: dealt.info, guesses: new Map() })
+    } else if (style === 'hotseat') {
+      const seat = roster[this.round % roster.length]
+      const picker = roster.length > 1 ? roster[(this.round + 1) % roster.length] : seat
+      const choices = []
+      const taken = new Set(this.used)
+      for (let i = 0; i < 3; i++) {
+        const d = this.dealer(this.options.mode, taken)
+        if (d?.word) { taken.add(d.word); choices.push(d) }
+      }
+      if (!choices.length) return this._finish()
+      Object.assign(c, { seat, picker, choices, word: null, info: null, predictions: new Map() })
+    } else if (style === 'hive') {
+      const raters = derange(roster)
+      const assign = new Map(roster.map((id, i) => [id, { rater: raters[i], target: round1(0.3 + crypto.randomInt(43) / 10) }]))
+      Object.assign(c, { assign, picks: new Map(), toRate: new Map() })
     }
+    this.round++
+    this.current = c
+    this.phase = PHASES[style][0]
+    this._startTimer()
     this._changed()
   }
 
-  _maybeReveal () {
-    const c = this.current
-    if (this.phase !== 'rating' || !c || !this.order.length) return
-    if (this.order.every((id) => c.ratings.has(id))) this._reveal()
-  }
-
+  // The reveal: work out the round, award points, and show everything.
   _reveal () {
     clearTimeout(this._timer)
     const c = this.current
-    if (this.phase !== 'rating' || !c) return
+    if (!c) return
     this.phase = 'reveal'
-    const ratings = Object.fromEntries([...c.ratings].filter(([id]) => this.players.has(id)))
-    const verdict = roundVerdict(ratings)
+    c.next = new Set()
+    const live = (id) => this.players.has(id)
+    const ratings = Object.fromEntries([...c.ratings].filter(([id]) => live(id)))
     const points = {}
-    const scored = this.options.style === 'tune'
-    for (const [id, r] of Object.entries(ratings)) {
-      const others = Object.entries(ratings).filter(([o]) => o !== id).map(([, v]) => v)
-      points[id] = scored ? closeness(r, others) : 0
-      const p = this.players.get(id)
-      if (p) p.score += points[id]
+    const give = (id, n) => { if (!n) return; points[id] = (points[id] || 0) + n; const p = this.players.get(id); if (p) p.score += n }
+    let result
+    if (c.style === 'classic' || c.style === 'highlow') {
+      const verdict = roundVerdict(ratings)
+      const vals = Object.values(ratings)
+      const hi = Math.max(...vals)
+      const lo = Math.min(...vals)
+      const split = vals.length > 1 && hi !== lo
+      const highest = split ? Object.keys(ratings).filter((id) => ratings[id] === hi) : []
+      const lowest = split ? Object.keys(ratings).filter((id) => ratings[id] === lo) : []
+      result = { style: c.style, word: c.word, ratings, highest, lowest, ...verdict, rated: Object.entries(ratings).map(([by, r]) => ({ by, word: c.word, r })) }
+      if (c.style === 'highlow') {
+        const guesses = {}
+        for (const [id, g] of c.guesses) {
+          const hitHigh = split && highest.includes(g.high)
+          const hitLow = split && lowest.includes(g.low)
+          guesses[id] = { ...g, hitHigh, hitLow }
+          give(id, (hitHigh ? 100 : 0) + (hitLow ? 100 : 0))
+        }
+        result.guesses = guesses
+        result.split = split
+        // Who fooled the most people (nobody saw them coming).
+        const fooled = {}
+        for (const g of Object.values(guesses)) {
+          for (const id of highest) if (g.high !== id) fooled[id] = (fooled[id] || 0) + 1
+          for (const id of lowest) if (g.low !== id) fooled[id] = (fooled[id] || 0) + 1
+        }
+        result.fooled = fooled
+      }
+    } else if (c.style === 'hotseat') {
+      const r = c.ratings.get(c.seat) ?? null
+      const predictions = Object.fromEntries([...c.predictions].filter(([id]) => live(id)))
+      const diffs = {}
+      for (const [id, pr] of Object.entries(predictions)) {
+        diffs[id] = r === null ? null : round1(Math.abs(pr - r))
+        if (r !== null) give(id, closePoints(pr, r))
+      }
+      const best = r === null ? [] : Object.keys(diffs).filter((id) => diffs[id] === Math.min(...Object.values(diffs)))
+      const reaction = r !== null && (r >= 4.5 || r <= 0.5)
+      if (reaction && c.picker !== c.seat) give(c.picker, 50)
+      const beaten = r === null ? 0 : Object.values(diffs).filter((d) => d > 1).length
+      give(c.seat, beaten * 25)
+      result = { style: 'hotseat', word: c.word, seat: c.seat, picker: c.picker, r, predictions, diffs, best, reaction, beaten, ratings: r === null ? {} : { [c.seat]: r }, rated: r === null ? [] : [{ by: c.seat, word: c.word, r }] }
+    } else {
+      const entries = []
+      for (const [picker, a] of c.assign) {
+        const pick = c.picks.get(picker)
+        const r = c.ratings.get(a.rater) ?? null
+        const counted = pick && r !== null && c.toRate.get(a.rater)?.picker === picker
+        const diff = counted ? round1(Math.abs(r - a.target)) : null
+        const pts = counted ? closePoints(r, a.target) + (diff <= 0.1 ? 50 : 0) : 0
+        give(picker, pts)
+        entries.push({ picker, rater: a.rater, target: a.target, word: pick?.word || null, info: pick?.info || null, r: counted ? r : null, diff, points: pts })
+      }
+      const scored = entries.filter((e) => e.diff !== null)
+      const bestD = Math.min(...scored.map((e) => e.diff))
+      const worstD = Math.max(...scored.map((e) => e.diff))
+      const best = scored.filter((e) => e.diff === bestD).map((e) => e.picker)
+      const worst = scored.length > 1 && worstD !== bestD ? scored.filter((e) => e.diff === worstD).map((e) => e.picker) : []
+      // Each picker's card shows the rating their word got.
+      const cards = Object.fromEntries(entries.filter((e) => e.r !== null).map((e) => [e.picker, e.r]))
+      result = { style: 'hive', entries, best, worst, ratings: cards, rated: entries.filter((e) => e.r !== null).map((e) => ({ by: e.rater, word: e.word, r: e.r })) }
     }
-    // Who went highest and lowest (everyone tied for it), when it differs.
-    const vals = Object.values(ratings)
-    const hi = Math.max(...vals)
-    const lo = Math.min(...vals)
-    const highest = vals.length > 1 && hi !== lo ? Object.keys(ratings).filter((id) => ratings[id] === hi) : []
-    const lowest = vals.length > 1 && hi !== lo ? Object.keys(ratings).filter((id) => ratings[id] === lo) : []
-    c.result = { ratings, points, scored, highest, lowest, ...verdict }
-    this.history.push({ round: this.round, word: c.word, ...c.result, players: Object.keys(ratings).length })
+    result.points = points
+    c.result = result
+    this.history.push({ round: this.round, ...result, players: c.roster.length })
     this._changed()
   }
 
@@ -312,13 +534,16 @@ export class LobbyHost extends EventEmitter {
   // --- the host is also a player ------------------------------------------------
 
   rate (r) { this._act(this.hostId, { type: 'rate', r }) }
+  guess (g) { this._act(this.hostId, { type: 'guess', ...g }) }
+  pick (index) { this._act(this.hostId, { type: 'pick', index }) }
+  choose (word) { this._act(this.hostId, { type: 'choose', word }) }
   next () { this._act(this.hostId, { type: 'next' }) }
   react (emoji) { this._act(this.hostId, { type: 'react', emoji }) }
   chat (text) { this._act(this.hostId, { type: 'chat', text }) }
   setReady (ready) { this._act(this.hostId, { type: 'ready', ready }) }
   setProfile (me) { this._act(this.hostId, { type: 'profile', ...me }) }
 
-  // --- what everyone sees -------------------------------------------------------
+  // --- what each player sees --------------------------------------------------
 
   _event (e) {
     const ev = { ...e, at: Date.now() }
@@ -326,9 +551,35 @@ export class LobbyHost extends EventEmitter {
     this.emit('event', ev)
   }
 
-  // Ratings are only included once revealed; until then just who locked in.
-  view () {
+  // The table as one player sees it. Before the reveal, nobody's secrets are
+  // in it except that player's own.
+  view (forId) {
     const c = this.current
+    const waiting = new Set(this._waitingOn())
+    const role = (id) => (c?.style === 'hotseat' ? (id === c.seat ? 'seat' : id === c.picker ? 'picker' : null) : null)
+    let current = null
+    if (c) {
+      current = { style: c.style, endsIn: c.endsAt ? Math.max(0, c.endsAt - Date.now()) : null, result: this.phase === 'reveal' ? c.result : null, roster: c.roster }
+      if (c.style === 'classic' || c.style === 'highlow') {
+        Object.assign(current, { word: c.word, info: c.info, mine: { r: c.ratings.get(forId) ?? null, guess: c.guesses.get(forId) || null } })
+      } else if (c.style === 'hotseat') {
+        Object.assign(current, { seat: c.seat, picker: c.picker, choices: c.choices.map(({ word, info }) => ({ word, info })), word: c.word, info: c.info, mine: { r: (forId === c.seat ? c.ratings.get(forId) : c.predictions.get(forId)) ?? null } })
+      } else if (c.style === 'hive') {
+        const a = c.assign.get(forId)
+        const pick = c.picks.get(forId)
+        const give = c.toRate.get(forId)
+        Object.assign(current, {
+          mine: {
+            target: a?.target ?? null,
+            rater: a?.rater ?? null,
+            pick: pick?.word || null,
+            pickInfo: pick?.info || null,
+            toRate: give ? { word: give.word, info: give.info } : null, // you don't learn who chose it, or why
+            r: c.ratings.get(forId) ?? null
+          }
+        })
+      }
+    }
     return {
       v: PROTOCOL,
       code: this.code,
@@ -339,19 +590,20 @@ export class LobbyHost extends EventEmitter {
       round: this.round,
       players: this.order.map((id) => {
         const p = this.players.get(id)
-        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, locked: Boolean(c && c.ratings.has(id)), next: Boolean(c && c.next.has(id)) }
+        const inRound = Boolean(c && c.roster.includes(id))
+        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
       }),
-      current: c ? { word: c.word, info: c.info, endsIn: c.endsAt ? Math.max(0, c.endsAt - Date.now()) : null, result: this.phase === 'reveal' ? c.result : null } : null,
+      waitingOn: [...waiting],
+      current,
       history: this.history,
-      summary: this.phase === 'results' ? summarize(this.history, this.players) : null
+      summary: this.phase === 'results' ? summarize(this.history, this.players, this.options.style) : null
     }
   }
 
   _changed () {
     if (this.closed) return
-    const view = this.view()
-    for (const send of this.links.values()) send({ type: 'state', state: view })
-    this.emit('state', { ...view, you: this.hostId, isHost: true })
+    for (const [id, send] of this.links) send({ type: 'state', state: this.view(id) })
+    this.emit('state', { ...this.view(this.hostId), you: this.hostId, isHost: true })
   }
 }
 
@@ -364,34 +616,62 @@ function pickOptions (o = {}) {
   return out
 }
 
-// The end-of-game awards.
-export function summarize (history, players) {
-  if (!history.length) return { awards: [], words: [] }
-  const sorted = [...history]
-  const byMean = sorted.filter((h) => h.mean !== null).sort((a, b) => b.mean - a.mean)
-  const bySpread = [...sorted].sort((a, b) => b.spread - a.spread)
+// The end-of-game awards for each mode.
+export function summarize (history, players, style = 'classic') {
+  if (!history.length) return { awards: [], words: [], scored: style !== 'classic' }
   const name = (id) => players.get(id)?.name || 'Someone'
   const awards = []
-  if (byMean[0]) awards.push({ emoji: '👑', title: 'Table favorite', word: byMean[0].word, detail: `averaged ${byMean[0].mean.toFixed(1)}` })
-  if (byMean.length > 1) awards.push({ emoji: '🗑️', title: 'Table least favorite', word: byMean[byMean.length - 1].word, detail: `averaged ${byMean[byMean.length - 1].mean.toFixed(1)}` })
-  if (bySpread[0] && bySpread[0].spread >= 1) awards.push({ emoji: '⚔️', title: 'Most divisive', word: bySpread[0].word, detail: `${bySpread[0].spread.toFixed(1)} between highest and lowest` })
-  const hives = sorted.filter((h) => h.hive && h.players >= 2).length
-  if (hives) awards.push({ emoji: '🐝', title: 'Hive mind', detail: `${hives} word${hives === 1 ? '' : 's'} where everyone agreed` })
-  // Most hot takes, and the most generous and harshest raters.
-  const takes = new Map()
-  const totals = new Map()
-  for (const h of sorted) {
-    if (h.hotTake) takes.set(h.hotTake, (takes.get(h.hotTake) || 0) + 1)
-    for (const [id, r] of Object.entries(h.ratings)) { const t = totals.get(id) || { sum: 0, n: 0 }; t.sum += r; t.n++; totals.set(id, t) }
+  const scored = style !== 'classic'
+  if (style === 'classic' || style === 'highlow') {
+    const byMean = history.filter((h) => h.mean !== null && h.mean !== undefined).sort((a, b) => b.mean - a.mean)
+    const bySpread = [...history].sort((a, b) => (b.spread || 0) - (a.spread || 0))
+    if (byMean[0]) awards.push({ emoji: '👑', title: 'Table favorite', word: byMean[0].word, detail: `averaged ${byMean[0].mean.toFixed(1)}` })
+    if (byMean.length > 1) awards.push({ emoji: '🗑️', title: 'Table least favorite', word: byMean[byMean.length - 1].word, detail: `averaged ${byMean[byMean.length - 1].mean.toFixed(1)}` })
+    if (bySpread[0] && bySpread[0].spread >= 1) awards.push({ emoji: '⚔️', title: 'Most divisive', word: bySpread[0].word, detail: `${bySpread[0].spread.toFixed(1)} between highest and lowest` })
+    const synced = history.filter((h) => h.hive && h.players >= 2).length
+    if (synced) awards.push({ emoji: '🤝', title: 'In sync', detail: `${synced} word${synced === 1 ? '' : 's'} where everyone was within 0.5` })
+    const totals = new Map()
+    for (const h of history) for (const [id, r] of Object.entries(h.ratings || {})) { const t = totals.get(id) || { sum: 0, n: 0 }; t.sum += r; t.n++; totals.set(id, t) }
+    const avgs = [...totals].filter(([, t]) => t.n >= Math.max(1, Math.ceil(history.length / 2))).map(([id, t]) => [id, t.sum / t.n]).sort((a, b) => b[1] - a[1])
+    if (avgs.length >= 2) {
+      awards.push({ emoji: '🧸', title: 'Most generous', player: avgs[0][0], detail: `${name(avgs[0][0])}, averaged ${avgs[0][1].toFixed(1)}` })
+      awards.push({ emoji: '🧐', title: 'Toughest critic', player: avgs[avgs.length - 1][0], detail: `${name(avgs[avgs.length - 1][0])}, averaged ${avgs[avgs.length - 1][1].toFixed(1)}` })
+    }
   }
-  const spicy = [...takes].sort((a, b) => b[1] - a[1])[0]
-  if (spicy) awards.push({ emoji: '🌶️', title: 'Spiciest takes', player: spicy[0], detail: `${name(spicy[0])}, ${spicy[1]} hot take${spicy[1] === 1 ? '' : 's'}` })
-  const avgs = [...totals].filter(([, t]) => t.n >= Math.max(1, Math.ceil(sorted.length / 2))).map(([id, t]) => [id, t.sum / t.n]).sort((a, b) => b[1] - a[1])
-  if (avgs.length >= 2) {
-    awards.push({ emoji: '🧸', title: 'Most generous', player: avgs[0][0], detail: `${name(avgs[0][0])}, averaged ${avgs[0][1].toFixed(1)}` })
-    awards.push({ emoji: '🧐', title: 'Toughest critic', player: avgs[avgs.length - 1][0], detail: `${name(avgs[avgs.length - 1][0])}, averaged ${avgs[avgs.length - 1][1].toFixed(1)}` })
+  if (style === 'highlow') {
+    const fooled = new Map()
+    const reads = new Map()
+    for (const h of history) {
+      for (const [id, n] of Object.entries(h.fooled || {})) fooled.set(id, (fooled.get(id) || 0) + n)
+      for (const [id, g] of Object.entries(h.guesses || {})) reads.set(id, (reads.get(id) || 0) + (g.hitHigh ? 1 : 0) + (g.hitLow ? 1 : 0))
+    }
+    const sneak = [...fooled].sort((a, b) => b[1] - a[1])[0]
+    if (sneak) awards.push({ emoji: '🕵️', title: 'Poker face', player: sneak[0], detail: `${name(sneak[0])} fooled the table ${sneak[1]} time${sneak[1] === 1 ? '' : 's'}` })
+    const reader = [...reads].sort((a, b) => b[1] - a[1])[0]
+    if (reader?.[1]) awards.push({ emoji: '🔮', title: 'Mind reader', player: reader[0], detail: `${name(reader[0])}, ${reader[1]} right guess${reader[1] === 1 ? '' : 'es'}` })
   }
-  return { awards, words: sorted.map((h) => ({ word: h.word, mean: h.mean, spread: h.spread })) }
+  if (style === 'hotseat') {
+    const seats = history.filter((h) => h.r !== null)
+    const wild = [...seats].sort((a, b) => b.beaten - a.beaten)[0]
+    if (wild?.beaten) awards.push({ emoji: '🎭', title: 'Unpredictable', player: wild.seat, detail: `${name(wild.seat)} beat ${wild.beaten} prediction${wild.beaten === 1 ? '' : 's'} with “${wild.word}”` })
+    const reactions = new Map()
+    for (const h of seats) if (h.reaction) reactions.set(h.picker, (reactions.get(h.picker) || 0) + 1)
+    const stirrer = [...reactions].sort((a, b) => b[1] - a[1])[0]
+    if (stirrer) awards.push({ emoji: '🧨', title: 'Button pusher', player: stirrer[0], detail: `${name(stirrer[0])} picked ${stirrer[1]} word${stirrer[1] === 1 ? '' : 's'} that got a strong reaction` })
+    const hits = new Map()
+    for (const h of seats) for (const [id, d] of Object.entries(h.diffs || {})) if (d !== null && d <= 0.2) hits.set(id, (hits.get(id) || 0) + 1)
+    const knower = [...hits].sort((a, b) => b[1] - a[1])[0]
+    if (knower) awards.push({ emoji: '🫂', title: 'Knows you best', player: knower[0], detail: `${name(knower[0])}, ${knower[1]} prediction${knower[1] === 1 ? '' : 's'} within 0.2` })
+  }
+  if (style === 'hive') {
+    const all = history.flatMap((h) => h.entries || []).filter((e) => e.diff !== null)
+    const bull = [...all].sort((a, b) => a.diff - b.diff)[0]
+    if (bull) awards.push({ emoji: '🎯', title: 'Closest shot', player: bull.picker, word: bull.word, detail: `${name(bull.picker)} aimed ${bull.target.toFixed(1)} for ${name(bull.rater)}, got ${bull.r.toFixed(1)}` })
+    const miss = [...all].sort((a, b) => b.diff - a.diff)[0]
+    if (miss && all.length > 1) awards.push({ emoji: '🙃', title: 'Wildest miss', player: miss.picker, word: miss.word, detail: `aimed ${miss.target.toFixed(1)}, ${name(miss.rater)} gave it ${miss.r.toFixed(1)}` })
+  }
+  const words = history.flatMap((h) => (h.style === 'hive' ? (h.entries || []).filter((e) => e.word).map((e) => ({ word: e.word, mean: e.r, spread: 0 })) : h.word ? [{ word: h.word, mean: h.mean ?? h.r ?? null, spread: h.spread || 0 }] : []))
+  return { awards, words, scored }
 }
 
 // --- player ---------------------------------------------------------------------
@@ -469,6 +749,9 @@ export class LobbyClient extends EventEmitter {
   }
 
   rate (r) { this.send?.({ type: 'rate', r }) }
+  guess (g) { this.send?.({ type: 'guess', ...g }) }
+  pick (index) { this.send?.({ type: 'pick', index }) }
+  choose (word) { this.send?.({ type: 'choose', word }) }
   next () { this.send?.({ type: 'next' }) }
   react (emoji) { this.send?.({ type: 'react', emoji }) }
   chat (text) { this.send?.({ type: 'chat', text }) }

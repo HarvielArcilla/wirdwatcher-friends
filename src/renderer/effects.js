@@ -57,16 +57,29 @@ function tick () {
   if (!parts.length) c.clearRect(0, 0, canvas.width, canvas.height)
 }
 
-// kind: 'confetti' (a 5.0) or 'sparkle' (4.5 and up). x, y: page coordinates.
+// How a rating reacts, by band. animations: 'all' | 'ends' | 'off'.
+export function fxFor (r, animations = 'all') {
+  if (animations === 'off' || r === null || r === undefined) return null
+  const kind = r === 5 ? 'perfect' : r >= 4.5 ? 'great' : r === 0 ? 'zero' : r <= 0.5 ? 'crumble' : r >= 3.5 ? 'good' : r >= 2.5 ? 'fine' : r >= 1.5 ? 'meh' : 'wilt'
+  if (animations === 'ends' && !['perfect', 'great', 'zero', 'crumble'].includes(kind)) return null
+  return kind
+}
+
+// The burst that goes with a reaction, if any.
+export const burstFor = (kind) => ({ perfect: 'confetti', great: 'confetti-small', good: 'sparkle' })[kind] || null
+
+// kind: 'confetti' (a 5.0), 'confetti-small' (4.5 and up) or 'sparkle'. x, y: page coordinates.
 export function burst (x, y, kind = 'confetti') {
   if (calm()) return
   ensureCanvas()
   const colors = themeColors()
   const now = performance.now()
-  const n = kind === 'confetti' ? 110 : 18
+  const small = kind === 'confetti-small'
+  if (small) kind = 'confetti'
+  const n = kind === 'confetti' ? (small ? 50 : 110) : 18
   for (let i = 0; i < n; i++) {
-    const a = kind === 'confetti' ? -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.3 : Math.random() * Math.PI * 2
-    const speed = kind === 'confetti' ? 380 + Math.random() * 620 : 60 + Math.random() * 140
+    const a = kind === 'confetti' ? -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * (small ? 0.9 : 1.3) : Math.random() * Math.PI * 2
+    const speed = kind === 'confetti' ? (small ? 280 + Math.random() * 380 : 380 + Math.random() * 620) : 60 + Math.random() * 140
     parts.push({
       x, y, born: now + (kind === 'confetti' ? Math.random() * 120 : 0),
       vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,

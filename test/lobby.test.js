@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { network, until } from './helpers.js'
-import { closeness, summarize } from '../src/core/lobby.js'
+import { closeness, summarize, closePoints, derange } from '../src/core/lobby.js'
 
 test('closeness scores up to 100 for matching the table', () => {
   assert.equal(closeness(4, [4, 4]), 100)
@@ -71,6 +71,7 @@ test('three players rate together; ratings stay hidden until everyone locks in',
   assert.equal(host.lobbyState.current.result.hive, true)
   host.lobbyAction('advance')
   await until(() => p2.lobbyState?.phase === 'results')
+  assert.equal(p2.lobbyState.summary.scored, false, 'Classic has no points')
   assert.ok(p2.lobbyState.summary.awards.length >= 2)
   await until(() => p2.store.counter('lobbyGames') === 1)
 
@@ -108,35 +109,143 @@ test('end-of-game awards', () => {
   assert.equal(s.awards.find((x) => x.title === 'Table favorite').word, 'cat')
 })
 
-test('chill lobbies mark the highest and lowest and score nothing; in-tune lobbies score', async (t) => {
+
+test('points and raters: close is better, nobody rates their own word', () => {
+  assert.equal(closePoints(3, 3), 100)
+  assert.equal(closePoints(3, 4), 60)
+  assert.equal(closePoints(0, 5), 0)
+  for (let i = 0; i < 50; i++) {
+    const ids = ['a', 'b', 'c', 'd', 'e']
+    const d = derange(ids)
+    assert.deepEqual([...d].sort(), ids)
+    assert.ok(d.every((x, i) => x !== ids[i]))
+  }
+})
+
+async function table (t, n = 3) {
   const { make } = await network(t)
-  const host = await make()
-  const a = await make()
-  const b = await make()
-  const { code } = await host.hostLobby({ rounds: 2 })
-  assert.equal(host.lobbyState.options.style, 'chill')
-  await a.joinLobby(code)
-  await b.joinLobby(code)
-  await until(() => host.lobbyState.players.length === 3)
+  const apps = []
+  for (let i = 0; i < n; i++) { const a = await make(); a.setProfile({ name: ['Host', 'Pip', 'Quinn', 'Rosa'][i] }); apps.push(a) }
+  return apps
+}
+
+async function seat (apps, options) {
+  const [host, ...rest] = apps
+  const { code } = await host.hostLobby(options)
+  for (const a of rest) await a.joinLobby(code)
+  await until(() => host.lobbyState.players.length === apps.length)
   host.lobbyAction('begin')
-  await until(() => b.lobbyState?.phase === 'rating')
+}
+
+const idOf = (app) => app.lobbyState.you
+
+test('High/Low: rate, guess who went highest and lowest, and score the guesses', async (t) => {
+  const apps = await table(t)
+  const [host, pip, quinn] = apps
+  await seat(apps, { style: 'highlow', rounds: 1 })
+  await until(() => quinn.lobbyState?.phase === 'rating')
   host.lobbyAction('rate', 3)
-  a.lobbyAction('rate', 4.5)
-  b.lobbyAction('rate', 1)
-  await until(() => a.lobbyState.phase === 'reveal')
-  const res = a.lobbyState.current.result
-  assert.equal(res.scored, false)
-  assert.deepEqual(res.highest, [a.lobbyState.you])
-  assert.deepEqual(res.lowest, [b.lobbyState.you])
-  assert.ok(a.lobbyState.players.every((p) => p.score === 0))
-  host.lobbyAction('backToLobby')
-  host.lobbyAction('configure', { style: 'tune' })
-  await until(() => a.lobbyState.options.style === 'tune')
-  host.lobbyAction('begin')
-  await until(() => a.lobbyState.phase === 'rating')
-  for (const x of [host, a, b]) x.lobbyAction('rate', 3)
-  await until(() => a.lobbyState.phase === 'reveal')
-  assert.equal(a.lobbyState.current.result.scored, true)
-  assert.deepEqual(a.lobbyState.current.result.highest, [], 'nobody is highest when everyone agrees')
-  assert.ok(a.lobbyState.players.every((p) => p.score === 100))
+  pip.lobbyAction('rate', 4.8)
+  quinn.lobbyAction('rate', 0.5)
+  await until(() => pip.lobbyState.phase === 'guessing')
+  assert.equal(pip.lobbyState.current.result, null)
+  assert.equal(JSON.stringify(pip.lobbyState).includes('4.8'), true, 'my own rating is mine to see')
+  assert.equal(JSON.stringify(host.lobbyState.players).includes('4.8'), false)
+  assert.equal(JSON.stringify(quinn.lobbyState).includes('4.8'), false, 'nobody else sees it before the reveal')
+  const [h, p, q] = apps.map(idOf)
+  host.lobbyAction('guess', { high: p, low: q }) // both right
+  pip.lobbyAction('guess', { high: h, low: q }) // low right
+  quinn.lobbyAction('guess', { high: q, low: h }) // both wrong
+  await until(() => quinn.lobbyState.phase === 'reveal')
+  const res = quinn.lobbyState.current.result
+  assert.deepEqual(res.highest, [p])
+  assert.deepEqual(res.lowest, [q])
+  assert.deepEqual(res.points, { [h]: 200, [p]: 100 })
+  assert.equal(res.guesses[q].hitHigh, false)
+  await until(() => host.store.counter('mindReads') === 1)
+  assert.equal(pip.store.rating(res.word), 4.8, 'the rating counts as Pip’s own')
+})
+
+test('Hot seat: the picker chooses a word, the seat rates it, everyone else predicts', async (t) => {
+  const apps = await table(t)
+  const [host, pip, quinn] = apps
+  await seat(apps, { style: 'hotseat', rounds: 2 })
+  await until(() => quinn.lobbyState?.phase === 'picking')
+  const c = quinn.lobbyState.current
+  const [h, p, q] = apps.map(idOf)
+  assert.equal(c.seat, h, 'the first word is the host’s')
+  assert.equal(c.picker, p, 'and the next player picks it')
+  assert.equal(c.choices.length, 3)
+  assert.ok(c.choices[0].info.senses.length, 'choices come with definitions')
+  host.lobbyAction('pick', 1) // not the picker: ignored
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.equal(quinn.lobbyState.phase, 'picking')
+  pip.lobbyAction('pick', 2)
+  await until(() => quinn.lobbyState.phase === 'rating')
+  assert.equal(quinn.lobbyState.current.word, c.choices[2].word)
+  host.lobbyAction('rate', 4.6) // the seat's rating
+  pip.lobbyAction('rate', 4.5) // predictions
+  quinn.lobbyAction('rate', 2)
+  await until(() => pip.lobbyState.phase === 'reveal')
+  const res = pip.lobbyState.current.result
+  assert.equal(res.r, 4.6)
+  assert.deepEqual(res.best, [p])
+  assert.equal(res.points[p], 96 + 50, 'close prediction, plus the picker’s bonus for a 4.6')
+  assert.equal(res.points[q] ?? 0, 0)
+  assert.equal(res.points[h], 25, 'the seat beat one prediction by more than 1.0')
+  await until(() => host.store.rating(res.word) === 4.6)
+  assert.equal(pip.store.rating(res.word), null, 'a prediction isn’t a rating')
+  for (const a of apps) a.lobbyAction('next')
+  await until(() => quinn.lobbyState.phase === 'picking' && quinn.lobbyState.round === 2)
+  assert.equal(quinn.lobbyState.current.seat, p, 'the seat moves round the table')
+  assert.equal(quinn.lobbyState.current.picker, q)
+})
+
+test('Hive mind: secret targets and raters, players choose words, raters rate them', async (t) => {
+  const apps = await table(t)
+  const [host, pip, quinn] = apps
+  await seat(apps, { style: 'hive', rounds: 1 })
+  await until(() => quinn.lobbyState?.phase === 'choosing')
+  const mine = Object.fromEntries(apps.map((a) => [idOf(a), a.lobbyState.current.mine]))
+  for (const [id, m] of Object.entries(mine)) {
+    assert.ok(m.target >= 0.3 && m.target <= 4.5)
+    assert.notEqual(m.rater, id, 'never your own rater')
+  }
+  assert.equal(JSON.stringify(pip.lobbyState).includes(`"target":${mine[idOf(quinn)].target},"rater":"${mine[idOf(quinn)].rater}"`), false, 'assignments are private')
+  host.lobbyAction('choose', 'notaword')
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  assert.equal(host.lobbyState.current.mine.pick, null, 'only real words')
+  host.lobbyAction('choose', 'cat')
+  pip.lobbyAction('choose', 'moist')
+  quinn.lobbyAction('choose', 'serendipity')
+  await until(() => pip.lobbyState.phase === 'rating')
+  // Each rater sees only the word chosen for them.
+  const byPicker = { [idOf(host)]: 'cat', [idOf(pip)]: 'moist', [idOf(quinn)]: 'serendipity' }
+  for (const a of apps) {
+    const toRate = a.lobbyState.current.mine.toRate
+    const picker = Object.keys(mine).find((id) => mine[id].rater === idOf(a))
+    assert.equal(toRate.word, byPicker[picker])
+    assert.equal(JSON.stringify(a.lobbyState.current).includes('"target"'), true) // only their own target
+  }
+  // Each rater rates exactly their target's value for the host's word, 1 off for the others.
+  for (const a of apps) {
+    const picker = Object.keys(mine).find((id) => mine[id].rater === idOf(a))
+    const target = mine[picker].target
+    a.lobbyAction('rate', picker === idOf(host) ? target : Math.min(5, target + 1))
+  }
+  await until(() => quinn.lobbyState.phase === 'reveal')
+  const res = quinn.lobbyState.current.result
+  assert.equal(res.entries.length, 3)
+  assert.deepEqual(res.best, [idOf(host)])
+  assert.equal(res.points[idOf(host)], 150, 'a bullseye: 100 plus 50')
+  await until(() => host.store.counter('bullseyes') === 1)
+  const raterOfCat = mine[idOf(host)].rater
+  const raterApp = apps.find((a) => idOf(a) === raterOfCat)
+  await until(() => raterApp.store.rating('cat') === mine[idOf(host)].target, { timeout: 5000 })
+})
+
+test('end-of-game awards for each mode', () => {
+  const players = new Map([['a', { name: 'A' }], ['b', { name: 'B' }]])
+  assert.ok(summarize([{ style: 'hotseat', seat: 'a', picker: 'b', word: 'cat', r: 5, diffs: { b: 0.1 }, beaten: 0, reaction: true }], players, 'hotseat').awards.some((x) => x.title === 'Knows you best'))
+  assert.ok(summarize([{ style: 'hive', entries: [{ picker: 'a', rater: 'b', target: 2, word: 'cat', r: 2.1, diff: 0.1 }, { picker: 'b', rater: 'a', target: 4, word: 'dog', r: 1, diff: 3 }] }], players, 'hive').awards.some((x) => x.title === 'Wildest miss'))
 })

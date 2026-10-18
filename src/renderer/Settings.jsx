@@ -124,7 +124,7 @@ function SoundSettings ({ settings, save, setSettings }) {
   const pick = async (id) => {
     if (id === 'custom' && !custom) return choose()
     await save({ ratingSound: id })
-    test(3.5, { ratingSound: id, sounds: false })
+    test(id === 'original' ? 4.6 : 3.5, { ratingSound: id })
   }
   const choose = async () => {
     setError(null)
@@ -134,7 +134,7 @@ function SoundSettings ({ settings, save, setSettings }) {
       setCustom(res.sound)
       setCustomSound(res.sound?.dataUrl || null)
       setSettings(res.settings)
-      setTimeout(() => playRating(3.5, { ...res.settings.values, sounds: false }), 50)
+      setTimeout(() => playRating(3.5, res.settings.values), 50)
     } catch (err) { setError(err.message) }
   }
   const clear = async () => {
@@ -163,14 +163,18 @@ function SoundSettings ({ settings, save, setSettings }) {
       <div className='setting'>
         <div>Try it<small>How each rating sounds with your settings.</small></div>
         <div className='scale-test'>
-          {[0, 1, 2, 2.5, 3, 4, 5].map((r) => <button key={r} onClick={() => test(r)} style={{ color: ratingColor(r) }}>{r.toFixed(1)}</button>)}
+          {[0, 0.5, 1, 2, 2.5, 3, 4, 4.5, 5].map((r) => <button key={r} onClick={() => test(r)} style={{ color: ratingColor(r) }}>{r.toFixed(1)}</button>)}
         </div>
       </div>
       <div className='setting'>
         <div>Volume</div>
         <input type='range' min='0' max='100' value={v.soundVolume} aria-label='Volume' onChange={(e) => setSettings({ ...settings, values: { ...v, soundVolume: Number(e.target.value) } })} onPointerUp={(e) => { save({ soundVolume: e.currentTarget.value }); test(4) }} onKeyUp={(e) => save({ soundVolume: e.currentTarget.value })} />
       </div>
-      {['celebrate', 'soundPitch', 'sounds'].map((key) => {
+      <div className='setting'>
+        <div>{settings.fields.animations.label}<small>{settings.fields.animations.hint}</small></div>
+        <div className='seg'>{[['all', 'Every rating'], ['ends', 'Only the ends'], ['off', 'Off']].map(([x, label]) => <button key={x} className={v.animations === x ? 'on' : ''} onClick={() => save({ animations: x })}>{label}</button>)}</div>
+      </div>
+      {['celebrate', 'soundPitch'].map((key) => {
         const f = settings.fields[key]
         return (
           <div key={key} className='setting'>
