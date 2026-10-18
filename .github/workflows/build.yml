@@ -18,14 +18,16 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: node --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/ci-reporter.mjs --test-reporter-destination=stdout "test/*.test.js"
+      - run: node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/ci-reporter.mjs --test-reporter-destination=stdout "test/*.test.js"
       - name: launch the app (smoke test)
         if: runner.os != 'Linux'
+        timeout-minutes: 5
         run: npm run smoke
       - name: launch the app (smoke test, Linux)
         if: runner.os == 'Linux'
