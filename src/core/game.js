@@ -349,7 +349,7 @@ export class Game extends EventEmitter {
       level: levelFor(p.xp).level, bestSession: p.bestSession || 0, earlyBird: this.store.counter('earlyBird'),
       hosted: this.store.counter('hosted'), skips: this.store.counter('skips'), meaningSearches: this.store.counter('meaningSearches'),
       synonymsOpened: this.store.counter('synonymsOpened'), comparisons: this.store.counter('comparisons'),
-      mindReads: this.store.counter('mindReads'), exactReads: this.store.counter('exactReads'), bullseyes: this.store.counter('bullseyes'),
+      mindReads: this.store.counter('mindReads'), exactReads: this.store.counter('exactReads'), bullseyes: this.store.counter('bullseyes'), acquittals: this.store.counter('acquittals'), convictions: this.store.counter('convictions'), quickClues: this.store.counter('quickClues'),
       games_classic: this.store.counter('games_classic'), games_highlow: this.store.counter('games_highlow'), games_hotseat: this.store.counter('games_hotseat'), games_hive: this.store.counter('games_hive'),
       byTopic: {}, letters: 0, distinct: 0, palindromes: 0, qNoU: 0, vowelless: 0, weekends: 0, maxMatch: 0, minMatch: 100, matched: 0
     })

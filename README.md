@@ -31,7 +31,7 @@ The game is built for the keyboard:
 
 **After you rate:** you see where your rating landed on a line from 0 to 5, next to each friend’s rating of the same word, your friends’ average and your own average. A one-line verdict sums it up (“Hot take: 1.9 above your friends”, “Exactly what Pip said”, “Toughest of your friends on this one”), and each friend’s taste match is shown. For a word no friend has rated, you see how it ranks among your own ratings (“One of your highest ratings ever”). The Friends page shows your taste match with each friend.
 
-**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 69 badges. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 96 badges. Every level up pays a coin bonus that grows with your wirdhouse, and every fifth level (and 75 and 100) unlocks a cosmetic you can't buy. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
 ## Sound and effects
 
@@ -102,6 +102,8 @@ Every word you rate for the first time pays coins, the same whatever you give it
 - **Frames, card backs, titles, name styles and reaction packs**: others see them in lobbies and on your profile. Some titles can't be bought; they come with badges.
 - **Confetti and coins**: just for you.
 
+The shop lists each kind cheapest first, with the items that come from badges, levels and publishing at the end.
+
 Frames never hide gameplay: the rings for your guesses, the hot seat and pickable seats are drawn outside any frame, and the frame fades back while they show. Everything you buy is kept through every edition. There are badges for coins, building, publishing, flipping and shopping too.
 
 Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see only what you're wearing and your edition.
@@ -125,6 +127,10 @@ The host opens **Lobby → Host a lobby**, then picks a mode, which words to use
 - **High/Low:** everyone rates, then guesses who went highest and who went lowest (click a seat or press its number). 100 points for each right guess.
 - **Hot seat:** each word, one player takes the seat and the next player picks the word for them from three. Everyone else predicts the seat’s rating. Predictors score up to 100 for getting close. The picker gets 50 if the seat goes 4.5 or higher or 0.5 or lower. The seat gets 25 for every prediction that was off by more than 1.0.
 - **Hive mind:** everyone secretly gets a target score and a rater. You search for a word (by spelling or meaning) that you think your rater will give that score. Then each rater rates the word they were given without knowing who chose it or why. Up to 100 points for landing close, plus 50 for being within 0.1.
+- **Grand Jury** (3 or more players): one of you is secretly the defendant. Their own app offers a few of their strongest real ratings, and the host picks the one the rest of the table disagrees with most. The table sees the charge ("someone here once gave *moist* a 4.8"), everyone testifies with a quick rating (bluffing welcome; testimony is never saved), and then everyone votes on who did it. Right votes score 100. If the defendant isn't the clear top of the vote, they walk free with 100 plus 25 for every vote that went elsewhere.
+- **Clues:** a hidden word shown as blanks, with what everyone at the table rated it face up on the cards (words most of you have rated come first, so your own past rating is a clue). A new clue every 10 seconds: what kind of word, the first letter, the definition, a synonym, more letters. Type a guess any time. A right guess is worth 100, minus 12 for each clue shown and 10 for each wrong guess (never under 10), plus 20 for getting it first. Wrong guesses show in the chat, and chat won't send the word.
+
+Only the first four modes save ratings to your collection.
 
 Typing a number always rates, wherever you clicked last; only the chat box keeps your keys (the table says so, and `Esc` hands them back). `Space` says the word.
 

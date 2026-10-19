@@ -48,12 +48,13 @@ const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.
 
 export class Economy extends EventEmitter {
   // now(): milliseconds. friendsOnline(): how many friends are online.
-  constructor ({ dir, now = () => Date.now(), friendsOnline = () => 0, hasBadge = () => false, dev = false }) {
+  constructor ({ dir, now = () => Date.now(), friendsOnline = () => 0, hasBadge = () => false, level = () => 1, dev = false }) {
     super()
     this.file = path.join(dir, 'economy.json')
     this.now = now
     this.friendsOnline = friendsOnline
     this.hasBadge = hasBadge
+    this.level = level
     this.dev = dev
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
@@ -271,11 +272,42 @@ export class Economy extends EventEmitter {
     return { win, side, stake: amount, coins: this.s.coins, flips: { ...f } }
   }
 
+  // --- levels ---------------------------------------------------------------------
+  //
+  // Every level pays coins: the larger of a fixed amount that grows with the
+  // level, or some minutes of what the wirdhouse makes (so it stays worth
+  // having however far along you are). Every 5th level also brings a
+  // cosmetic only levels bring. Each level pays once, ever; levels reached
+  // before coins existed don't pay out retroactively.
+  static levelCoins (level, cps) {
+    const minutes = Math.min(30, 2 + level * 0.5)
+    return Math.max(250 * level * level, cps * minutes * 60)
+  }
+
+  levelReward (level) {
+    if (this.s.levelPaid == null) this.s.levelPaid = level - 1
+    if (level <= this.s.levelPaid) return null
+    this.tick()
+    const cps = baseCps(this.s)
+    let coins = 0
+    const items = []
+    for (let l = this.s.levelPaid + 1; l <= level; l++) {
+      coins += Economy.levelCoins(l, cps)
+      for (const c of COSMETICS) if (c.level === l) items.push({ kind: c.kind, id: c.id, name: c.name, rarity: c.rarity, kindName: KINDS.find((k) => k.id === c.kind)?.name })
+    }
+    this.s.levelPaid = level
+    this.s.coins += coins // a gift, not earned: doesn't count toward ink
+    this.dirty = true
+    this.emit('changed')
+    if (items.length) this.emit('look')
+    return { coins, items, level }
+  }
+
   // --- the shop ---------------------------------------------------------------------
 
   owns (kind, id) {
     const c = cosmetic(kind, id)
-    return Boolean(c && (c.free || this.s.owned.includes(`${kind}:${id}`) || (c.badge && this.hasBadge(c.badge))))
+    return Boolean(c && (c.free || this.s.owned.includes(`${kind}:${id}`) || (c.badge && this.hasBadge(c.badge)) || (c.level && this.level() >= c.level)))
   }
 
   buyCosmetic (kind, id) {
@@ -283,6 +315,7 @@ export class Economy extends EventEmitter {
     if (!c) throw new Error('No such item.')
     if (this.owns(kind, id)) throw new Error('You already have it.')
     if (c.badge) throw new Error('That one comes with a badge.')
+    if (c.level) throw new Error(`That one comes at level ${c.level}.`)
     if (c.price === null) throw new Error(`That one comes from publishing ${c.edition === 1 ? 'once' : `${c.edition} times`}.`)
     this._spend(c.price)
     this.s.owned.push(`${kind}:${id}`)
@@ -390,7 +423,8 @@ export class Economy extends EventEmitter {
       prestige: { edition: s.edition, ink: s.ink, inkTotal: s.inkTotal, gain: inkGain(s), nextAt: ((inkTotalFor(s.allCoins) + 1) ** 3) * INK_PER, bonus: INK_BONUS, perks: PERKS.map((p) => { const level = s.perks[p.id] || 0; return { id: p.id, emoji: p.emoji, name: p.name, max: p.max, level, cost: level < p.max ? p.cost(level) : null, desc: p.desc(level), nextDesc: level < p.max ? p.desc(level + 1) : null } }) },
       flips: { ...s.flips },
       stats: { ...s.stats },
-      owned: [...COSMETICS.filter((c) => c.free || (c.badge && this.hasBadge(c.badge))).map((c) => `${c.kind}:${c.id}`), ...s.owned],
+      owned: [...COSMETICS.filter((c) => c.free || (c.badge && this.hasBadge(c.badge)) || (c.level && this.level() >= c.level)).map((c) => `${c.kind}:${c.id}`), ...s.owned],
+      level: this.level(),
       dev: this.dev
     }
   }

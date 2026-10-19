@@ -29,7 +29,10 @@ export default function Shop ({ econ, me }) {
       }
     } catch (err) { toast({ error: true, title: 'Can’t do that', text: err.message }) }
   }
-  const items = COSMETICS.filter((c) => c.kind === kind)
+  // Cheapest first, the most expensive at the bottom; things you can't buy
+  // (from badges, levels or publishing) after everything for sale.
+  const rank = (c) => (c.free ? -1 : c.price === null ? Infinity : c.price)
+  const items = COSMETICS.filter((c) => c.kind === kind).sort((a, b) => rank(a) - rank(b) || String(a.badge || a.level || a.edition || '').localeCompare(String(b.badge || b.level || b.edition || '')))
   const k = KINDS.find((x) => x.id === kind)
   return (
     <div className='page shop'>

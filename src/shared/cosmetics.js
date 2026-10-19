@@ -11,7 +11,8 @@
 //   confetti  - your celebrations (just you)
 //   coin      - your coin in the coinflip (just you)
 //
-// A few things can't be bought: each edition you publish (prestige) earns
+// A few things can't be bought: levels bring some (marked `level`), each
+// edition you publish (prestige) earns
 // its own, marked `edition`, and some titles come with badges, marked
 // `badge` (yours the moment you earn the badge).
 
@@ -27,12 +28,29 @@ export const KINDS = [
   { id: 'coin', name: 'Coins', blurb: 'The coin you flip.', seen: 'you' }
 ]
 
-const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge' }
+const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
 const earned = (id, text, badge, hint) => item('title', id, text, null, 'badge', hint, { badge, text })
+// Rewards for reaching a level: yours from that level on.
+const atLevel = (level, kind, id, name, desc, extra = {}) => item(kind, id, name, null, 'level', `Reach level ${level}. ${desc}`, { level, ...extra })
+export const LEVEL_REWARDS = [
+  atLevel(5, 'frame', 'bookmark', 'Bookmark', 'A ribbon marking your place.'),
+  atLevel(10, 'title', 'wellread', 'Well read', '', { text: 'Well read' }),
+  atLevel(15, 'cardBack', 'librarycard', 'Library card', 'Stamped and dated.'),
+  atLevel(20, 'table', 'scholar', 'Scholar’s desk', 'Green leather and brass.'),
+  atLevel(25, 'room', 'observatory', 'Observatory', 'A telescope and the night sky.'),
+  atLevel(30, 'name', 'calligraphy', 'Calligraphy', 'Your name, beautifully written.'),
+  atLevel(35, 'confetti', 'quills', 'Quills and scrolls', 'Writerly confetti.', { emoji: ['🪶', '📜', '✒️'] }),
+  atLevel(40, 'frame', 'goldlaurel', 'Golden laurels', 'For a true champion of words.'),
+  atLevel(45, 'coin', 'platinum', 'Platinum', 'Heavier than it looks.'),
+  atLevel(50, 'title', 'sage', 'Wird Sage', '', { text: 'Wird Sage' }),
+  atLevel(75, 'frame', 'aurora', 'Aurora', 'Northern lights around you.'),
+  atLevel(100, 'title', 'centenarian', 'Centenarian', '', { text: 'Centenarian' })
+]
 
 export const COSMETICS = [
+  ...LEVEL_REWARDS,
   // Rooms
   item('room', 'plain', 'Plain', 0, 'common', 'Just your theme.', { free: true }),
   item('room', 'study', 'Cozy study', 8000, 'common', 'Warm wood and a reading lamp.'),

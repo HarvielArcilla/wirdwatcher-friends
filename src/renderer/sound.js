@@ -299,3 +299,30 @@ export function playRating (r, settings) {
     renderSound(c, bus, preset, r, { follow: settings.soundPitch, celebrate: settings.celebrate })
   } catch {}
 }
+
+// Leveling up: a rising run into a held major chord, a bright bell on top,
+// and a little sparkle. Its own sound, the same whatever preset you rate with.
+export function renderLevelUp (c, dest) {
+  const out = chain(c, dest)
+  const run = [523.25, 659.25, 783.99, 1046.5, 1318.5] // C5 E5 G5 C6 E6
+  run.forEach((f, i) => {
+    voice(c, out, { type: 'triangle', freq: f, start: i * 0.075, attack: 0.004, decay: 0.22, gain: 0.32 })
+    voice(c, out, { type: 'square', freq: f / 2, start: i * 0.075, attack: 0.004, decay: 0.12, gain: 0.05, filter: 1800 })
+  })
+  const t = run.length * 0.075 + 0.02
+  for (const f of [523.25, 659.25, 783.99, 1046.5]) voice(c, out, { type: 'sawtooth', freq: f, start: t, attack: 0.02, decay: 1.4, gain: 0.07, filter: 2600, vibrato: 4 })
+  voice(c, out, { type: 'sine', freq: 261.63, start: t, attack: 0.01, decay: 1.2, gain: 0.35 })
+  bell(c, out, { freq: 2093, start: t + 0.05, decay: 1.6, gain: 0.22 })
+  bell(c, out, { freq: 2637, start: t + 0.22, decay: 1.3, gain: 0.16 })
+  for (let i = 0; i < 6; i++) bell(c, out, { freq: 3000 + Math.random() * 2500, start: t + 0.3 + i * 0.07, decay: 0.35, gain: 0.05 })
+}
+
+export function playLevelUp (settings) {
+  try {
+    if (!settings || settings.ratingSound === 'off' || !settings.soundVolume) return
+    const c = audio()
+    if (!bus) { bus = c.createGain(); bus.connect(c.destination) }
+    bus.gain.value = (settings.soundVolume / 100) * 0.9
+    renderLevelUp(c, bus)
+  } catch {}
+}
