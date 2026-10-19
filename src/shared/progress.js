@@ -103,6 +103,9 @@ export const BADGES = [
   { id: 'mindreader', emoji: '🔮', name: 'Mind reader', hint: 'In High/Low, guess both the highest and the lowest.', test: (s) => s.mindReads >= 1 },
   { id: 'telepath', emoji: '🧠', name: 'Telepath', hint: 'In Hot seat, predict the rating within 0.1.', test: (s) => s.exactReads >= 1 },
   { id: 'bullseye', emoji: '🎯', name: 'Bullseye', hint: 'In Hive mind, land within 0.1 of your target.', test: (s) => s.bullseyes >= 1 },
+  { id: 'getaway', emoji: '🎭', name: 'Got away with it', hint: 'In Grand Jury, be the defendant and walk free.', test: (s) => s.acquittals >= 1 },
+  { id: 'detective', emoji: '🔎', name: 'Detective', hint: 'In Grand Jury, name the right person ten times.', test: (s) => s.convictions >= 10 },
+  { id: 'sharpeye', emoji: '⚡', name: 'Sharp eye', hint: 'In Clues, get the word within two clues.', test: (s) => s.quickClues >= 1 },
   { id: 'allmodes', emoji: '🎲', name: 'Tried them all', hint: 'Finish a lobby game in every mode.', test: (s) => ['classic', 'highlow', 'hotseat', 'hive'].every((m) => s[`games_${m}`] >= 1) },
   { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 },
   // Rating, a little further.

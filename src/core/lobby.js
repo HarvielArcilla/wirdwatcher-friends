@@ -36,6 +36,27 @@
 //            the target. Then each rater rates the word chosen for them, not
 //            knowing the target. Up to 100 points for landing close, plus 50
 //            for within 0.1.
+//   jury     (preparing) → testimony → voting → reveal          Grand Jury
+//            Someone at the table is secretly the defendant: their own app
+//            offers a few of their strongest past ratings, and the host picks
+//            the one the rest of the table disagrees with most (their apps say
+//            what they gave those words, if anything, and nothing is shown).
+//            The charge is read out ("someone here once gave this 0.4").
+//            Everyone testifies (a quick rating; bluffing allowed, nothing is
+//            saved), then votes on who did it. Right votes are worth 100. If
+//            the defendant isn't the clear top of the vote they walk free:
+//            100, plus 25 for every vote that went elsewhere. Needs 3 players.
+//   clues    (preparing) → clues → reveal
+//            A hidden word, shown as blanks with what everyone at the table
+//            rated it (words most of the table has rated come first). A clue
+//            appears every few seconds: kind of word, first letter, the
+//            definition, a synonym, more letters. Guess any time. A right
+//            guess is worth 100, less 12 for every clue shown and 10 for
+//            every wrong guess (never under 10); the first to get it gets 20
+//            more. Chat can't give the word away.
+//
+// Only Classic, High or low, Hot seat and Hive mind save ratings: Grand
+// Jury testimony is meant for bluffing, and Clues has nothing to rate.
 //
 // A rating made at the table also counts as that player's own rating of the
 // word, so lobbies feed everyone's collection, XP and badges.
@@ -56,13 +77,69 @@ import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
 export const SEAT_GRACE_MS = 45000
 
 const PROTOCOL = 3
-export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive']
+export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues']
 export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic' }
 export const LOBBY_ROUNDS = [3, 5, 10, 15, 20]
 export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds per phase (finding a word gets three times as long); 0 = no timer
 export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '👏', '🙈']
 
-const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'] }
+// Grand Jury and Clues start each round in 'preparing' while the host asks
+// the players' apps for what it needs; that isn't one of these steps.
+const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'], jury: ['testimony', 'voting'], clues: ['clues'] }
+const ACTIVE = ['rating', 'guessing', 'picking', 'choosing', 'testimony', 'voting', 'clues']
+export const JURY_MIN = 3
+export const CLUE_SECS = 10 // between clues
+export const CLUE_FINAL_SECS = 15 // after the last one
+const REQUEST_MS = 5000 // how long the host waits on a player's app
+
+// What the host asks players' apps for, and what's accepted back.
+const cleanCases = (x, lookup) => (Array.isArray(x) ? x : []).slice(0, 8).filter((c) => c && typeof c.word === 'string' && validRating(c.r) && lookup(c.word)).map((c) => ({ word: c.word, r: round1(c.r) }))
+const cleanSample = (x, lookup) => (Array.isArray(x) ? x : []).slice(0, 150).filter((c) => c && typeof c.word === 'string' && c.word.length < 60 && validRating(c.r)).map((c) => ({ word: c.word, r: round1(c.r) })).filter((c) => lookup(c.word))
+const cleanLookup = (x, words) => { const out = {}; if (x && typeof x === 'object') for (const w of words) if (validRating(x[w])) out[w] = round1(x[w]); return out }
+
+// For Clues: guesses and chat are compared on letters alone.
+export const plain = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z]/g, '')
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// The clues for a word, in order, each with the blanks as they stand once
+// it's shown. The first is just the blanks; some letters always stay hidden.
+export function buildClues (word, info) {
+  const chars = [...word]
+  const idx = chars.map((ch, i) => (/[a-z]/i.test(ch) ? i : -1)).filter((i) => i >= 0)
+  const stem = word.length > 4 ? word.slice(0, -1) : word
+  const mask = (t) => String(t || '').replace(new RegExp(`\\b${escapeRe(stem)}\\w*`, 'gi'), '____')
+  const fair = (t) => t && !plain(t).includes(plain(stem)) // nothing that still gives it away
+  const shown = new Set()
+  const hiddenLeft = () => idx.filter((i) => !shown.has(i))
+  const keepHidden = Math.max(1, Math.ceil(idx.length / 3))
+  const steps = [{ kind: 'start' }]
+  const letter = (i) => {
+    if (i === undefined || shown.has(i) || hiddenLeft().length <= keepHidden) return
+    shown.add(i)
+    steps.push({ kind: 'letter', at: i, text: chars[i].toUpperCase() })
+  }
+  const senses = info?.senses || []
+  if (senses[0]?.posName) steps.push({ kind: 'pos', text: senses[0].posName })
+  letter(idx[0])
+  const def = senses.map((s) => mask(s.def)).find(fair)
+  if (def) steps.push({ kind: 'def', text: def })
+  const syn = (info?.synonyms || []).find((s) => !plain(s).includes(plain(stem)) && !plain(stem).includes(plain(s)) && s.length > 2)
+  if (syn) steps.push({ kind: 'syn', text: syn })
+  letter(idx[idx.length - 1])
+  const ex = senses.flatMap((s) => s.ex || []).filter((e) => new RegExp(`\\b${escapeRe(stem)}`, 'i').test(e)).map(mask).find(fair)
+  if (ex) steps.push({ kind: 'ex', text: ex })
+  const def2 = senses.slice(1).map((s) => mask(s.def)).filter(fair).find((d) => d !== def)
+  if (def2) steps.push({ kind: 'def', text: def2 })
+  // Then letters from the middle out, until only a third are hidden.
+  const mid = [...idx].sort((a, b) => Math.abs(a - idx[idx.length >> 1]) - Math.abs(b - idx[idx.length >> 1]))
+  for (const i of mid) { if (steps.length >= 10) break; letter(i) }
+  // The blanks as each clue leaves them.
+  const open = new Set()
+  return steps.map((s) => {
+    if (s.kind === 'letter') open.add(s.at)
+    return { ...s, pattern: chars.map((ch, i) => (/[a-z]/i.test(ch) ? (open.has(i) ? ch.toUpperCase() : null) : ch)) }
+  })
+}
 
 const lobbyProof = (connKey, hostKey) => `wirdwatcher/v2/lobby|${connKey}|${hostKey}`
 
@@ -95,10 +172,14 @@ const cleanColor = (c) => /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : '#e8c686
 export class LobbyHost extends EventEmitter {
   // me: { name, color, level, title, userId?, sign? }. dealer(mode, used):
   // { word, info } for a new word. lookup(word): its details, or null if it
-  // isn't in the word list. settings: the Settings object.
-  constructor ({ me, dealer, lookup = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
+  // isn't in the word list. settings: the Settings object. provide(kind,
+  // args): the host's own answers to what Grand Jury and Clues ask every
+  // player's app (see LobbyClient).
+  constructor ({ me, dealer, lookup = () => null, provide = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
     super()
     this.code = code
+    this.provide = provide
+    this.pending = new Map() // request id -> { from, done }
     this.me = me
     this.dealer = dealer
     this.lookup = lookup
@@ -205,6 +286,13 @@ export class LobbyHost extends EventEmitter {
       case 'guess': return this._guess(id, msg)
       case 'pick': return this._pick(id, Number(msg.index))
       case 'choose': return this._choose(id, msg.word)
+      case 'vote': return this._vote(id, msg.accused)
+      case 'clueGuess': return this._clueGuess(id, msg.text)
+      case 'answer': {
+        const req = this.pending.get(msg.id)
+        if (req && req.from === id) req.done(msg.data ?? null)
+        return
+      }
       case 'next': {
         if (this.phase !== 'reveal' || !c) return
         c.next.add(id)
@@ -218,6 +306,8 @@ export class LobbyHost extends EventEmitter {
       }
       case 'chat': {
         const text = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 140)
+        // No giving the Clues word away in chat.
+        if (text && this.phase === 'clues' && c?.word && plain(text).includes(plain(c.word))) return this._tell(id, { kind: 'notice', text: 'That would give the word away, so it wasn’t sent. Guess it in the box instead.' })
         if (text) this._event({ kind: 'chat', id, text })
         return
       }
@@ -255,7 +345,7 @@ export class LobbyHost extends EventEmitter {
   // null takes it back while the phase is still open.
   _rate (id, r) {
     const c = this.current
-    if (this.phase !== 'rating' || !c || !c.roster.includes(id)) return
+    if ((this.phase !== 'rating' && this.phase !== 'testimony') || !c || !c.roster.includes(id)) return
     if (r !== null && !validRating(r)) return
     const map = c.style === 'hotseat' && id !== c.seat ? c.predictions : c.ratings
     if (c.style === 'hive' && !c.toRate.has(id)) return
@@ -299,6 +389,138 @@ export class LobbyHost extends EventEmitter {
     this._changed()
   }
 
+  // Grand Jury: a vote for who gave the rating (anyone but yourself).
+  _vote (id, accused) {
+    const c = this.current
+    if (this.phase !== 'voting' || !c || !c.roster.includes(id)) return
+    if (accused === null) c.votes.delete(id)
+    else if (typeof accused === 'string' && accused !== id && c.roster.includes(accused)) c.votes.set(id, accused)
+    else return
+    this._maybeAdvance()
+    this._changed()
+  }
+
+  // Clues: a guess at the word. Wrong guesses are said out loud (and cost).
+  _clueGuess (id, text) {
+    const c = this.current
+    if (this.phase !== 'clues' || !c || !c.roster.includes(id) || c.solved.has(id)) return
+    const g = plain(text).slice(0, 40)
+    if (!g) return
+    const now = Date.now()
+    if (now - (c.lastGuess.get(id) || 0) < 900) return // one a second
+    c.lastGuess.set(id, now)
+    if (g === plain(c.word)) {
+      const wrong = c.wrong.get(id) || 0
+      const first = c.solved.size === 0
+      const points = Math.max(10, 100 - 12 * c.clue - 10 * wrong) + (first ? 20 : 0)
+      c.solved.set(id, { clue: c.clue, wrong, points, first, at: now })
+      this._event({ kind: 'solved', id, points, first })
+      this._maybeAdvance()
+      return this._changed()
+    }
+    c.wrong.set(id, (c.wrong.get(id) || 0) + 1)
+    this._event({ kind: 'guess', id, text: String(text).trim().slice(0, 40) })
+    this._changed()
+  }
+
+  // Asks one player's app for something (the host answers its own). Settles
+  // with null if they're gone or take too long.
+  _request (pid, kind, args) {
+    if (pid === this.hostId) {
+      try { return Promise.resolve(this.provide(kind, args) ?? null) } catch { return Promise.resolve(null) }
+    }
+    const send = this.links.get(pid)
+    if (!send) return Promise.resolve(null)
+    const id = crypto.randomBytes(8).toString('hex')
+    return new Promise((resolve) => {
+      const done = (data) => { clearTimeout(timer); this.pending.delete(id); resolve(data) }
+      const timer = setTimeout(() => done(null), REQUEST_MS)
+      timer.unref?.()
+      this.pending.set(id, { from: pid, done })
+      send({ type: 'request', id, kind, args })
+    })
+  }
+
+  // Grand Jury: find a defendant and the charge.
+  async _prepareJury (c) {
+    const live = this._live(c.roster)
+    const skip = [...this.used]
+    const offers = await Promise.all(live.map((id) => this._request(id, 'case', { skip })))
+    if (this.current !== c) return
+    const cases = new Map(live.map((id, i) => [id, cleanCases(offers[i], this.lookup).filter((x) => !this.used.has(x.word))]).filter(([, v]) => v.length))
+    // Everyone takes a turn in the dock before anyone goes twice, in a
+    // shuffled order, so nobody can work out whose turn it is.
+    let bag = (this.juryBag || []).filter((id) => cases.has(id))
+    if (!bag.length) {
+      bag = [...cases.keys()]
+      for (let i = bag.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [bag[i], bag[j]] = [bag[j], bag[i]] }
+    }
+    const defendant = bag.shift()
+    this.juryBag = bag
+    if (!defendant || this._live(c.roster).length < JURY_MIN) {
+      this._event({ kind: 'notice', text: defendant ? `Grand Jury needs at least ${JURY_MIN} players.` : 'Nobody here has rated enough words for a case yet. Rate some, then try again.' })
+      return this._finish()
+    }
+    // Of their offers, the one the rest of the table would argue with most.
+    const offered = cases.get(defendant)
+    const words = offered.map((x) => x.word)
+    const others = this._live(c.roster).filter((id) => id !== defendant)
+    const said = (await Promise.all(others.map((id) => this._request(id, 'lookup', { words })))).map((x) => cleanLookup(x, words))
+    if (this.current !== c) return
+    const score = (x) => {
+      const gaps = said.map((m) => m[x.word]).filter((r) => r !== undefined).map((r) => Math.abs(r - x.r))
+      return (gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length + 0.3 * gaps.length : 0) + Math.abs(x.r - 2.5) / 2.5 + Math.random() * 0.3
+    }
+    const pick = [...offered].sort((a, b) => score(b) - score(a))[0]
+    this.used.add(pick.word)
+    const past = { [defendant]: pick.r }
+    others.forEach((id, i) => { if (said[i][pick.word] !== undefined) past[id] = said[i][pick.word] })
+    Object.assign(c, { defendant, word: pick.word, info: this.lookup(pick.word), charge: pick.r, past })
+    this.phase = 'testimony'
+    this._startTimer()
+    this._changed()
+  }
+
+  // Clues: everyone's app sends a sample of their ratings once a game; each
+  // round's word is one as many players as possible have rated.
+  async _prepareClues (c) {
+    if (!this.clueSamples) {
+      const live = this._live(c.roster)
+      const got = await Promise.all(live.map((id) => this._request(id, 'sample', {})))
+      if (this.current !== c) return
+      this.clueSamples = new Map(live.map((id, i) => [id, new Map(cleanSample(got[i], this.lookup).map((x) => [x.word, x.r]))]))
+    }
+    const roster = this._live(c.roster)
+    const count = new Map()
+    for (const id of roster) for (const w of this.clueSamples.get(id)?.keys() || []) if (!this.used.has(w) && /^[a-z][a-z' -]{2,15}$/i.test(w)) count.set(w, (count.get(w) || 0) + 1)
+    const top = Math.max(0, ...count.values())
+    const best = [...count].filter(([, n]) => n === top && n > 0).map(([w]) => w)
+    let word = best.length ? best[crypto.randomInt(best.length)] : null
+    let info = word ? this.lookup(word) : null
+    if (!info) {
+      const dealt = this._deal()
+      if (!dealt) return this._finish()
+      word = dealt.word
+      info = dealt.info
+    }
+    this.used.add(word)
+    const table = Object.fromEntries(roster.map((id) => [id, this.clueSamples.get(id)?.get(word) ?? null]))
+    Object.assign(c, { word, info, table, clues: buildClues(word, info), clue: 0, solved: new Map(), wrong: new Map(), lastGuess: new Map() })
+    this.phase = 'clues'
+    this._startTimer()
+    this._changed()
+  }
+
+  // The next clue, or the end of the round after the last one.
+  _nextClue () {
+    const c = this.current
+    if (this.phase !== 'clues' || !c) return
+    if (c.clue >= c.clues.length - 1) return this._advance()
+    c.clue++
+    this._startTimer()
+    this._changed()
+  }
+
   // Who still has to act for the current phase to finish.
   _waitingOn () {
     const c = this.current
@@ -312,6 +534,9 @@ export class LobbyHost extends EventEmitter {
       case 'guessing': return live.filter((id) => !c.guesses.has(id))
       case 'picking': return live.includes(c.picker) ? [c.picker] : []
       case 'choosing': return live.filter((id) => c.assign.has(id) && !c.picks.has(id))
+      case 'testimony': return live.filter((id) => !c.ratings.has(id))
+      case 'voting': return live.filter((id) => !c.votes.has(id))
+      case 'clues': return live.filter((id) => !c.solved.has(id))
       default: return []
     }
   }
@@ -319,7 +544,7 @@ export class LobbyHost extends EventEmitter {
   _live (ids) { return ids.filter((id) => this.order.includes(id)) }
 
   _maybeAdvance () {
-    if (['rating', 'guessing', 'picking', 'choosing'].includes(this.phase) && this.current && !this._waitingOn().length) this._advance()
+    if (ACTIVE.includes(this.phase) && this.current && !this._waitingOn().length) this._advance()
   }
 
   // To the next phase of this round, or to the reveal.
@@ -361,6 +586,14 @@ export class LobbyHost extends EventEmitter {
   _startTimer () {
     clearTimeout(this._timer)
     const c = this.current
+    if (this.phase === 'clues') {
+      // Clues keep their own time, whatever the lobby's timer.
+      const secs = c.clue >= c.clues.length - 1 ? CLUE_FINAL_SECS : CLUE_SECS
+      c.endsAt = Date.now() + secs * 1000
+      this._timer = setTimeout(() => this._nextClue(), secs * 1000)
+      this._timer.unref?.()
+      return
+    }
     const secs = this.options.timer * (this.phase === 'choosing' ? 3 : 1)
     c.endsAt = secs ? Date.now() + secs * 1000 : null
     if (secs) {
@@ -413,6 +646,7 @@ export class LobbyHost extends EventEmitter {
     const c = this.current
     if (c && this.phase !== 'reveal') {
       if (c.style === 'hotseat' && (id === c.seat || (id === c.picker && this.phase === 'picking'))) return this._advance()
+      if (c.style === 'jury' && id === c.defendant) { this._event({ kind: 'notice', text: 'The defendant left the table, so that case is dropped.' }); return this._nextRound() }
       this._maybeAdvance()
     }
     if (this.phase === 'reveal' && c && this._live(c.roster).every((pid) => c.next.has(pid))) return this._nextRound()
@@ -429,6 +663,9 @@ export class LobbyHost extends EventEmitter {
 
   begin () {
     if (this.phase !== 'waiting' && this.phase !== 'results') return
+    if (this.options.style === 'jury' && this.order.length < JURY_MIN) return this._event({ kind: 'notice', text: `Grand Jury needs at least ${JURY_MIN} players: one of you is secretly on trial, and the others need someone to suspect.` })
+    this.clueSamples = null
+    this.juryBag = null
     for (const p of this.players.values()) p.score = 0
     this.history = []
     this.round = 0
@@ -439,7 +676,8 @@ export class LobbyHost extends EventEmitter {
   // Moves on now, whoever hasn't acted (or hasn't pressed Enter).
   advance () {
     if (this.phase === 'reveal') return this._nextRound()
-    if (['rating', 'guessing', 'picking', 'choosing'].includes(this.phase)) return this._advance()
+    if (this.phase === 'clues') return this._nextClue() // the host can hurry the clues along
+    if (ACTIVE.includes(this.phase)) return this._advance()
   }
 
   kick (id) {
@@ -489,6 +727,15 @@ export class LobbyHost extends EventEmitter {
       const raters = derange(roster)
       const assign = new Map(roster.map((id, i) => [id, { rater: raters[i], target: round1(0.3 + crypto.randomInt(43) / 10) }]))
       Object.assign(c, { assign, picks: new Map(), toRate: new Map() })
+    } else if (style === 'jury' || style === 'clues') {
+      if (style === 'jury') Object.assign(c, { votes: new Map(), defendant: null, word: null })
+      this.round++
+      this.current = c
+      this.phase = 'preparing'
+      this._changed()
+      const prep = style === 'jury' ? this._prepareJury(c) : this._prepareClues(c)
+      prep.catch((err) => { netlog('lobby (hosting)', 'round setup failed', err.message); if (this.current === c) this._finish() })
+      return
     }
     this.round++
     this.current = c
@@ -550,6 +797,24 @@ export class LobbyHost extends EventEmitter {
       const beaten = r === null ? 0 : Object.values(diffs).filter((d) => d > 1).length
       give(c.seat, beaten * 25)
       result = { style: 'hotseat', word: c.word, seat: c.seat, picker: c.picker, r, predictions, diffs, best, reaction, beaten, ratings: r === null ? {} : { [c.seat]: r }, rated: r === null ? [] : [{ by: c.seat, word: c.word, r }] }
+    } else if (c.style === 'jury') {
+      const votes = Object.fromEntries([...c.votes].filter(([id]) => live(id)))
+      const tally = {}
+      for (const a of Object.values(votes)) tally[a] = (tally[a] || 0) + 1
+      const most = Math.max(0, ...Object.values(tally))
+      const top = Object.keys(tally).filter((id) => tally[id] === most)
+      const convicted = most > 0 && top.length === 1 && top[0] === c.defendant
+      const right = Object.keys(votes).filter((id) => id !== c.defendant && votes[id] === c.defendant)
+      for (const id of right) give(id, 100)
+      const missed = Object.keys(votes).filter((id) => id !== c.defendant && votes[id] !== c.defendant).length
+      if (!convicted) give(c.defendant, 100 + 25 * missed)
+      result = { style: 'jury', word: c.word, info: c.info, charge: c.charge, defendant: c.defendant, testimony: ratings, votes, tally, convicted, right, missed, past: c.past, ratings, rated: [] }
+    } else if (c.style === 'clues') {
+      const solved = Object.fromEntries([...c.solved].filter(([id]) => live(id)))
+      for (const [id, s] of Object.entries(solved)) give(id, s.points)
+      const wrong = Object.fromEntries([...c.wrong].filter(([id]) => live(id)))
+      const ratings = Object.fromEntries(Object.entries(c.table).filter(([id, r]) => live(id) && r !== null))
+      result = { style: 'clues', word: c.word, info: c.info, table: c.table, clues: c.clues.length, solved, wrong, ratings, rated: [] }
     } else {
       const entries = []
       for (const [picker, a] of c.assign) {
@@ -600,6 +865,8 @@ export class LobbyHost extends EventEmitter {
   guess (g) { this._act(this.hostId, { type: 'guess', ...g }) }
   pick (index) { this._act(this.hostId, { type: 'pick', index }) }
   choose (word) { this._act(this.hostId, { type: 'choose', word }) }
+  vote (accused) { this._act(this.hostId, { type: 'vote', accused }) }
+  clueGuess (text) { this._act(this.hostId, { type: 'clueGuess', text }) }
   next () { this._act(this.hostId, { type: 'next' }) }
   react (emoji) { this._act(this.hostId, { type: 'react', emoji }) }
   chat (text) { this._act(this.hostId, { type: 'chat', text }) }
@@ -616,12 +883,19 @@ export class LobbyHost extends EventEmitter {
     this.emit('event', ev)
   }
 
+  // An event for one player only.
+  _tell (id, e) {
+    const ev = { ...e, at: Date.now() }
+    if (id === this.hostId) this.emit('event', ev)
+    else this.links.get(id)?.({ type: 'event', event: ev })
+  }
+
   // The table as one player sees it. Before the reveal, nobody's secrets are
   // in it except that player's own.
   view (forId) {
     const c = this.current
     const waiting = new Set(this._waitingOn())
-    const role = (id) => (c?.style === 'hotseat' ? (id === c.seat ? 'seat' : id === c.picker ? 'picker' : null) : null)
+    const role = (id) => (c?.style === 'hotseat' ? (id === c.seat ? 'seat' : id === c.picker ? 'picker' : null) : c?.style === 'jury' && this.phase === 'reveal' && id === c.defendant ? 'defendant' : null)
     let current = null
     if (c) {
       current = { style: c.style, endsIn: c.endsAt ? Math.max(0, c.endsAt - Date.now()) : null, result: this.phase === 'reveal' ? c.result : null, roster: c.roster }
@@ -643,6 +917,33 @@ export class LobbyHost extends EventEmitter {
             r: c.ratings.get(forId) ?? null
           }
         })
+      } else if (c.style === 'jury') {
+        // Nobody learns who the defendant is (except the defendant) until
+        // the verdict. Testimony is shown once everyone has given theirs.
+        const open = this.phase === 'voting' || this.phase === 'reveal'
+        Object.assign(current, {
+          word: c.word,
+          info: c.info,
+          charge: c.charge ?? null,
+          testimony: open ? Object.fromEntries(c.ratings) : null,
+          mine: { r: c.ratings.get(forId) ?? null, vote: c.votes.get(forId) || null, defendant: c.defendant === forId }
+        })
+      } else if (c.style === 'clues' && c.clues) {
+        const done = c.solved.get(forId)
+        const over = this.phase === 'reveal'
+        Object.assign(current, {
+          word: over ? c.word : null,
+          info: over ? c.info : null,
+          clue: c.clue,
+          clueCount: c.clues.length,
+          clues: c.clues.slice(0, c.clue + 1).map(({ pattern, ...x }) => x),
+          pattern: over ? [...c.word].map((ch) => (/[a-z]/i.test(ch) ? ch.toUpperCase() : ch)) : c.clues[c.clue].pattern,
+          table: c.table,
+          solved: Object.fromEntries([...c.solved].map(([id, s]) => [id, { clue: s.clue, first: s.first }])),
+          wrong: Object.fromEntries(c.wrong),
+          final: c.clue >= c.clues.length - 1,
+          mine: { solved: Boolean(done), word: done ? c.word : null, info: done ? c.info : null, points: done?.points ?? null, wrong: c.wrong.get(forId) || 0 }
+        })
       }
     }
     return {
@@ -659,7 +960,7 @@ export class LobbyHost extends EventEmitter {
       players: this.order.map((id) => {
         const p = this.players.get(id)
         const inRound = Boolean(c && c.roster.includes(id))
-        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), look: p.look, edition: p.edition, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
+        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), look: p.look, edition: p.edition, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal' && this.phase !== 'preparing', next: Boolean(c && c.next.has(id)) }
       }),
       waitingOn: [...waiting],
       current,
@@ -738,6 +1039,31 @@ export function summarize (history, players, style = 'classic') {
     const miss = [...all].sort((a, b) => b.diff - a.diff)[0]
     if (miss && all.length > 1) awards.push({ emoji: '🙃', title: 'Wildest miss', player: miss.picker, word: miss.word, detail: `aimed ${miss.target.toFixed(1)}, ${name(miss.rater)} gave it ${miss.r.toFixed(1)}` })
   }
+  if (style === 'jury') {
+    const free = history.filter((h) => !h.convicted && h.defendant).sort((a, b) => b.missed - a.missed)[0]
+    if (free) awards.push({ emoji: '🎭', title: 'Got away with it', player: free.defendant, word: free.word, detail: `${name(free.defendant)} gave “${free.word}” ${free.charge.toFixed(1)} and fooled ${free.missed} juror${free.missed === 1 ? '' : 's'}` })
+    const sleuth = new Map()
+    for (const h of history) for (const id of h.right || []) sleuth.set(id, (sleuth.get(id) || 0) + 1)
+    const best = [...sleuth].sort((a, b) => b[1] - a[1])[0]
+    if (best) awards.push({ emoji: '🔎', title: 'Detective', player: best[0], detail: `${name(best[0])} named the right person ${best[1]} time${best[1] === 1 ? '' : 's'}` })
+    const blamed = new Map()
+    for (const h of history) for (const [id, n] of Object.entries(h.tally || {})) if (id !== h.defendant) blamed.set(id, (blamed.get(id) || 0) + n)
+    const usual = [...blamed].sort((a, b) => b[1] - a[1])[0]
+    if (usual?.[1] >= 2) awards.push({ emoji: '🚨', title: 'Usual suspect', player: usual[0], detail: `${name(usual[0])} drew ${usual[1]} votes for things they didn’t do` })
+  }
+  if (style === 'clues') {
+    const solves = history.flatMap((h) => Object.entries(h.solved || {}).map(([id, s]) => ({ id, word: h.word, ...s })))
+    const quick = [...solves].sort((a, b) => a.clue - b.clue || a.wrong - b.wrong)[0]
+    if (quick) awards.push({ emoji: '⚡', title: 'Quickest mind', player: quick.id, word: quick.word, detail: `${name(quick.id)} got “${quick.word}” ${quick.clue === 0 ? 'from the blanks alone' : `after ${quick.clue} clue${quick.clue === 1 ? '' : 's'}`}` })
+    const count = new Map()
+    for (const x of solves) count.set(x.id, (count.get(x.id) || 0) + 1)
+    const most = [...count].sort((a, b) => b[1] - a[1])[0]
+    if (most && history.length > 1) awards.push({ emoji: '📚', title: 'Wordsmith', player: most[0], detail: `${name(most[0])} solved ${most[1]} of ${history.length}` })
+    const tries = new Map()
+    for (const h of history) for (const [id, n] of Object.entries(h.wrong || {})) tries.set(id, (tries.get(id) || 0) + n)
+    const bold = [...tries].sort((a, b) => b[1] - a[1])[0]
+    if (bold?.[1] >= 3) awards.push({ emoji: '🎲', title: 'Never stopped guessing', player: bold[0], detail: `${name(bold[0])}, ${bold[1]} wrong guesses` })
+  }
   const words = history.flatMap((h) => (h.style === 'hive' ? (h.entries || []).filter((e) => e.word).map((e) => ({ word: e.word, mean: e.r, spread: 0 })) : h.word ? [{ word: h.word, mean: h.mean ?? h.r ?? null, spread: h.spread || 0 }] : []))
   return { awards, words, scored }
 }
@@ -745,8 +1071,14 @@ export function summarize (history, players, style = 'classic') {
 // --- player ---------------------------------------------------------------------
 
 export class LobbyClient extends EventEmitter {
-  constructor ({ code, me, settings, swarm = {}, lan = {} }) {
+  // provide(kind, args): this app's answers when the host asks (Grand Jury
+  // and Clues). 'case' → a few of my strongest ratings, [{ word, r }];
+  // 'lookup' { words } → what I gave any of them, { word: r }; 'sample' →
+  // some of my ratings, [{ word, r }]. Only what's asked for is sent, to the
+  // host, and the host only shows it to the table as the game describes.
+  constructor ({ code, me, settings, swarm = {}, lan = {}, provide = () => null }) {
     super()
+    this.provide = provide
     if (!parseLobbyCode(code)) throw new Error('Lobby codes are 10 letters and numbers, like K7Q2M-9XD4P.')
     this.code = normalizeCode(code).replace(/(.{5})/, '$1-')
     this.me = me
@@ -849,6 +1181,10 @@ export class LobbyClient extends EventEmitter {
       this.emit('event', msg.event)
     } else if (msg.type === 'friend' && typeof msg.from === 'string') {
       this.emit('friend', { kind: msg.kind, from: msg.from, hello: msg.hello || null })
+    } else if (msg.type === 'request' && typeof msg.id === 'string' && ['case', 'lookup', 'sample'].includes(msg.kind)) {
+      let data = null
+      try { data = this.provide(msg.kind, msg.args && typeof msg.args === 'object' ? msg.args : {}) ?? null } catch {}
+      this.send?.({ type: 'answer', id: msg.id, data })
     }
   }
 
@@ -865,6 +1201,8 @@ export class LobbyClient extends EventEmitter {
   guess (g) { this.send?.({ type: 'guess', ...g }) }
   pick (index) { this.send?.({ type: 'pick', index }) }
   choose (word) { this.send?.({ type: 'choose', word }) }
+  vote (accused) { this.send?.({ type: 'vote', accused }) }
+  clueGuess (text) { this.send?.({ type: 'clueGuess', text }) }
   next () { this.send?.({ type: 'next' }) }
   react (emoji) { this.send?.({ type: 'react', emoji }) }
   chat (text) { this.send?.({ type: 'chat', text }) }

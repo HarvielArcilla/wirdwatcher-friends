@@ -191,3 +191,25 @@ test('badge titles come with their badge, and coins earn badges', () => {
   app.economy.flip(1)
   assert.ok(got.includes('flipper'))
 })
+
+test('levelling up pays coins every level and a cosmetic every five', () => {
+  let level = 4
+  const e = new Economy({ dir: tmp(), now: clock().now, level: () => level })
+  e.s.levelPaid = 4
+  assert.equal(e.owns('frame', 'bookmark'), false)
+  assert.throws(() => e.buyCosmetic('frame', 'bookmark'), /level/i)
+  level = 5
+  const all = e.s.allCoins
+  const r = e.levelReward(5)
+  assert.equal(r.coins, Economy.levelCoins(5, e.compact().cps))
+  assert.ok(r.items.some((c) => c.id === 'bookmark'))
+  assert.ok(e.owns('frame', 'bookmark'))
+  assert.equal(e.s.allCoins, all, 'a level bonus doesn’t count toward ink')
+  assert.equal(e.levelReward(5), null, 'paid once')
+  // Skipping levels pays each one.
+  level = 7
+  const two = e.levelReward(7)
+  assert.equal(two.coins, Economy.levelCoins(6, e.compact().cps) + Economy.levelCoins(7, e.compact().cps))
+  // A big house gets a bigger bonus.
+  assert.ok(Economy.levelCoins(7, 1e6) > Economy.levelCoins(7, 0))
+})

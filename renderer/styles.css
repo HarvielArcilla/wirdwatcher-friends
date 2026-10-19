@@ -1038,3 +1038,76 @@ html.calm .lobby-stage::before { animation: none !important; }
 .flipcoin.flat svg { display: block; }
 .flipcoin .coin-edge { position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(90deg, rgba(0, 0, 0, .35), rgba(255, 255, 255, .25) 50%, rgba(0, 0, 0, .35)); pointer-events: none; }
 .flip-stage { padding-top: 70px; }
+/* The side panel: everything but the chat scrolls on its own, so the chat
+   always keeps room (it used to be pushed off the bottom in Hive mind). */
+.lobby-side .side-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+.lobby-side .chat { flex: 1 0 150px; min-height: 150px; }
+
+/* ===== Level up ===== */
+.levelup-v2 { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: color-mix(in oklab, var(--bg) 55%, transparent); backdrop-filter: blur(3px); animation: lv-in .35s ease; cursor: pointer; }
+@keyframes lv-in { from { opacity: 0; } }
+.lv-card { position: relative; text-align: center; padding: 40px 56px 30px; border-radius: 28px; background: var(--panel); box-shadow: 0 30px 80px var(--shadow); overflow: hidden; min-width: 340px; animation: lv-pop .55s cubic-bezier(.2,1.5,.4,1); }
+@keyframes lv-pop { from { transform: scale(.6) translateY(20px); opacity: 0; } }
+.lv-rays { position: absolute; inset: -60%; z-index: 0; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--accent) 14%, transparent) 0 10deg, transparent 10deg 20deg); animation: spin 18s linear infinite; pointer-events: none; }
+.lv-card > *:not(.lv-rays) { position: relative; z-index: 1; }
+.lv-kicker { text-transform: uppercase; letter-spacing: .2em; font-weight: 700; font-size: 13px; color: var(--accent); }
+.lv-num { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 130px; line-height: 1; color: var(--word); animation: lv-num .5s cubic-bezier(.2,1.6,.4,1); text-shadow: 0 6px 30px color-mix(in srgb, var(--accent) 35%, transparent); }
+@keyframes lv-num { from { transform: scale(.4) rotate(-8deg); opacity: 0; } }
+.lv-title { font-size: 20px; font-weight: 600; margin-top: 4px; }
+.lv-rewards { display: grid; gap: 8px; margin-top: 18px; justify-items: center; }
+.lv-reward { display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--bg); font-size: 18px; font-weight: 700; opacity: 0; animation: lv-reward .45s cubic-bezier(.2,1.5,.4,1) forwards; }
+.lv-reward small { font-size: 13px; font-weight: 500; color: var(--dim); }
+.lv-reward.item { background: linear-gradient(90deg, color-mix(in srgb, #f4c542 25%, var(--bg)), var(--bg)); }
+@keyframes lv-reward { from { opacity: 0; transform: translateY(12px) scale(.9); } to { opacity: 1; transform: none; } }
+.lv-hint { margin-top: 18px; font-size: 12px; color: var(--faint); }
+html.calm .lv-rays, html.calm .lv-card, html.calm .lv-num, html.calm .lv-reward { animation: none !important; opacity: 1; }
+
+/* ===== Level rewards ===== */
+.rarity.r-level { color: #fff; background: linear-gradient(90deg, #e8743a, #f4c542); }
+.shop-item.r-level { background: linear-gradient(160deg, color-mix(in srgb, #e8743a 10%, var(--panel)), var(--panel) 60%); }
+.frame-bookmark .frame-art { box-shadow: 0 0 0 2px #b3322b; }
+.frame-bookmark .frame-art::after { content: ''; position: absolute; right: 2px; top: 60%; width: 9px; height: 18px; background: #b3322b; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%); }
+.frame-goldlaurel .frame-art { inset: -10px; border: 5px dotted #e0b030; box-shadow: 0 0 0 2px #f4c542, 0 0 12px rgba(244, 197, 66, .6); }
+.frame-goldlaurel .frame-art::after { content: '★'; position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); color: #f4c542; font-size: 13px; text-shadow: 0 0 6px #f4c542; }
+.frame-aurora .frame-art { inset: -8px; background: conic-gradient(#6bd6a8, #4ab1f0, #a66bd8, #6bd6a8); -webkit-mask: radial-gradient(circle, transparent 57%, #000 60%); mask: radial-gradient(circle, transparent 57%, #000 60%); filter: blur(1.5px); animation: spin 6s linear infinite; box-shadow: 0 0 18px rgba(107, 214, 168, .6); }
+.card.locked .back.cb-librarycard, .mini-back.cb-librarycard { background: repeating-linear-gradient(0deg, transparent 0 9px, rgba(60, 90, 160, .35) 9px 10px), #f6eed8; color: #b3322b; }
+.card.locked .back.cb-librarycard::after, .mini-back.cb-librarycard::after { content: 'DUE'; position: absolute; top: 6px; left: 6px; font: 800 8px var(--font-ui); color: #b3322b; border: 1px solid #b3322b; padding: 0 3px; transform: rotate(-12deg); }
+.mini-back.cb-librarycard { position: relative; }
+.felt-scholar .felt { background: radial-gradient(ellipse at 50% 40%, #2f6a4a, #17402b 80%); box-shadow: inset 0 0 0 4px #c9a24a, inset 0 0 0 10px #4a2a14, inset 0 0 0 12px #c9a24a, 0 30px 60px var(--shadow); }
+.felt-scholar .felt-center { --word: #fbf6e8; --text: #fbf6e8; --dim: #e6dcc6; --faint: #c9bfa8; --read-text: #f1e9d6; color: var(--text); text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+.room-observatory { --room: radial-gradient(1.5px 1.5px at 15% 20%, #fff, transparent), radial-gradient(1px 1px at 45% 35%, #fff, transparent), radial-gradient(2px 2px at 75% 15%, #ffe9a0, transparent), radial-gradient(1px 1px at 85% 45%, #fff, transparent), radial-gradient(ellipse at 50% 120%, #4a3a1a 0 40%, transparent 41%), linear-gradient(180deg, #0b1030, #1f2a5a 70%); }
+.nm-calligraphy { font-family: 'EB Garamond', 'Newsreader', serif !important; font-style: italic; font-weight: 600; letter-spacing: .3px; }
+
+/* --- Grand Jury ------------------------------------------------------------ */
+.felt-center .charge { font-family: var(--font-word); font-size: 22px; margin-top: 2px; }
+.felt-center .charge b { font-size: 40px; font-weight: var(--word-weight); }
+.felt-center .you-did { display: inline-block; background: color-mix(in oklab, var(--bad) 22%, transparent); color: var(--text); border: 1px solid color-mix(in oklab, var(--bad) 55%, transparent); border-radius: 999px; padding: 3px 12px; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.felt-center .verdict-who { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 30px; line-height: 1.1; color: var(--word); }
+.prep-dots { display: flex; gap: 8px; justify-content: center; margin: 14px 0 10px; }
+.prep-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: prep 1s infinite ease-in-out; }
+.prep-dots i:nth-child(2) { animation-delay: .15s; }
+.prep-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes prep { 0%, 100% { transform: translateY(0); opacity: .4 } 50% { transform: translateY(-6px); opacity: 1 } }
+html.calm .prep-dots i { animation: none; opacity: .7; }
+
+/* --- Clues --------------------------------------------------------------------- */
+.blanks { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 8px auto 6px; max-width: 100%; }
+.blanks .blank { width: 30px; height: 38px; border-radius: 7px; background: color-mix(in oklab, var(--text) 9%, transparent); border: 1.5px solid color-mix(in oklab, var(--text) 18%, transparent); border-bottom: 3px solid color-mix(in oklab, var(--text) 45%, transparent); display: grid; place-items: center; font-family: var(--font-word); font-weight: var(--word-weight); font-size: 22px; color: var(--word); }
+.blanks .blank.open { border-bottom-color: var(--accent); }
+.blanks .blank.new { animation: blank-pop .5s ease-out; }
+.blanks .gap { width: 12px; display: grid; place-items: center; font-size: 22px; color: var(--dim); }
+@keyframes blank-pop { 0% { transform: scale(.4) rotate(-8deg); background: var(--accent) } 100% { transform: none } }
+html.calm .blanks .blank.new { animation: none; }
+.clue-list { display: flex; flex-direction: column; gap: 4px; max-width: 420px; margin: 4px auto 0; font-size: 13.5px; line-height: 1.35; text-align: left; }
+.clue-list .clue { color: var(--read-text); padding: 3px 8px; border-radius: 6px; }
+.clue-list .clue i { color: var(--faint); font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-right: 4px; }
+.clue-list .clue.new { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.clue-form { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(460px, 100%); }
+.clue-form .field { width: 100%; font-size: 20px; text-align: center; padding: 10px 14px; font-family: var(--font-word); }
+.chat .sys.guess { color: var(--faint); }
+.chat .sys.solved { color: var(--good); font-weight: 600; }
+@media (max-height: 760px) { .blanks .blank { width: 24px; height: 30px; font-size: 18px; } .clue-list { font-size: 12.5px; } }
+.felt-center .jury-stamp { display: inline-block; font-family: var(--font-word); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; font-size: 13px; padding: 3px 12px; border-radius: 6px; border: 2px solid currentColor; transform: rotate(-4deg); margin-bottom: 6px; }
+.felt-center .jury-stamp.guilty { color: var(--bad); }
+.felt-center .jury-stamp.free { color: var(--good); }
+.felt-center .verdict-who { font-size: 24px; }

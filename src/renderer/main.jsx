@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { useCallback, useEffect, useState } from 'react'
-import { api, icons, ToastHost, useToast, celebrate, Coins } from './ui.jsx'
+import { api, icons, ToastHost, useToast, celebrate, Coins, setLevelUpSettings } from './ui.jsx'
 import Play from './Play.jsx'
 import Lobby from './Lobby.jsx'
 import Collection from './Collection.jsx'
@@ -53,6 +53,7 @@ function App () {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => window.ww.on.economy((c) => setEcon((old) => ({ ...(old || {}), ...c }))), [])
   useEffect(() => { setConfettiStyle(econ?.look?.confetti || 'classic') }, [econ?.look?.confetti])
+  useEffect(() => { if (settings) setLevelUpSettings(settings.values) }, [settings])
 
   // A button clicked with the mouse gives the keyboard back to the game, so
   // Space or Enter afterwards don't press it again. Tabbing still works.

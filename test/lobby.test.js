@@ -325,3 +325,110 @@ test('a link that goes silent is noticed and replaced', async (t) => {
   await until(() => host.lobbyState.phase === 'reveal')
   assert.equal(host.lobbyState.current.result.ratings[pipId], 2.2)
 })
+
+test('Grand Jury: a secret defendant, testimony, a vote, and a verdict', async (t) => {
+  const { make } = await network(t)
+  const host = await make()
+  const p1 = await make()
+  const p2 = await make()
+  // Only p1 has rated anything, so p1 must be the defendant.
+  p1.rate('cat', 0.2)
+  p1.rate('dog', 3)
+  const s = await host.hostLobby({ rounds: 2, style: 'jury' })
+  await p1.joinLobby(s.code)
+  // Two players aren't enough.
+  const notices = []
+  host.on('lobby-event', (e) => { if (e.kind === 'notice') notices.push(e.text) })
+  host.lobbyAction('begin')
+  await until(() => notices.length === 1)
+  assert.equal(host.lobbyState.phase, 'waiting')
+  await p2.joinLobby(s.code)
+  await until(() => host.lobbyState.players.length === 3)
+  host.rate('cat', 4.8) // the host's app says what it gave the words on offer
+  host.lobbyAction('begin')
+  await until(() => p2.lobbyState?.phase === 'testimony')
+  const cur = p2.lobbyState.current
+  // Between cat and dog, cat is the extreme one the table disagrees with,
+  // but the host has rated it too, so the host could be in the dock as well.
+  const dock = [host, p1].find((a) => a.lobbyState.current.mine.defendant)
+  assert.ok(dock)
+  assert.equal(cur.mine.defendant, false)
+  assert.equal(JSON.stringify(cur).includes('"defendant":"'), false, 'nobody else learns who it is')
+  const id = (a) => a.lobbyState.you
+  const other = dock === host ? p1 : host
+  assert.equal(cur.word, 'cat')
+  assert.equal(cur.charge, dock === p1 ? 0.2 : 4.8)
+  // Testimony: the defendant bluffs.
+  dock.lobbyAction('rate', 2.5)
+  other.lobbyAction('rate', 4)
+  p2.lobbyAction('rate', 1)
+  await until(() => p2.lobbyState.phase === 'voting')
+  assert.equal(p2.lobbyState.current.testimony[id(dock)], 2.5)
+  // A vote for yourself doesn't count.
+  p2.lobbyAction('vote', id(p2))
+  other.lobbyAction('vote', id(dock))
+  p2.lobbyAction('vote', id(other))
+  dock.lobbyAction('vote', id(p2))
+  await until(() => host.lobbyState.phase === 'reveal')
+  const res = host.lobbyState.current.result
+  // One vote each: no clear top, so the defendant walks free.
+  assert.equal(res.convicted, false)
+  assert.equal(res.defendant, id(dock))
+  assert.deepEqual(res.right, [id(other)])
+  assert.equal(res.points[id(other)], 100)
+  assert.equal(res.points[id(dock)], 125)
+  assert.equal(res.past[id(other)], dock === p1 ? 4.8 : 0.2)
+  // Testimony is a bluff, so it isn't saved.
+  await until(() => p2.store.counter('lobbyRounds') === 1)
+  assert.equal(p2.store.rating('cat'), null)
+  assert.equal(p1.store.rating('cat'), 0.2)
+  await until(() => dock.store.counter('acquittals') === 1)
+})
+
+test('Clues: blanks and the table’s ratings, clues over time, points for guessing early', async (t) => {
+  const { make } = await network(t)
+  const host = await make()
+  const p1 = await make()
+  host.rate('serendipity', 4.9)
+  p1.rate('serendipity', 3.2)
+  host.rate('dog', 2)
+  const s = await host.hostLobby({ rounds: 1, style: 'clues' })
+  await p1.joinLobby(s.code)
+  await until(() => host.lobbyState.players.length === 2)
+  host.lobbyAction('begin')
+  await until(() => p1.lobbyState?.phase === 'clues')
+  const cur = p1.lobbyState.current
+  assert.equal(cur.word, null, 'the word stays hidden')
+  assert.equal(cur.pattern.length, 'serendipity'.length, 'the word both have rated')
+  assert.equal(cur.table[host.lobbyState.you], 4.9)
+  assert.equal(JSON.stringify(p1.lobbyState).toLowerCase().includes('serendipity'), false)
+  // Chat can't give it away.
+  const seen = []
+  host.on('lobby-event', (e) => seen.push(e))
+  p1.lobbyAction('chat', 'is it Serendipity?')
+  host.lobbyAction('advance') // next clue
+  await until(() => p1.lobbyState.current.clue === 1)
+  p1.lobbyAction('clueGuess', 'luck')
+  await until(() => p1.lobbyState.current.wrong[p1.lobbyState.you] === 1)
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  p1.lobbyAction('clueGuess', 'Serendipity')
+  await until(() => p1.lobbyState.current.mine.solved)
+  assert.equal(p1.lobbyState.current.mine.points, 100 - 12 - 10 + 20)
+  assert.equal(p1.lobbyState.current.mine.word, 'serendipity')
+  assert.equal(host.lobbyState.current.word, null, 'still hidden from who hasn’t got it')
+  assert.ok(!seen.some((e) => e.kind === 'chat'))
+  host.lobbyAction('clueGuess', 'serendipity')
+  await until(() => host.lobbyState.phase === 'reveal')
+  const res = host.lobbyState.current.result
+  assert.equal(res.word, 'serendipity')
+  assert.equal(res.points[host.lobbyState.you], 100 - 12)
+})
+
+test('Clues are fair: the word never shows up in them', async () => {
+  const { buildClues } = await import('../src/core/lobby.js')
+  const info = { senses: [{ posName: 'noun', def: 'a run of running', ex: ['she runs a run'] }], synonyms: ['runner', 'tally'] }
+  const clues = buildClues('run', info)
+  for (const c of clues) assert.ok(!/run/i.test(c.text || ''), c.text)
+  assert.ok(clues.at(-1).pattern.includes(null), 'a letter always stays hidden')
+  assert.equal(clues[0].pattern.every((x) => x === null), true)
+})

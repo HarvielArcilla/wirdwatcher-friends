@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { formatCoins } from '../shared/economy.js'
+import { playLevelUp } from './sound.js'
+import { burst } from './effects.js'
 
 export const api = (name, ...args) => window.ww.call(name, ...args)
 
@@ -44,7 +46,8 @@ const SKINS = {
   ruby: ['#ffe0e4', '#e0405a', '#8a1426', '#4a0812'],
   pearl: ['#ffffff', '#eae6f0', '#b8b0c8', '#6a6080'],
   pixel: ['#fff4c2', '#f2c23e', '#b07a12', '#5a3a00'],
-  ink: ['#e8eaf6', '#3a3f6b', '#141632', '#e8eaf6']
+  ink: ['#e8eaf6', '#3a3f6b', '#141632', '#e8eaf6'],
+  platinum: ['#ffffff', '#e4e7ec', '#9aa3b0', '#4a5260']
 }
 let coinIds = 0
 export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className = '' }) {
@@ -127,7 +130,7 @@ export function ToastHost ({ children }) {
   const [toasts, setToasts] = useState([])
   const [level, setLevel] = useState(null)
   const push = useCallback((t) => {
-    if (t.levelUp) { setLevel(t.levelUp); setTimeout(() => setLevel(null), 2700); return }
+    if (t.levelUp) { setLevel({ ...t.levelUp, reward: t.reward || null, key: Math.random() }); return }
     const id = Math.random()
     setToasts((all) => [...all.slice(-3), { ...t, id }])
     setTimeout(() => setToasts((all) => all.filter((x) => x.id !== id)), t.ms || 4200)
@@ -143,7 +146,7 @@ export function ToastHost ({ children }) {
           </div>
         ))}
       </div>
-      {level && <div className='levelup'><div><b>{level.level}</b><span>Level up. You’re a {level.title}.</span></div></div>}
+      {level && <LevelUp key={level.key} level={level} onDone={() => setLevel(null)} />}
     </ToastCtx.Provider>
   )
 }
@@ -151,7 +154,7 @@ export function ToastHost ({ children }) {
 // Shows what a rating earned: level-ups, badges, finished chains and lists.
 export function celebrate (toast, earned) {
   if (!earned) return
-  if (earned.levelUp) toast({ levelUp: earned.level })
+  if (earned.levelUp) toast({ levelUp: earned.level, reward: earned.reward })
   for (const b of earned.badges || []) toast({ emoji: b.emoji, title: `Badge: ${b.name}`, text: b.hint, ms: 5500 })
   if (earned.chainDone) toast({ emoji: '🔗', title: 'Chain complete', text: earned.chainDone.words.join(', ') })
   for (const name of earned.finished || []) toast({ emoji: '🏁', title: `Finished “${name}”`, text: 'Every word in the playlist is rated.' })
@@ -176,4 +179,38 @@ export const icons = {
   chevron: I(<path d='m6 9 6 6 6-6' />),
   house: I(<><path d='M3 10.5 12 3l9 7.5' /><path d='M5 9.5V21h14V9.5' /><path d='M9.5 21v-6h5v6' /><path d='M16 5.5V3h2.5v4.6' /></>),
   shop: I(<><path d='M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9Z' /><path d='M9 10V6.5a3 3 0 0 1 6 0V10' /></>)
+}
+
+// Leveling up: the screen dims, rays turn behind the new number, it counts
+// up, and the rewards land one after another. Click anywhere (or wait) to go
+// on; it never takes the keyboard.
+let levelSettings = null
+export function setLevelUpSettings (s) { levelSettings = s }
+function LevelUp ({ level, onDone }) {
+  const [shown, setShown] = useState(Math.max(1, level.level - 1))
+  useEffect(() => {
+    playLevelUp(levelSettings)
+    const t1 = setTimeout(() => setShown(level.level), 450)
+    const t2 = setTimeout(() => burst(window.innerWidth / 2, window.innerHeight / 2 - 40, 'confetti'), 500)
+    const t3 = setTimeout(onDone, level.reward?.items?.length ? 6500 : 4800)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const r = level.reward
+  return (
+    <div className='levelup-v2' onClick={onDone} role='status' aria-live='assertive'>
+      <div className='lv-card'>
+        <div className='lv-rays' aria-hidden='true' />
+        <div className='lv-kicker'>Level up</div>
+        <div className='lv-num' key={shown}>{shown}</div>
+        <div className='lv-title'>{(level.level - 1) % 5 === 0 ? <>New title: {level.title}</> : (5 - ((level.level - 1) % 5)) === 1 ? 'A new title at the next level' : `${level.title}, a new title in ${5 - ((level.level - 1) % 5)} levels`}</div>
+        {r && (
+          <div className='lv-rewards'>
+            {r.coins > 0 && <div className='lv-reward' style={{ animationDelay: '.9s' }}><Coins n={r.coins} /><small>coins</small></div>}
+            {r.items.map((it, i) => <div key={it.id} className='lv-reward item' style={{ animationDelay: `${1.2 + i * 0.25}s` }}><b>🎁 {it.name}</b><small>new {String(it.kindName || it.kind).toLowerCase().replace(/s$/, '')}, in the shop</small></div>)}
+          </div>
+        )}
+        <div className='lv-hint'>Click to continue</div>
+      </div>
+    </div>
+  )
 }

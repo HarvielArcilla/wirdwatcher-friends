@@ -47,14 +47,20 @@ export class WirdApp extends EventEmitter {
     this.game.identityName = () => this.identity.name
     this.game.identityColor = () => this.identity.color
     this.friends = new Friends({ identity: this.identity, store: this.store, settings: this.settings, swarm, lan })
-    this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, hasBadge: (id) => Boolean(this.store.progress.badges[id]), dev })
+    this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, hasBadge: (id) => Boolean(this.store.progress.badges[id]), level: () => this.game.profile().level.level, dev })
+    // Levels from before coins existed don't pay out; from here on, each does.
+    if (this.economy.s.levelPaid == null) this.economy.s.levelPaid = this.game.profile().level.level
     // Friends see what you wear and which edition you're on.
     this.game.extraProfile = () => ({ look: this.economy.look() })
     this.game.extraStats = () => this.economy.badgeStats()
     // Spending, flipping and publishing can earn badges too.
     this.economy.on('changed', () => {
-      const res = this.game.award()
-      if (res.badges?.length || res.levelUp) this.emit('progress', { ...res, source: 'economy' })
+      if (this._awarding) return
+      this._awarding = true
+      try {
+        const res = this._withLevelReward(this.game.award())
+        if (res.badges?.length || res.levelUp) this.emit('progress', { ...res, source: 'economy' })
+      } finally { this._awarding = false }
     })
     this.economy.on('look', () => { this.game._refreshProfile(); if (this.lobby) this.lobby.setProfile(this._lobbyMe()) })
     this.economy.on('tick', (c) => this.emit('economy', c))
@@ -66,8 +72,14 @@ export class WirdApp extends EventEmitter {
 
   // Rating a word: the game's result, plus what it paid.
   rate (word, r, opts) {
-    const res = this.game.rate(word, r, opts)
+    const res = this._withLevelReward(this.game.rate(word, r, opts))
     res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
+    return res
+  }
+
+  // A result that leveled you up carries that level's reward.
+  _withLevelReward (res) {
+    if (res?.levelUp) res.reward = this.economy.levelReward(res.level.level)
     return res
   }
 
@@ -213,12 +225,14 @@ export class WirdApp extends EventEmitter {
       const xp = []
       const badges = []
       let coins = 0
+      let reward = null
       let levelUp = false
       // Words I rated at the table become my ratings.
       for (const { by, word, r } of res.rated || []) {
         if (by !== s.you || !this.words.has(word)) continue
         const earned = this.rate(word, r, { source: 'lobby' })
         if (earned.coins) coins += earned.coins.coins
+        if (earned.reward) reward = earned.reward
         xp.push(...earned.xp)
         badges.push(...earned.badges)
         levelUp = levelUp || earned.levelUp
@@ -233,15 +247,21 @@ export class WirdApp extends EventEmitter {
       if (res.style === 'hotseat' && res.diffs?.[s.you] !== undefined && res.diffs[s.you] !== null && res.diffs[s.you] <= 0.1) { items.push({ amount: XP.hiveMind, why: 'Read their mind' }); counters.exactReads = 1 }
       const mine = res.entries?.find((e) => e.picker === s.you)
       if (mine?.diff !== null && mine?.diff !== undefined && mine.diff <= 0.1) { items.push({ amount: XP.hiveMind, why: 'Bullseye' }); counters.bullseyes = 1 }
-      const bonus = this.game.award(items, counters)
+      if (res.style === 'jury') {
+        if (res.right?.includes(s.you)) { items.push({ amount: XP.hiveMind, why: 'Named them' }); counters.convictions = 1 }
+        if (res.defendant === s.you && !res.convicted) { items.push({ amount: XP.hiveMind, why: 'Walked free' }); counters.acquittals = 1 }
+      }
+      const solved = res.style === 'clues' ? res.solved?.[s.you] : null
+      if (solved) { items.push({ amount: XP.hiveMind, why: 'Solved it' }); if (solved.clue <= 2) counters.quickClues = 1 }
+      const bonus = this._withLevelReward(this.game.award(items, counters))
       coins += this.economy.onLobbyRound({ hosting: Boolean(this.lobby?.isHost) })
-      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, coins, source: 'lobby' })
+      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, reward: bonus.reward || reward, coins, source: 'lobby' })
     }
     if (s.phase === 'results' && prev?.phase !== 'results' && s.history.length) {
       const counters = { lobbyGames: 1 }
       if (s.players.length >= 8) counters.fullTables = 1
       counters[`games_${s.options.style}`] = 1
-      this.emit('progress', { ...this.game.award([{ amount: XP.lobbyGame, why: 'Lobby game' }], counters), source: 'lobby' })
+      this.emit('progress', { ...this._withLevelReward(this.game.award([{ amount: XP.lobbyGame, why: 'Lobby game' }], counters)), source: 'lobby' })
     }
     this.emit('lobby', view)
   }
@@ -320,6 +340,28 @@ export class WirdApp extends EventEmitter {
     }
   }
 
+  // What this computer tells a lobby host that asks (Grand Jury and Clues).
+  // Only ratings of words in the word list, and only as many as needed.
+  _lobbyProvide (kind, args = {}) {
+    const mine = this.store.ratings().filter((x) => this.words.has(x.word))
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
+    if (kind === 'case') {
+      // A few of my strongest opinions: the extremes first.
+      const skip = new Set(Array.isArray(args.skip) ? args.skip.slice(0, 500) : [])
+      const open = mine.filter((x) => !skip.has(x.word))
+      const strong = shuffle(open.filter((x) => x.r <= 0.8 || x.r >= 4.2))
+      const rest = open.filter((x) => x.r > 0.8 && x.r < 4.2).sort((a, b) => Math.abs(b.r - 2.5) - Math.abs(a.r - 2.5))
+      return [...strong, ...rest].slice(0, 5).map(({ word, r }) => ({ word, r }))
+    }
+    if (kind === 'lookup') {
+      const out = {}
+      for (const w of (Array.isArray(args.words) ? args.words : []).slice(0, 8)) { const v = this.store.rating(String(w)); if (typeof v === 'number') out[w] = v }
+      return out
+    }
+    if (kind === 'sample') return shuffle(mine).slice(0, 120).map(({ word, r }) => ({ word, r }))
+    return null
+  }
+
   async hostLobby (options = {}) {
     await this.leaveLobby()
     // Lobbies deal from the whole pool (whatever the host has rated before),
@@ -333,7 +375,7 @@ export class WirdApp extends EventEmitter {
     this.store.count('hosted')
     this.game.award()
     const lookup = (word) => (this.words.has(word) ? this.words.lookup(word) : null)
-    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, settings: this.settings, swarm: this.swarm, lan: this.lan, options })
+    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan, options })
     this._wireLobby(lobby)
     await lobby.start()
     return this.lobbyState
@@ -341,7 +383,7 @@ export class WirdApp extends EventEmitter {
 
   async joinLobby (code) {
     await this.leaveLobby()
-    const lobby = new LobbyClient({ code, me: this._lobbyMe(), settings: this.settings, swarm: this.swarm, lan: this.lan })
+    const lobby = new LobbyClient({ code, me: this._lobbyMe(), provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan })
     this._wireLobby(lobby)
     try {
       await lobby.start()
@@ -365,7 +407,7 @@ export class WirdApp extends EventEmitter {
     const l = this.lobby
     if (!l) throw new Error('You’re not in a lobby.')
     const hostOnly = ['configure', 'begin', 'advance', 'kick', 'backToLobby']
-    const allowed = ['rate', 'guess', 'pick', 'choose', 'next', 'react', 'chat', 'setReady', ...hostOnly]
+    const allowed = ['rate', 'guess', 'pick', 'choose', 'vote', 'clueGuess', 'next', 'react', 'chat', 'setReady', ...hostOnly]
     if (!allowed.includes(action)) throw new Error('Unknown lobby action.')
     if (hostOnly.includes(action) && !l.isHost) throw new Error('Only the host can do that.')
     l[action](arg === undefined ? null : arg)
