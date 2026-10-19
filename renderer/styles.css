@@ -1033,3 +1033,8 @@ html.calm .lobby-stage::before { animation: none !important; }
 .seat .seat-face:has(.framed) .seat-key { top: -15px; right: -17px; }
 .seat.row .seat-face .seat-key { right: auto; left: -13px; }
 .seat.row .seat-face:has(.framed) .seat-key { left: -17px; }
+/* The flat (2D) flip. */
+.flipcoin.flat { animation: none !important; transform-style: flat; will-change: transform; position: relative; }
+.flipcoin.flat svg { display: block; }
+.flipcoin .coin-edge { position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(90deg, rgba(0, 0, 0, .35), rgba(255, 255, 255, .25) 50%, rgba(0, 0, 0, .35)); pointer-events: none; }
+.flip-stage { padding-top: 70px; }

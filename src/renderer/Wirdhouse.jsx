@@ -215,14 +215,7 @@ function Coinflip ({ v, coins, act, look }) {
   return (
     <div className='coinflip'>
       <div className='flip-stage'>
-        {spinning && flip
-          ? (
-            <div key={flip.key} className={`flipcoin land-${flip.side}`}>
-              <span className='side heads'><CoinArt skin={look?.coin || 'gold'} side='heads' size={150} /></span>
-              <span className='side tails'><CoinArt skin={look?.coin || 'gold'} side='tails' size={150} /></span>
-            </div>
-            )
-          : <div className='flipcoin still' aria-live='polite'><CoinArt skin={look?.coin || 'gold'} side={flip?.side || 'heads'} size={150} /></div>}
+        <SpinningCoin key={flip?.key || 'idle'} skin={look?.coin || 'gold'} land={flip?.side || 'heads'} spin={Boolean(spinning && flip)} />
         <div className='flip-shadow' aria-hidden='true' />
         <div className='flip-result'>
           {flip && !spinning && (flip.win ? <span className='win'>It’s {flip.side}! +<Coins n={flip.stake} /></span> : <span className='loss'>It’s {flip.side}. −<Coins n={flip.stake} /></span>)}
@@ -285,6 +278,41 @@ function DevBar ({ act }) {
       <button className='btn small' onClick={() => act('devWarp', 3600)}>Skip 1 hour</button>
       <button className='btn small' onClick={() => act('devUnlockAll')}>Unlock all cosmetics</button>
       <button className='btn small ghost danger' onClick={() => act('devReset')}>Reset economy</button>
+    </div>
+  )
+}
+
+// The coin in the air. No 3D transforms (they clip the coin in Chromium):
+// it squashes to its edge and back, showing the other face each half turn,
+// rises and falls, and lands on `land`. Driven frame by frame.
+const FLIP_MS = 1500
+const HALF_TURNS = 10 // an even number lands on the face it started showing
+function SpinningCoin ({ skin, land, spin }) {
+  const [t, setT] = useState(spin ? 0 : 1)
+  useEffect(() => {
+    if (!spin) { setT(1); return }
+    const start = performance.now()
+    let id
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / FLIP_MS)
+      setT(k)
+      if (k < 1) id = requestAnimationFrame(step)
+    }
+    id = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(id)
+  }, [spin])
+  const calm = document.documentElement.classList.contains('calm')
+  const eased = 1 - (1 - t) ** 3 // fast up, slowing down
+  const angle = (calm ? 1 : eased) * HALF_TURNS * Math.PI
+  const halves = Math.floor(angle / Math.PI + 0.5) // which face is showing
+  const other = land === 'heads' ? 'tails' : 'heads'
+  const face = halves % 2 === 0 ? land : other
+  const squash = Math.max(0.04, Math.abs(Math.cos(angle)))
+  const lift = calm ? 0 : Math.sin(Math.PI * t) * 60
+  return (
+    <div className='flipcoin flat' style={{ transform: `translateY(${-lift}px) scaleX(${squash})` }} aria-live='polite'>
+      <CoinArt skin={skin} side={face} size={150} />
+      {squash < 0.6 && <i className='coin-edge' style={{ opacity: 1 - squash }} />}
     </div>
   )
 }
