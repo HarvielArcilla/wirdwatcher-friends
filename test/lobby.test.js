@@ -326,7 +326,7 @@ test('a link that goes silent is noticed and replaced', async (t) => {
   assert.equal(host.lobbyState.current.result.ratings[pipId], 2.2)
 })
 
-test('Grand Jury: a secret defendant, testimony, a vote, and a verdict', async (t) => {
+test('Grand Jury: a secret defendant, a vote, and a verdict with everyone’s real ratings', async (t) => {
   const { make } = await network(t)
   const host = await make()
   const p1 = await make()
@@ -346,7 +346,7 @@ test('Grand Jury: a secret defendant, testimony, a vote, and a verdict', async (
   await until(() => host.lobbyState.players.length === 3)
   host.rate('cat', 4.8) // the host's app says what it gave the words on offer
   host.lobbyAction('begin')
-  await until(() => p2.lobbyState?.phase === 'testimony')
+  await until(() => p2.lobbyState?.phase === 'voting')
   const cur = p2.lobbyState.current
   // Between cat and dog, cat is the extreme one the table disagrees with,
   // but the host has rated it too, so the host could be in the dock as well.
@@ -358,12 +358,7 @@ test('Grand Jury: a secret defendant, testimony, a vote, and a verdict', async (
   const other = dock === host ? p1 : host
   assert.equal(cur.word, 'cat')
   assert.equal(cur.charge, dock === p1 ? 0.2 : 4.8)
-  // Testimony: the defendant bluffs.
-  dock.lobbyAction('rate', 2.5)
-  other.lobbyAction('rate', 4)
-  p2.lobbyAction('rate', 1)
-  await until(() => p2.lobbyState.phase === 'voting')
-  assert.equal(p2.lobbyState.current.testimony[id(dock)], 2.5)
+  assert.equal(JSON.stringify(cur).includes('"past"'), false, 'nobody’s old ratings show before the verdict')
   // A vote for yourself doesn't count.
   p2.lobbyAction('vote', id(p2))
   other.lobbyAction('vote', id(dock))
@@ -378,7 +373,7 @@ test('Grand Jury: a secret defendant, testimony, a vote, and a verdict', async (
   assert.equal(res.points[id(other)], 100)
   assert.equal(res.points[id(dock)], 125)
   assert.equal(res.past[id(other)], dock === p1 ? 4.8 : 0.2)
-  // Testimony is a bluff, so it isn't saved.
+  assert.equal(res.ratings[id(dock)], res.charge, 'the cards show real past ratings')
   await until(() => p2.store.counter('lobbyRounds') === 1)
   assert.equal(p2.store.rating('cat'), null)
   assert.equal(p1.store.rating('cat'), 0.2)

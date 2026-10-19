@@ -36,16 +36,17 @@
 //            the target. Then each rater rates the word chosen for them, not
 //            knowing the target. Up to 100 points for landing close, plus 50
 //            for within 0.1.
-//   jury     (preparing) → testimony → voting → reveal          Grand Jury
+//   jury     (preparing) → voting → reveal                      Grand Jury
 //            Someone at the table is secretly the defendant: their own app
 //            offers a few of their strongest past ratings, and the host picks
 //            the one the rest of the table disagrees with most (their apps say
 //            what they gave those words, if anything, and nothing is shown).
-//            The charge is read out ("someone here once gave this 0.4").
-//            Everyone testifies (a quick rating; bluffing allowed, nothing is
-//            saved), then votes on who did it. Right votes are worth 100. If
-//            the defendant isn't the clear top of the vote they walk free:
-//            100, plus 25 for every vote that went elsewhere. Needs 3 players.
+//            The charge is read out ("someone here once gave this 0.4") and
+//            everyone votes on who did it. Right votes are worth 100. If the
+//            defendant isn't the clear top of the vote they walk free: 100,
+//            plus 25 for every vote that went elsewhere. The reveal shows the
+//            votes and what everyone really gave the word before, for the
+//            argument afterwards. Needs 3 players.
 //   clues    (preparing) → clues → reveal
 //            A hidden word, shown as blanks with what everyone at the table
 //            rated it (words most of the table has rated come first). A clue
@@ -55,8 +56,7 @@
 //            every wrong guess (never under 10); the first to get it gets 20
 //            more. Chat can't give the word away.
 //
-// Only Classic, High or low, Hot seat and Hive mind save ratings: Grand
-// Jury testimony is meant for bluffing, and Clues has nothing to rate.
+// Grand Jury and Clues have nothing to rate, so they save no ratings.
 //
 // A rating made at the table also counts as that player's own rating of the
 // word, so lobbies feed everyone's collection, XP and badges.
@@ -85,8 +85,8 @@ export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '�
 
 // Grand Jury and Clues start each round in 'preparing' while the host asks
 // the players' apps for what it needs; that isn't one of these steps.
-const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'], jury: ['testimony', 'voting'], clues: ['clues'] }
-const ACTIVE = ['rating', 'guessing', 'picking', 'choosing', 'testimony', 'voting', 'clues']
+const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'], jury: ['voting'], clues: ['clues'] }
+const ACTIVE = ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues']
 export const JURY_MIN = 3
 export const CLUE_SECS = 10 // between clues
 export const CLUE_FINAL_SECS = 15 // after the last one
@@ -345,7 +345,7 @@ export class LobbyHost extends EventEmitter {
   // null takes it back while the phase is still open.
   _rate (id, r) {
     const c = this.current
-    if ((this.phase !== 'rating' && this.phase !== 'testimony') || !c || !c.roster.includes(id)) return
+    if (this.phase !== 'rating' || !c || !c.roster.includes(id)) return
     if (r !== null && !validRating(r)) return
     const map = c.style === 'hotseat' && id !== c.seat ? c.predictions : c.ratings
     if (c.style === 'hive' && !c.toRate.has(id)) return
@@ -476,7 +476,7 @@ export class LobbyHost extends EventEmitter {
     const past = { [defendant]: pick.r }
     others.forEach((id, i) => { if (said[i][pick.word] !== undefined) past[id] = said[i][pick.word] })
     Object.assign(c, { defendant, word: pick.word, info: this.lookup(pick.word), charge: pick.r, past })
-    this.phase = 'testimony'
+    this.phase = 'voting'
     this._startTimer()
     this._changed()
   }
@@ -534,7 +534,6 @@ export class LobbyHost extends EventEmitter {
       case 'guessing': return live.filter((id) => !c.guesses.has(id))
       case 'picking': return live.includes(c.picker) ? [c.picker] : []
       case 'choosing': return live.filter((id) => c.assign.has(id) && !c.picks.has(id))
-      case 'testimony': return live.filter((id) => !c.ratings.has(id))
       case 'voting': return live.filter((id) => !c.votes.has(id))
       case 'clues': return live.filter((id) => !c.solved.has(id))
       default: return []
@@ -808,7 +807,7 @@ export class LobbyHost extends EventEmitter {
       for (const id of right) give(id, 100)
       const missed = Object.keys(votes).filter((id) => id !== c.defendant && votes[id] !== c.defendant).length
       if (!convicted) give(c.defendant, 100 + 25 * missed)
-      result = { style: 'jury', word: c.word, info: c.info, charge: c.charge, defendant: c.defendant, testimony: ratings, votes, tally, convicted, right, missed, past: c.past, ratings, rated: [] }
+      result = { style: 'jury', word: c.word, info: c.info, charge: c.charge, defendant: c.defendant, votes, tally, convicted, right, missed, past: c.past, ratings: c.past, rated: [] }
     } else if (c.style === 'clues') {
       const solved = Object.fromEntries([...c.solved].filter(([id]) => live(id)))
       for (const [id, s] of Object.entries(solved)) give(id, s.points)
@@ -918,15 +917,13 @@ export class LobbyHost extends EventEmitter {
           }
         })
       } else if (c.style === 'jury') {
-        // Nobody learns who the defendant is (except the defendant) until
-        // the verdict. Testimony is shown once everyone has given theirs.
-        const open = this.phase === 'voting' || this.phase === 'reveal'
+        // Nobody learns who the defendant is (except the defendant), or what
+        // anyone gave the word before, until the verdict.
         Object.assign(current, {
           word: c.word,
           info: c.info,
           charge: c.charge ?? null,
-          testimony: open ? Object.fromEntries(c.ratings) : null,
-          mine: { r: c.ratings.get(forId) ?? null, vote: c.votes.get(forId) || null, defendant: c.defendant === forId }
+          mine: { vote: c.votes.get(forId) || null, defendant: c.defendant === forId }
         })
       } else if (c.style === 'clues' && c.clues) {
         const done = c.solved.get(forId)

@@ -14,7 +14,7 @@ export const STYLES = [
   { id: 'highlow', name: 'High/Low', emoji: '↕️', blurb: 'Rate, then guess who went highest and who went lowest before anything is shown. 100 points for each right guess.' },
   { id: 'hotseat', name: 'Hot seat', emoji: '🔥', blurb: 'One player is in the seat; the next picks a word for them from three. Everyone predicts the seat’s rating.' },
   { id: 'hive', name: 'Hive mind', emoji: '🐝', blurb: 'You get a secret target and a rater. Find a word you think they’ll rate near your target.' },
-  { id: 'jury', name: 'Grand Jury', emoji: '⚖️', blurb: 'One of you is secretly on trial for a rating you really gave. Testify, bluff, then vote on who did it. 3 or more players.' },
+  { id: 'jury', name: 'Grand Jury', emoji: '⚖️', blurb: 'One of you is secretly on trial for a rating you really gave. Vote on who did it, then argue about it. 3 or more players.' },
   { id: 'clues', name: 'Clues', emoji: '🧩', blurb: 'Guess a hidden word from its blanks and what the table rated it. Clues keep coming, and every clue and wrong guess costs points.' }
 ]
 const cluePoints = (clue, wrong) => Math.max(10, 100 - 12 * clue - 10 * wrong)
@@ -157,8 +157,8 @@ function Table ({ lobby, choices, active, events, settings }) {
   // The word on the table right now, for the details panel.
   const word = peek || (style === 'hive' ? (phase === 'rating' ? mine.toRate : mine.pick ? { word: mine.pick, info: mine.pickInfo } : null) : c?.word ? { word: c.word, info: c.info } : mine.word ? { word: mine.word, info: mine.info } : null)
 
-  // Can I type a rating right now, and is it a prediction (or testimony)?
-  const rating = (phase === 'rating' || phase === 'testimony') && c && c.roster.includes(you) && (style !== 'hive' || mine.toRate)
+  // Can I type a rating right now, and is it a prediction?
+  const rating = phase === 'rating' && c && c.roster.includes(you) && (style !== 'hive' || mine.toRate)
   const predicting = rating && style === 'hotseat' && c.seat !== you
   const locked = rating && !iMustAct
   const ordered = useMemo(() => {
@@ -228,9 +228,10 @@ function Table ({ lobby, choices, active, events, settings }) {
       return e && e.r !== null ? { v: e.r, note: `aim ${formatRating(e.target)}`, picker: e.picker, title: `${Name(p.id)} gave “${e.word}” ${formatRating(e.r)}. ${Name(e.picker)} chose it, aiming for ${formatRating(e.target)}.` } : null
     }
     if (style === 'jury') {
-      const v = res.testimony[p.id]
+      // What each person really gave the word before tonight.
+      const v = res.past?.[p.id] ?? null
       const pts = res.points[p.id]
-      return v === undefined ? null : { v, note: p.id === res.defendant ? (pts ? `free +${pts}` : 'guilty') : pts ? `+${pts}` : 'said' }
+      return { v, note: p.id === res.defendant ? (pts ? `free +${pts}` : 'guilty') : pts ? `+${pts}` : v === null ? 'never rated' : 'rated it' }
     }
     if (style === 'clues') {
       const v = res.table[p.id]
@@ -240,10 +241,8 @@ function Table ({ lobby, choices, active, events, settings }) {
     const v = res.ratings[p.id]
     return v === undefined ? null : { v, note: style === 'highlow' && res.points[p.id] ? `+${res.points[p.id]}` : null }
   }
-  // Cards that are face up before the reveal: Grand Jury testimony once
-  // everyone has testified, and the table's ratings in Clues.
+  // Cards that are face up before the reveal: the table's ratings in Clues.
   const openCard = (p) => {
-    if (style === 'jury' && phase === 'voting') { const v = c.testimony?.[p.id]; return v === undefined ? null : { v, note: 'said' } }
     if (style === 'clues' && phase === 'clues') { const v = c.table?.[p.id] ?? null; return { v, note: c.solved?.[p.id] ? 'solved ✓' : v === null ? 'not rated' : 'rated' } }
     return null
   }
@@ -262,7 +261,7 @@ function Table ({ lobby, choices, active, events, settings }) {
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {left !== null && phase !== 'reveal' && <span className='round'><b>{Math.ceil(left / 1000)}</b>s</span>}
             {word && <button className='btn small ghost' onClick={() => setDetails((v) => !v)} title='Definitions and more (D)'>{details ? 'Hide word details' : 'Word details'}</button>}
-            {lobby.isHost && ['rating', 'guessing', 'picking', 'choosing', 'testimony', 'voting', 'clues'].includes(phase) && <button className='btn small ghost' onClick={() => act('advance')}>{phase === 'clues' ? (c?.final ? 'Reveal now' : 'Next clue') : phase === 'rating' || phase === 'guessing' || phase === 'voting' ? 'Reveal now' : 'Move on'}</button>}
+            {lobby.isHost && ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues'].includes(phase) && <button className='btn small ghost' onClick={() => act('advance')}>{phase === 'clues' ? (c?.final ? 'Reveal now' : 'Next clue') : phase === 'rating' || phase === 'guessing' || phase === 'voting' ? 'Reveal now' : 'Move on'}</button>}
             {lobby.isHost && phase === 'reveal' && <button className='btn small ghost' onClick={() => act('advance')}>Skip waiting</button>}
             {lobby.isHost && c && phase !== 'results' && <button className='btn small ghost' onClick={() => act('backToLobby')}>End game</button>}
             <button className='btn small' onClick={() => api('leaveLobby')}>{lobby.isHost ? 'Close lobby' : 'Leave'}</button>
@@ -351,9 +350,9 @@ function Table ({ lobby, choices, active, events, settings }) {
             <>
               <div className={`rating-input ${locked ? 'locked' : ''} ${text ? '' : 'empty'} ${chatting ? 'away' : ''}`} role='status' aria-label={predicting ? 'Your prediction' : 'Your rating'} style={{ color: r !== null ? ratingColor(r) : undefined }}>{text || '0.0'}</div>
               <div className='rate-help'>
-                <span className='prompt'>{style === 'jury' ? (mine.defendant ? <>It was you. Testify without giving yourself away.</> : <>Testify: what would <b>you</b> give it?</>) : predicting ? <>What will <b>{name(c.seat)}</b> give it?</> : style === 'hotseat' ? 'You’re in the hot seat. Rate it honestly.' : style === 'hive' ? 'Rate the word you were given. You don’t know who chose it, or why.' : 'Your rating'}</span>
+                <span className='prompt'>{predicting ? <>What will <b>{name(c.seat)}</b> give it?</> : style === 'hotseat' ? 'You’re in the hot seat. Rate it honestly.' : style === 'hive' ? 'Rate the word you were given. You don’t know who chose it, or why.' : 'Your rating'}</span>
                 {chatting ? <span className='warn'>Your keys are going to the chat. <Kbd>Esc</Kbd> to rate.</span> : locked ? <span>Locked in. <Kbd>Backspace</Kbd> to change it.</span> : r !== null ? <span><Kbd>Enter</Kbd> to lock in <b>{text}</b></span> : <span>Type a number out of 5</span>}
-                <span>{style === 'jury' ? 'Bluff if you like; this isn’t saved. ' : ''}Waiting on {[...waiting].map(name).join(', ') || 'nobody'}</span>
+                <span>Waiting on {[...waiting].map(name).join(', ') || 'nobody'}</span>
               </div>
             </>
           )}
@@ -386,6 +385,7 @@ function Table ({ lobby, choices, active, events, settings }) {
           {phase === 'choosing' && <div className='rate-help' style={{ textAlign: 'center' }}><span>{waiting.has(you) ? <>Find your word in the panel on the right. <Kbd>↑</Kbd> <Kbd>↓</Kbd> to look, <Kbd>Enter</Kbd> to choose.</> : <>Chosen: <b>{mine.pick}</b>. Pick another to change it.</>}</span><span>Waiting on {[...waiting].map(name).join(', ') || 'nobody'}</span></div>}
           {phase === 'reveal' && (
             <div className='rate-help' style={{ textAlign: 'center' }}>
+              {style === 'jury' && res && <JuryTalk res={res} name={name} Name={Name} you={you} />}
               <span>{me?.next ? <>Waiting on {list(notReady.map(name))}{lobby.isHost && <> <button className='btn small ghost' onClick={() => act('advance')}>Go on without them</button></>}</> : <><Kbd>Enter</Kbd> when you’re ready for the next word{style === 'classic' ? ', after you’ve talked it over' : ''}</>}</span>
               <span>{nextCount} of {total} ready</span>
             </div>
@@ -624,6 +624,18 @@ function Center ({ lobby, c, res, style, phase, mine, you, name, Name, act, setP
         {phase === 'guessing' ? `${doneCount} of ${total} guesses in` : `${doneCount} of ${total} locked in`}
       </div>
     </>
+  )
+}
+
+// After the verdict: a nudge to argue about it.
+function JuryTalk ({ res, name, Name, you }) {
+  const most = Math.max(0, ...Object.values(res.tally || {}))
+  const blamed = Object.keys(res.tally || {}).filter((id) => id !== res.defendant && res.tally[id] === most && most > 0)
+  return (
+    <span className='prompt'>
+      {res.defendant === you ? 'Explain yourself.' : `${Name(res.defendant)}, explain yourself.`}
+      {blamed.length === 1 && <> And {`why did ${most === 1 ? 'someone' : `${most} of you`} think it was ${name(blamed[0])}?`}</>}
+    </span>
   )
 }
 
