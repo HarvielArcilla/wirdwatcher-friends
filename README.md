@@ -176,7 +176,7 @@ Download the `.dmg` from Releases (Apple silicon or Intel), or run:
 curl -fsSL https://raw.githubusercontent.com/HarvielArcilla/wirdwatcher-friends/main/scripts/install.sh | bash
 ```
 
-The `.dmg` isn’t notarized, so the first time, right-click wirdwatcher in Applications and choose **Open**.
+The app isn't notarized by Apple (that needs a paid developer account), so the first time you open it macOS says it can't check it. Open **System Settings → Privacy & Security**, scroll down and choose **Open Anyway** next to wirdwatcher. You only do this once. If a copy from before 2.1 says it's "damaged", that build wasn't signed; install a newer one, or run `xattr -dr com.apple.quarantine /Applications/wirdwatcher.app` once in Terminal.
 
 ### Your data through updates
 

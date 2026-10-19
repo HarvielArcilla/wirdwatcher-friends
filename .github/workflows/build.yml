@@ -37,8 +37,9 @@ jobs:
           xvfb-run -a npx electron . --smoke-test --no-sandbox
 
   # Installers: wirdwatcher-setup-<version>.exe (Windows, x64 and ARM) and
-  # .dmg (macOS, Apple silicon and Intel). Unsigned: code signing needs paid
-  # certificates, so Windows SmartScreen and macOS Gatekeeper will ask first.
+  # .dmg (macOS, Apple silicon and Intel). The Mac app is signed ad hoc (Apple
+  # silicon won't run it otherwise); real Developer ID signing and Windows
+  # code signing need paid certificates, so SmartScreen and Gatekeeper ask first.
   package:
     needs: test
     strategy:
@@ -59,6 +60,16 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           NODE_ENV: production
+      # macOS refuses unsigned apps on Apple silicon ("damaged"). The build
+      # signs ad hoc (free, no Apple account); check that it really did.
+      - name: Check the Mac app is signed
+        if: runner.os == 'macOS'
+        run: |
+          for app in release/mac*/wirdwatcher.app; do
+            echo "::notice title=codesign::$app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign -dv "$app" 2>&1 | grep -E 'Signature|Identifier|flags'
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: wirdwatcher-${{ runner.os }}
