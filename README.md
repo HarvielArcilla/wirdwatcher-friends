@@ -228,6 +228,19 @@ Other commands:
 
 GitHub Actions runs the tests and the launch check on Windows, macOS and Linux for every push, builds both installers, and tries the one-command installers on clean machines. Tagging a version (`git tag v2.1.0 && git push --tags`) publishes the installers on the Releases page.
 
+### Signed commits
+
+Commits on `main` are signed with the maintainer's key, so GitHub shows them as Verified. Work done elsewhere arrives on a branch (by default `claude/next`) and is landed with `scripts/land.sh`, which re-signs each commit with your key, keeps its author and message, and pushes `main`.
+
+Set up signing once, with an SSH key (add the same public key on GitHub under **Settings → SSH and GPG keys → New SSH key**, type **Signing key**):
+
+```sh
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+```
+
 ## The word list
 
 The 64,000 words come from [Open English WordNet 2025](https://en-word.net) (CC BY 4.0), with their definitions, examples, synonyms and IPA pronunciations. Pronunciations are available for about 25,000 words; the app can also say any word out loud.
