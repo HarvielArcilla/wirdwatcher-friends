@@ -94,6 +94,8 @@ function Table ({ lobby, choices, active, events, settings }) {
   const [offers, setOffers] = useState([]) // friend requests from people at the table
   const [asked, setAsked] = useState(() => new Set()) // seats I've asked
   const [clueText, setClueText] = useState('')
+  const [tab, setTab] = useState('game') // the sidebar: the game, or chat and reactions
+  const [seen, setSeen] = useState(0) // chat lines read
   const [leaving, setLeaving] = useState(false) // asked once before leaving a staked game
   const deadline = useRef(null)
   const chatEl = useRef(null)
@@ -128,6 +130,15 @@ function Table ({ lobby, choices, active, events, settings }) {
   useEffect(() => { deadline.current = c?.endsIn != null ? Date.now() + c.endsIn : null }, [lobby.round, phase, c?.clue]) // eslint-disable-line react-hooks/exhaustive-deps
   useInterval(() => tick((x) => x + 1), deadline.current && phase !== 'reveal' ? 250 : 0)
 
+  // Unread chat: what people said (not joins or reactions) since you last looked.
+  const said = events.filter((e) => e.kind === 'chat' && e.id !== you).length
+  const unread = tab === 'chat' ? 0 : Math.max(0, said - seen)
+  useEffect(() => { if (tab === 'chat') setSeen(said) }, [tab, said])
+  // Finding a Hive mind word, and word details, are in the Game tab.
+  useEffect(() => { if (phase === 'choosing') setTab('game') }, [phase])
+  useEffect(() => { if (details) setTab('game') }, [details])
+  // Opening the chat shows the newest lines.
+  useEffect(() => { if (tab === 'chat' && chatEl.current) chatEl.current.scrollTop = chatEl.current.scrollHeight }, [tab])
   // The chat follows the newest line, unless you've scrolled up to read.
   useEffect(() => {
     const el = chatEl.current
@@ -186,6 +197,7 @@ function Table ({ lobby, choices, active, events, settings }) {
       return
     }
     if ((k === 'd' || k === 'D') && word) { e.preventDefault(); setDetails((v) => !v); return }
+    if ((k === 't' || k === 'T') && phase !== 'clues') { e.preventDefault(); setTab('chat'); setTimeout(() => document.querySelector('.lobby-side form input')?.focus(), 0); return }
     if (k === ' ' && word) { e.preventDefault(); speak(word.word); return }
     if (rating) {
       if (k === 'Enter') { e.preventDefault(); const r = ratingValue(text); if (r !== null && !locked) { act('rate', r); setText(formatRating(r)); if (!predicting) playRating(r, settings) } } else if (k === 'Backspace') { e.preventDefault(); if (locked) act('rate', null); setText('') } else if (/^[0-9.]$/.test(k) && !locked) { e.preventDefault(); setText((t) => typeRating((t.length === 3 ? '' : t) + k)) } else if ((k === 'ArrowUp' || k === 'ArrowDown') && !locked) { e.preventDefault(); setText((t) => formatRating(nudge(ratingValue(t) ?? 2.5, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.5 : 0.1)))) }
@@ -323,16 +335,18 @@ function Table ({ lobby, choices, active, events, settings }) {
               ),
               <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id || myVote ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${(style === 'hotseat' && c && p.id === c.seat) || (style === 'jury' && phase === 'reveal' && res?.defendant === p.id) ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => (phase === 'voting' ? vote(p.id) : pickGuess(p.id)) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? (phase === 'voting' ? `Vote for ${p.name}` : `Guess ${p.me ? 'yourself' : p.name}`) : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
-                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}</span>
+                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}{(phase === 'waiting' || phase === 'results' ? p.stakeIn : p.inPot) && <span className='seat-coin' title={phase === 'waiting' || phase === 'results' ? 'Bought in' : 'In the pot'}><CoinDot size={18} /></span>}</span>
                 <div className='seat-text'>
-                  <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
+                  <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}
+                    {!p.me && !p.friend && p.userId && (phase === 'waiting' || phase === 'results') && <button className='seat-act' onClick={(e) => { e.stopPropagation(); askFriend(p) }} disabled={asked.has(p.id)} title={asked.has(p.id) ? 'Asked' : `Add ${p.name} as a friend`} aria-label={asked.has(p.id) ? 'Friend request sent' : `Add ${p.name} as a friend`}>{asked.has(p.id) ? '✓' : <PersonPlus />}</button>}
+                    {lobby.isHost && !p.me && phase === 'waiting' && <button className='seat-act kick' onClick={(e) => { e.stopPropagation(); act('kick', p.id) }} title={`Remove ${p.name} from the lobby`} aria-label={`Remove ${p.name}`}>×</button>}
+                  </span>
                   <span className='slvl'>
                     {c && phase !== 'results' && p.role ? ({ seat: 'in the hot seat', picker: 'picking', defendant: 'the defendant' })[p.role] : titleText(p.look?.title) || `Level ${p.level}`}
                     {phase !== 'waiting' && scored && <b className='pts'> · {p.score} pts</b>}
                   </span>
                   <span className='seat-tags'>
                     {p.away && <span className='tag away'>reconnecting…</span>}
-                    {(phase === 'waiting' || phase === 'results' ? p.stakeIn : p.inPot) && <span className='tag coin'><CoinDot /> in</span>}
                     {guess.high === p.id && phase === 'guessing' && <span className='tag hi'>your highest</span>}
                     {guess.low === p.id && phase === 'guessing' && <span className='tag lo'>your lowest</span>}
                     {phase === 'reveal' && hi && <span className='tag hi'>highest</span>}
@@ -349,8 +363,6 @@ function Table ({ lobby, choices, active, events, settings }) {
                   {juryVote && <span className='guess-line'>voted <b className={juryVote === res.defendant ? 'hit' : 'miss'}>{name(juryVote)}</b></span>}
                   {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
                 </div>
-                {!p.me && !p.friend && p.userId && <button className={`seat-friend ${phase === 'waiting' || phase === 'results' ? 'show' : ''}`} onClick={(e) => { e.stopPropagation(); askFriend(p) }} disabled={asked.has(p.id)} title={asked.has(p.id) ? 'Asked' : `Add ${p.name} as a friend`}>{asked.has(p.id) ? 'Asked' : '+ Friend'}</button>}
-                {lobby.isHost && !p.me && phase === 'waiting' && <button className='btn small ghost' onClick={() => act('kick', p.id)}>Remove</button>}
               </div>
             ]
           })}
@@ -422,7 +434,11 @@ function Table ({ lobby, choices, active, events, settings }) {
       </section>
 
       <aside className='lobby-side'>
-        <div className='side-scroll'>
+        <div className='side-tabs' role='tablist'>
+          <button role='tab' aria-selected={tab === 'game'} className={tab === 'game' ? 'on' : ''} onClick={() => setTab('game')}>Game{offers.some((o) => lobby.players.some((p) => p.id === o.from)) && <i className='dot' />}</button>
+          <button role='tab' aria-selected={tab === 'chat'} className={tab === 'chat' ? 'on' : ''} onClick={() => { setTab('chat'); setTimeout(() => document.querySelector('.lobby-side form input')?.focus(), 0) }}>Chat{unread > 0 && <b className='unread'>{unread > 9 ? '9+' : unread}</b>}</button>
+        </div>
+        {tab === 'game' && <div className='side-scroll'>
         {offers.filter((o) => lobby.players.some((p) => p.id === o.from)).map((o) => (
           <div key={o.from} className='sect friend-offer'>
             <h3>🤝 {o.name} wants to be friends</h3>
@@ -476,10 +492,11 @@ function Table ({ lobby, choices, active, events, settings }) {
             <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
           </div>
         )}
-        <div className='sect'>
+        </div>}
+        {tab === 'chat' && <>
+        <div className='sect react-sect'>
           <h3>React <span style={{ fontWeight: 400, fontSize: 12 }}>Alt + 1–8</span></h3>
           <div className='reactions'>{[...choices.reactions, ...packEmoji(me?.look?.reactions)].map((e) => <button key={e} onClick={() => act('react', e)} aria-label={`React ${e}`}>{e}</button>)}</div>
-        </div>
         </div>
         <div className='chat' aria-live='polite' ref={chatEl}>
           {events.filter((e) => e.kind !== 'react').map((e, i) => {
@@ -498,6 +515,7 @@ function Table ({ lobby, choices, active, events, settings }) {
         <form onSubmit={(e) => { e.preventDefault(); if (chat.trim()) { act('chat', chat); setChat('') } e.currentTarget.querySelector('input')?.blur() }}>
           <input className='field' value={chat} maxLength={140} onChange={(e) => setChat(e.target.value)} placeholder='Say something to the table' onFocus={() => setChatting(true)} onBlur={() => setChatting(false)} onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur() }} />
         </form>
+        </>}
       </aside>
     </div>
   )
@@ -683,6 +701,10 @@ function PotResult ({ pot, Name }) {
       <span>{winners.length === 1 ? `${Name(winners[0])} took it all` : winners.length ? `${list(winners.map(Name))} split it` : 'Nobody was left to take it'}{pot.forfeit.length ? `, including ${pot.forfeit.length} stake${pot.forfeit.length === 1 ? '' : 's'} left behind` : ''}.</span>
     </div>
   )
+}
+
+function PersonPlus () {
+  return <svg viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' strokeWidth='2.2' strokeLinecap='round' aria-hidden='true'><circle cx='9' cy='8' r='3.5' /><path d='M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5' /><path d='M19 8v6M16 11h6' /></svg>
 }
 
 function CoinDot ({ size = 14 }) { return <i className='coin-dot' style={{ width: size, height: size }} aria-hidden='true' /> }
