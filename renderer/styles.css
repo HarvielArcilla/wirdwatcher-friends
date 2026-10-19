@@ -1018,3 +1018,13 @@ html.calm .lobby-stage::before { animation: none !important; }
 .lobby-stage[class*='room-']::after { background: color-mix(in oklab, var(--bg) 66%, transparent); }
 .lobby-stage[class*='room-'] .seat-text, .lobby-stage[class*='room-'] .lobby-bottom, .lobby-stage[class*='room-'] .lobby-top .round { text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg); }
 .nm-gold, .nm-rainbow, .nm-fire, .nm-ice, .nm-shimmer, .nm-outline { text-shadow: none !important; }
+/* Gameplay rings sit where a frame would, on top of it: a thin edge in the
+   page color keeps them distinct from whatever frame is underneath. */
+.seat-face:has(.framed) .seat-ring { inset: -6px; }
+.seat.pickable .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--line); }
+.seat.pickable:hover .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 4px var(--accent); }
+.seat.g-high .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 4.5px var(--good), 0 0 10px color-mix(in oklab, var(--good) 50%, transparent); }
+.seat.g-low .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 4.5px var(--bad), 0 0 10px color-mix(in oklab, var(--bad) 50%, transparent); }
+.seat.in-seat .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 4.5px var(--accent), 0 0 18px color-mix(in oklab, var(--accent) 55%, transparent); }
+.seat.g-high .frame-art, .seat.g-low .frame-art, .seat.in-seat .frame-art, .seat.pickable:hover .frame-art { opacity: .25; }
+.seat .seat-key { z-index: 6; }
