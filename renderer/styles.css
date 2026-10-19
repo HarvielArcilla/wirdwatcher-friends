@@ -1028,3 +1028,8 @@ html.calm .lobby-stage::before { animation: none !important; }
 .seat.in-seat .seat-ring { box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 4.5px var(--accent), 0 0 18px color-mix(in oklab, var(--accent) 55%, transparent); }
 .seat.g-high .frame-art, .seat.g-low .frame-art, .seat.in-seat .frame-art, .seat.pickable:hover .frame-art { opacity: .25; }
 .seat .seat-key { z-index: 6; }
+/* The number for picking a seat sits just outside the face and any ring. */
+.seat .seat-face .seat-key { top: -11px; right: -13px; left: auto; box-shadow: 0 0 0 2px var(--bg); }
+.seat .seat-face:has(.framed) .seat-key { top: -15px; right: -17px; }
+.seat.row .seat-face .seat-key { right: auto; left: -13px; }
+.seat.row .seat-face:has(.framed) .seat-key { left: -17px; }

@@ -277,8 +277,7 @@ function Table ({ lobby, choices, active, events, settings }) {
               ),
               <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${style === 'hotseat' && c && p.id === c.seat ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => pickGuess(p.id) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `Guess ${p.me ? 'yourself' : p.name}` : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
-                {clickable && <span className='seat-key'>{guessIndex + 1}</span>}
-                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' /></span>
+                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}</span>
                 <div className='seat-text'>
                   <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
                   <span className='slvl'>
