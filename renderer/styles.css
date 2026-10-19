@@ -1111,3 +1111,24 @@ html.calm .blanks .blank.new { animation: none; }
 .felt-center .jury-stamp.guilty { color: var(--bad); }
 .felt-center .jury-stamp.free { color: var(--good); }
 .felt-center .verdict-who { font-size: 24px; }
+
+/* Rooms look the same in light and dark: the art shows as it is (a light
+   veil only at the table), and what sits on it gets its own frosted backing
+   so it stays readable on any room. */
+.mini-room::after { display: none; }
+.lobby-stage[class*='room-']:not(.room-plain)::after { background: color-mix(in oklab, var(--bg) 16%, transparent); }
+.lobby-stage[class*='room-']:not(.room-plain) :is(.seat-text, .lobby-top > .round, .seat.empty .sname, .lobby-bottom .rate-help, .lobby-bottom .rating-input) {
+  background: var(--scrim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 10px; padding: 3px 9px;
+}
+.lobby-stage[class*='room-']:not(.room-plain) .lobby-bottom .rate-help { padding: 6px 14px; }
+.lobby-stage[class*='room-']:not(.room-plain) .awards .award { background: var(--scrim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* --- Stakes ------------------------------------------------------------------- */
+.coin-dot { display: inline-block; vertical-align: -2px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f2c230 45%, #b8860b 100%); box-shadow: inset 0 0 0 1.5px rgba(120, 80, 0, .45); flex: none; }
+.pot-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: color-mix(in oklab, #f2c230 22%, var(--panel)); border: 1px solid color-mix(in oklab, #f2c230 55%, transparent); font-size: 13px; }
+.pot-chip b { font-family: var(--font-word); font-weight: var(--word-weight); }
+.seat-tags .tag.coin { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in oklab, #f2c230 28%, var(--panel)); color: var(--text); }
+.btn.buyin { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid color-mix(in oklab, #f2c230 65%, transparent); background: color-mix(in oklab, #f2c230 14%, var(--panel)); }
+.btn.buyin.in { background: color-mix(in oklab, #f2c230 42%, var(--panel)); font-weight: 600; }
+.btn.danger { background: var(--bad); color: #fff; }
+.award.pot-award { border: 1.5px solid color-mix(in oklab, #f2c230 60%, transparent); background: color-mix(in oklab, #f2c230 12%, var(--panel)); }

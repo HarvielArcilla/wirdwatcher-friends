@@ -132,6 +132,8 @@ The host opens **Lobby → Host a lobby**, then picks a mode, which words to use
 
 Only the first four modes save ratings to your collection.
 
+**Stakes.** In any mode with points, the host can set a stake (100 coins up to 1 million). Everyone who wants in presses **Buy in**; the highest score at the end takes the pot, and ties split it. Coins never change how anyone plays or scores, and nobody's coins move unless they bought in for that exact amount. There's no bank, so each app keeps its own stake in escrow and the pot follows one rule that every computer checks: **a pot pays out exactly what went in**. The host pays out only after every player's app has confirmed it saw the result, and a stake comes back whenever the game didn't finish: the host ended it early or closed the lobby, your connection dropped, or your app closed mid-game. Leaving on purpose mid-game leaves your stake in the pot (the Leave button asks first). The one case that can't be closed without a bank, a connection that dies in the second between confirming and being paid, loses that stake rather than ever paying it twice. The details are in `src/shared/stakes.js`. Pot winnings don't count toward ink.
+
 Typing a number always rates, wherever you clicked last; only the chat box keeps your keys (the table says so, and `Esc` hands them back). `Space` says the word.
 
 If a player’s connection drops, their seat, score and answers are held for 45 seconds while their computer reconnects, and a connection that goes silent is noticed within about 15 seconds instead of hanging. The host can always move on without anyone who isn’t ready.

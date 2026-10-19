@@ -16,6 +16,7 @@ import {
   wordPay, nextStreak, streakNow, lobbyPay, offlinePay, upgradeList, inkGain, inkTotalFor, INK_BONUS, INK_PER
 } from '../shared/economy.js'
 import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../shared/cosmetics.js'
+import { balanced, validStake } from '../shared/stakes.js'
 
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
@@ -41,7 +42,9 @@ const blank = (now) => ({
   stats: { words: 0, lobbyRounds: 0, friendsSeen: 0, offline: 0, bestStreak: 0 },
   flips: { count: 0, wins: 0, streak: 0, bestStreak: 0, worstStreak: 0, biggestWin: 0, biggestLoss: 0, net: 0 },
   owned: [],
-  look: { ...DEFAULT_LOOK }
+  look: { ...DEFAULT_LOOK },
+  escrow: {}, // lobby stakes in play: key -> { amount, host, state: 'held' | 'committed', at }
+  stakes: { games: 0, won: 0, lost: 0, net: 0, biggestPot: 0 }
 })
 
 const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` }
@@ -58,7 +61,8 @@ export class Economy extends EventEmitter {
     this.dev = dev
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
-    for (const k of ['stats', 'flips']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
+    for (const k of ['stats', 'flips', 'stakes']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
+    this.s.escrow = { ...(saved?.escrow || {}) }
     this.s.look = { ...DEFAULT_LOOK, ...(saved?.look || {}) }
     this.paid = new Set(this.s.paid)
     this.dirty = false
@@ -72,6 +76,7 @@ export class Economy extends EventEmitter {
     if (away > ASLEEP_MS) this._awayFor(away)
     this.s.lastTick = t
     if (this.dev) this.devUnlockAll(false)
+    this.settleOrphanStakes()
     this._timer = setInterval(() => this.tick(), TICK_MS)
     this._timer.unref?.()
     this._saver = setInterval(() => this.save(), SAVE_EVERY_MS)
@@ -272,6 +277,101 @@ export class Economy extends EventEmitter {
     return { win, side, stake: amount, coins: this.s.coins, flips: { ...f } }
   }
 
+  // --- lobby stakes -------------------------------------------------------------
+  //
+  // See src/shared/stakes.js for the rules. Every change here is saved to
+  // disk before it returns, and each step can be repeated safely: holding a
+  // key twice takes the coins once, and a payout is credited only by using
+  // up a committed escrow record, so it can't land twice.
+
+  holdStake (key, amount, host) {
+    key = String(key)
+    const rec = this.s.escrow[key]
+    if (rec) return rec.amount === amount // already held (a repeated ask)
+    if (!validStake(amount) || amount > Math.floor(this.s.coins)) return false
+    this.tick()
+    if (amount > Math.floor(this.s.coins)) return false
+    this.s.coins -= amount
+    this.s.escrow[key] = { amount, host: String(host || ''), state: 'held', at: this.now() }
+    this._stakeSaved()
+    return true
+  }
+
+  // The game ended and we saw the result: we'll never take this stake back.
+  commitStake (key) {
+    const rec = this.s.escrow[key]
+    if (!rec) return false
+    if (rec.state !== 'committed') { rec.state = 'committed'; this._stakeSaved() }
+    return true
+  }
+
+  // Our share of a pot. Only from a committed record, only if the payouts
+  // add up, only once. Returns what was credited, or null if refused.
+  settleStake (key, { stake, payouts, me }) {
+    const rec = this.s.escrow[key]
+    if (!rec || rec.state !== 'committed') return null
+    if (stake !== rec.amount || !balanced(stake, payouts) || !(me in payouts)) return null
+    const won = payouts[me]
+    delete this.s.escrow[key]
+    this.s.coins += won // a payout isn't earning: it doesn't count toward ink
+    const st = this.s.stakes
+    st.games++
+    st.net += won - stake
+    if (won > stake) st.won++
+    if (won < stake) st.lost++
+    st.biggestPot = Math.max(st.biggestPot, stake * Object.keys(payouts).length)
+    this._stakeSaved()
+    return won
+  }
+
+  // A stake that was never promised comes back. A promised one can't.
+  refundStake (key) {
+    const rec = this.s.escrow[key]
+    if (!rec || rec.state !== 'held') return 0
+    delete this.s.escrow[key]
+    this.s.coins += rec.amount
+    this._stakeSaved()
+    return rec.amount
+  }
+
+  // Leaving a game on purpose: the stake goes to the pot.
+  forfeitStake (key) {
+    const rec = this.s.escrow[key]
+    if (!rec) return 0
+    delete this.s.escrow[key]
+    this.s.stakes.games++
+    this.s.stakes.lost++
+    this.s.stakes.net -= rec.amount
+    this._stakeSaved()
+    return rec.amount
+  }
+
+  // A promised stake whose payout never came (the app or the connection died
+  // in between): gone, rather than risk paying it twice.
+  dropStake (key) {
+    const rec = this.s.escrow[key]
+    if (!rec || rec.state !== 'committed') return 0
+    return this.forfeitStake(key)
+  }
+
+  stakesWith (host) { return Object.entries(this.s.escrow).filter(([, r]) => r.host === host) }
+  stakedNow () { return Object.values(this.s.escrow).reduce((a, r) => a + r.amount, 0) }
+
+  // At startup no lobby is open, so nothing in escrow can still be settled:
+  // unpromised stakes come back, promised ones are gone.
+  settleOrphanStakes () {
+    for (const [key, rec] of Object.entries(this.s.escrow)) {
+      if (rec.state === 'held') this.refundStake(key)
+      else this.dropStake(key)
+    }
+  }
+
+  _stakeSaved () {
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+  }
+
   // --- levels ---------------------------------------------------------------------
   //
   // Every level pays coins: the larger of a fixed amount that grows with the
@@ -379,7 +479,8 @@ export class Economy extends EventEmitter {
   devReset () {
     const owned = this.s.owned
     const look = this.s.look
-    this.s = { ...blank(this.now()), owned, look }
+    const escrow = this.s.escrow
+    this.s = { ...blank(this.now()), owned, look, escrow }
     this.paid = new Set()
     this.dirty = true
     this.emit('changed')
@@ -399,6 +500,7 @@ export class Economy extends EventEmitter {
       museUntil: this.s.museUntil > t ? this.s.museUntil : 0,
       museMult: fx.museMult,
       edition: this.s.edition,
+      staked: this.stakedNow(),
       look: { ...this.s.look }
     }
   }

@@ -155,6 +155,7 @@ export function ToastHost ({ children }) {
 export function celebrate (toast, earned) {
   if (!earned) return
   if (earned.levelUp) toast({ levelUp: earned.level, reward: earned.reward })
+  for (const n of earned.notes || []) toast({ ...n, ms: 6000 })
   for (const b of earned.badges || []) toast({ emoji: b.emoji, title: `Badge: ${b.name}`, text: b.hint, ms: 5500 })
   if (earned.chainDone) toast({ emoji: '🔗', title: 'Chain complete', text: earned.chainDone.words.join(', ') })
   for (const name of earned.finished || []) toast({ emoji: '🏁', title: `Finished “${name}”`, text: 'Every word in the playlist is rated.' })
@@ -202,7 +203,7 @@ function LevelUp ({ level, onDone }) {
         <div className='lv-rays' aria-hidden='true' />
         <div className='lv-kicker'>Level up</div>
         <div className='lv-num' key={shown}>{shown}</div>
-        <div className='lv-title'>{(level.level - 1) % 5 === 0 ? <>New title: {level.title}</> : (5 - ((level.level - 1) % 5)) === 1 ? 'A new title at the next level' : `${level.title}, a new title in ${5 - ((level.level - 1) % 5)} levels`}</div>
+        <div className='lv-title'>{(level.level - 1) % 5 === 0 ? <>New title: {level.title}</> : (5 - ((level.level - 1) % 5)) === 1 ? 'A new title next level' : `Next title in ${5 - ((level.level - 1) % 5)} levels`}</div>
         {r && (
           <div className='lv-rewards'>
             {r.coins > 0 && <div className='lv-reward' style={{ animationDelay: '.9s' }}><Coins n={r.coins} /><small>coins</small></div>}

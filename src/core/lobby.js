@@ -58,6 +58,14 @@
 //
 // Grand Jury and Clues have nothing to rate, so they save no ratings.
 //
+// Stakes (options.stake): in any mode with points, players can buy in for
+// the host's stake before a game. Highest score takes the pot (ties split).
+// The host runs the pot but never holds anyone's coins: each app escrows its
+// own stake, and pots follow the rules in src/shared/stakes.js. The pot's
+// progress is in every view (pot, and the last few in pots) so each app can
+// settle its own escrow from what it sees:
+//   collecting → open → settling → paid       or → void (game ended early)
+//
 // A rating made at the table also counts as that player's own rating of the
 // word, so lobbies feed everyone's collection, XP and badges.
 
@@ -71,6 +79,7 @@ import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
 import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
+import { STAKES, splitPot } from '../shared/stakes.js'
 
 // How long a player who lost their connection keeps their seat while their
 // computer reconnects.
@@ -78,7 +87,9 @@ export const SEAT_GRACE_MS = 45000
 
 const PROTOCOL = 3
 export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues']
-export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic' }
+export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic', stake: 0 }
+export const LOBBY_STAKES = STAKES
+const STAKE_ACK_MS = 8000 // how long the host waits for every member to see the result
 export const LOBBY_ROUNDS = [3, 5, 10, 15, 20]
 export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds per phase (finding a word gets three times as long); 0 = no timer
 export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '👏', '🙈']
@@ -288,6 +299,19 @@ export class LobbyHost extends EventEmitter {
       case 'choose': return this._choose(id, msg.word)
       case 'vote': return this._vote(id, msg.accused)
       case 'clueGuess': return this._clueGuess(id, msg.text)
+      case 'stakeIn': {
+        if (this.phase !== 'waiting' && this.phase !== 'results') return
+        p.stakeIn = Boolean(msg.in) && Number(msg.amount) === this.options.stake && this.options.stake > 0
+        return this._changed()
+      }
+      case 'stakeAck': {
+        const pot = this.pot
+        if (pot?.status === 'settling' && pot.key === msg.key && pot.members.includes(id) && !pot.acks.has(id)) {
+          pot.acks.add(id)
+          if (pot.members.every((m) => pot.acks.has(m))) return this._payPot()
+        }
+        return
+      }
       case 'answer': {
         const req = this.pending.get(msg.id)
         if (req && req.from === id) req.done(msg.data ?? null)
@@ -326,7 +350,11 @@ export class LobbyHost extends EventEmitter {
         return this.links.get(to)?.(out)
       }
       case 'leave': {
-        // Leaving on purpose: no seat held.
+        // Leaving on purpose: no seat held. Mid-game, a stake stays in the pot.
+        if (msg.forfeit && this.pot?.status === 'open' && this.pot.key === msg.forfeit && this.pot.members.includes(id)) {
+          this.pot.forfeit.add(id)
+          this.pot.acks.add(id)
+        }
         this.links.delete(id)
         return this._remove(id)
       }
@@ -642,6 +670,13 @@ export class LobbyHost extends EventEmitter {
     if (!this.order.includes(id)) return
     this.order = this.order.filter((x) => x !== id)
     this._event({ kind: 'leave', id, name: this.players.get(id)?.name })
+    // Dropped or removed (not left on purpose): out of the pot, and their app
+    // takes its stake back.
+    const pot = this.pot
+    if (pot && (pot.status === 'open' || pot.status === 'collecting') && pot.members.includes(id) && !pot.forfeit.has(id)) {
+      pot.members = pot.members.filter((m) => m !== id)
+      pot.acks.delete(id)
+    }
     const c = this.current
     if (c && this.phase !== 'reveal') {
       if (c.style === 'hotseat' && (id === c.seat || (id === c.picker && this.phase === 'picking'))) return this._advance()
@@ -656,12 +691,16 @@ export class LobbyHost extends EventEmitter {
 
   configure (options) {
     if (this.phase !== 'waiting' && this.phase !== 'results') return
+    const before = this.stakeNow()
     this.options = { ...this.options, ...pickOptions(options) }
+    // A new stake needs everyone to buy in again.
+    if (this.stakeNow() !== before) for (const p of this.players.values()) p.stakeIn = false
     this._changed()
   }
 
   begin () {
     if (this.phase !== 'waiting' && this.phase !== 'results') return
+    if (this.pot?.status === 'settling') return this._event({ kind: 'notice', text: 'Still paying out the last pot. One moment.' })
     if (this.options.style === 'jury' && this.order.length < JURY_MIN) return this._event({ kind: 'notice', text: `Grand Jury needs at least ${JURY_MIN} players: one of you is secretly on trial, and the others need someone to suspect.` })
     this.clueSamples = null
     this.juryBag = null
@@ -669,7 +708,79 @@ export class LobbyHost extends EventEmitter {
     this.history = []
     this.round = 0
     this.game = (this.game || 0) + 1
+    const stake = this.stakeNow()
+    const buying = stake ? this.order.filter((id) => this.players.get(id).stakeIn) : []
+    if (buying.length < 2) {
+      if (stake && buying.length) this._event({ kind: 'notice', text: 'Only one player bought in, so this game isn’t staked.' })
+      return this._nextRound()
+    }
+    this._collect(stake, buying)
+  }
+
+  // Stakes are only for modes with points.
+  stakeNow () { return this.options.style !== 'classic' ? this.options.stake : 0 }
+
+  // Asks each player who bought in to hold their stake, then starts.
+  async _collect (stake, buying) {
+    const key = `${this.hostId}:${this.game}`
+    const pot = { key, stake, members: [], status: 'collecting', forfeit: new Set(), acks: new Set(), payouts: null }
+    this.pot = pot
+    this.pots = [...(this.pots || []), pot].slice(-10)
+    this.phase = 'buyin'
+    this._changed()
+    const held = await Promise.all(buying.map((id) => this._request(id, 'hold', { key, amount: stake, host: this.hostId })))
+    if (this.pot !== pot || this.phase !== 'buyin') return
+    pot.members = buying.filter((id, i) => held[i] === true && this.order.includes(id))
+    if (pot.members.length < 2) {
+      pot.status = 'void'
+      this._event({ kind: 'notice', text: 'Not enough players could put the stake in, so this game isn’t staked. Any stake taken has gone back.' })
+    } else {
+      pot.status = 'open'
+      const out = buying.filter((id) => !pot.members.includes(id))
+      if (out.length) this._event({ kind: 'notice', text: `${out.map((id) => this.players.get(id)?.name || 'Someone').join(', ')} couldn’t put the stake in and is playing for points only.` })
+    }
+    this.phase = 'waiting'
     this._nextRound()
+  }
+
+  // The game is over: everyone in the pot confirms they saw the result, then
+  // it's paid. Members who don't confirm in time are left out (their apps
+  // never promised, so they keep their stake).
+  _settlePot () {
+    const pot = this.pot
+    if (pot?.status !== 'open') return
+    pot.status = 'settling'
+    pot.payouts = this._potPayouts(pot.members)
+    clearTimeout(this._potTimer)
+    this._potTimer = setTimeout(() => this._payPot(), STAKE_ACK_MS)
+    this._potTimer.unref?.()
+    if (pot.members.every((m) => pot.acks.has(m))) return this._payPot()
+  }
+
+  _potPayouts (members) {
+    const pot = this.pot
+    const scores = Object.fromEntries(members.map((id) => [id, this.players.get(id)?.score || 0]))
+    return splitPot(pot.stake, members, scores, members.filter((id) => !pot.forfeit.has(id)))
+  }
+
+  _payPot () {
+    const pot = this.pot
+    if (pot?.status !== 'settling') return
+    clearTimeout(this._potTimer)
+    pot.members = pot.members.filter((m) => pot.acks.has(m))
+    pot.payouts = pot.members.length ? this._potPayouts(pot.members) : {}
+    pot.status = 'paid'
+    const top = Math.max(0, ...Object.values(pot.payouts))
+    const winners = Object.keys(pot.payouts).filter((id) => pot.payouts[id] === top && top > 0)
+    if (winners.length) this._event({ kind: 'pot', winners, amount: top, pot: pot.stake * pot.members.length })
+    this._changed()
+  }
+
+  // Ended early: nobody wins, every stake goes back.
+  _voidPot () {
+    const pot = this.pot
+    if (!pot || (pot.status !== 'open' && pot.status !== 'collecting')) return
+    pot.status = 'void'
   }
 
   // Moves on now, whoever hasn't acted (or hasn't pressed Enter).
@@ -690,6 +801,7 @@ export class LobbyHost extends EventEmitter {
 
   backToLobby () {
     clearTimeout(this._timer)
+    this._voidPot()
     this.phase = 'waiting'
     this.current = null
     this._changed()
@@ -842,6 +954,9 @@ export class LobbyHost extends EventEmitter {
 
   _finish () {
     clearTimeout(this._timer)
+    // A game that never got going (no rounds played) is void.
+    if (this.history.length) this._settlePot()
+    else this._voidPot()
     this.phase = 'results'
     this.current = null
     for (const p of this.players.values()) p.ready = p.id === this.hostId
@@ -850,8 +965,14 @@ export class LobbyHost extends EventEmitter {
 
   async close (reason = 'The host closed the lobby.') {
     if (this.closed) return
+    // Settle up before saying goodbye: a game in progress is void, and a
+    // pot that's being settled pays whoever has confirmed.
+    this._voidPot()
+    if (this.pot?.status === 'settling') this._payPot()
+    else this._changed()
     this.closed = true
     clearTimeout(this._timer)
+    clearTimeout(this._potTimer)
     for (const p of this.players.values()) clearTimeout(p.awayTimer)
     for (const send of this.links.values()) { send({ type: 'closed', reason }); send.close() }
     setTimeout(() => this.mesh?.destroy().catch(() => {}), 500).unref?.()
@@ -866,6 +987,8 @@ export class LobbyHost extends EventEmitter {
   choose (word) { this._act(this.hostId, { type: 'choose', word }) }
   vote (accused) { this._act(this.hostId, { type: 'vote', accused }) }
   clueGuess (text) { this._act(this.hostId, { type: 'clueGuess', text }) }
+  stakeIn (s) { this._act(this.hostId, { type: 'stakeIn', ...s }) }
+  stakeAck (key) { this._act(this.hostId, { type: 'stakeAck', key }) }
   next () { this._act(this.hostId, { type: 'next' }) }
   react (emoji) { this._act(this.hostId, { type: 'react', emoji }) }
   chat (text) { this._act(this.hostId, { type: 'chat', text }) }
@@ -957,9 +1080,12 @@ export class LobbyHost extends EventEmitter {
       players: this.order.map((id) => {
         const p = this.players.get(id)
         const inRound = Boolean(c && c.roster.includes(id))
-        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), look: p.look, edition: p.edition, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal' && this.phase !== 'preparing', next: Boolean(c && c.next.has(id)) }
+        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, stakeIn: Boolean(p.stakeIn && this.stakeNow()), inPot: Boolean(this.pot && ['collecting', 'open', 'settling'].includes(this.pot.status) && this.pot.members.includes(id)), away: Boolean(p.away), look: p.look, edition: p.edition, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal' && this.phase !== 'preparing', next: Boolean(c && c.next.has(id)) }
       }),
       waitingOn: [...waiting],
+      stake: this.stakeNow(),
+      pot: this.pot ? potView(this.pot) : null,
+      pots: (this.pots || []).map(potView),
       current,
       history: this.history,
       summary: this.phase === 'results' ? summarize(this.history, this.players, this.options.style) : null
@@ -973,12 +1099,15 @@ export class LobbyHost extends EventEmitter {
   }
 }
 
+const potView = (p) => ({ key: p.key, stake: p.stake, members: [...p.members], status: p.status, forfeit: [...p.forfeit], payouts: p.payouts ? { ...p.payouts } : null })
+
 function pickOptions (o = {}) {
   const out = {}
   if (Number.isInteger(Number(o.rounds)) && o.rounds >= 1 && o.rounds <= 50) out.rounds = Number(o.rounds)
   if (LOBBY_TIMERS.includes(Number(o.timer))) out.timer = Number(o.timer)
   if (typeof o.mode === 'string' && o.mode.length < 80) out.mode = o.mode
   if (LOBBY_STYLES.includes(o.style)) out.style = o.style
+  if (STAKES.includes(Number(o.stake))) out.stake = Number(o.stake)
   return out
 }
 
@@ -1178,7 +1307,7 @@ export class LobbyClient extends EventEmitter {
       this.emit('event', msg.event)
     } else if (msg.type === 'friend' && typeof msg.from === 'string') {
       this.emit('friend', { kind: msg.kind, from: msg.from, hello: msg.hello || null })
-    } else if (msg.type === 'request' && typeof msg.id === 'string' && ['case', 'lookup', 'sample'].includes(msg.kind)) {
+    } else if (msg.type === 'request' && typeof msg.id === 'string' && ['case', 'lookup', 'sample', 'hold'].includes(msg.kind)) {
       let data = null
       try { data = this.provide(msg.kind, msg.args && typeof msg.args === 'object' ? msg.args : {}) ?? null } catch {}
       this.send?.({ type: 'answer', id: msg.id, data })
@@ -1200,6 +1329,8 @@ export class LobbyClient extends EventEmitter {
   choose (word) { this.send?.({ type: 'choose', word }) }
   vote (accused) { this.send?.({ type: 'vote', accused }) }
   clueGuess (text) { this.send?.({ type: 'clueGuess', text }) }
+  stakeIn (s) { this.send?.({ type: 'stakeIn', ...s }) }
+  stakeAck (key) { this.send?.({ type: 'stakeAck', key }) }
   next () { this.send?.({ type: 'next' }) }
   react (emoji) { this.send?.({ type: 'react', emoji }) }
   chat (text) { this.send?.({ type: 'chat', text }) }
@@ -1208,9 +1339,10 @@ export class LobbyClient extends EventEmitter {
   friendAsk (to, hello) { this.send?.({ type: 'friendAsk', to, hello }) }
   friendAnswer (to, hello) { this.send?.({ type: 'friendAnswer', to, hello }) }
 
-  async leave () {
+  // forfeit: the key of a pot whose stake you're leaving behind.
+  async leave ({ forfeit = null } = {}) {
     if (this.closed) return
-    this.send?.({ type: 'leave' })
+    this.send?.({ type: 'leave', forfeit })
     this.send?.close()
     this._end(null)
   }
