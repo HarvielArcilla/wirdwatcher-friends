@@ -3,6 +3,7 @@ import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress
 import { playRating } from './sound.js'
 import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
+import { titleText } from '../shared/cosmetics.js'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player and a card on the felt in front of each seat. What happens
@@ -86,6 +87,8 @@ function Table ({ lobby, choices, active, events, settings }) {
   const [details, setDetails] = useState(false)
   const [peek, setPeek] = useState(null) // a word to show in the details panel (a choice being considered)
   const [chatting, setChatting] = useState(false) // the chat box has the keyboard
+  const [offers, setOffers] = useState([]) // friend requests from people at the table
+  const [asked, setAsked] = useState(() => new Set()) // seats I've asked
   const deadline = useRef(null)
   const me = lobby.players.find((p) => p.me)
   const you = me?.id
@@ -126,6 +129,16 @@ function Table ({ lobby, choices, active, events, settings }) {
       setTimeout(() => setReactions((r) => r.filter((x) => x.key !== key)), 1700)
     }
   }, [events])
+
+  // Friend requests at the table.
+  useEffect(() => window.ww.on.lobbyFriend((m) => {
+    if (m.kind === 'ask') setOffers((o) => (o.some((x) => x.from === m.from) ? o : [...o, m]))
+    else if (m.yes) toast({ emoji: '🤝', title: `You and ${m.name} are friends`, text: 'Your ratings will swap whenever you’re both online.' })
+    else if (m.error) toast({ error: true, title: 'Couldn’t add that friend', text: m.error })
+    else toast({ emoji: '🙂', title: 'Maybe another time', text: 'They said not now.' })
+  }), [toast])
+  const askFriend = (p) => api('askFriend', p.id).then(() => { setAsked((s) => new Set([...s, p.id])); toast({ emoji: '📨', title: `Asked ${p.name}`, text: 'They’ll see it at the table.' }) }).catch((err) => toast({ error: true, title: 'Couldn’t ask', text: err.message }))
+  const answer = (o, yes) => { setOffers((all) => all.filter((x) => x.from !== o.from)); api('answerFriend', o.from, yes).then((f) => { if (f) toast({ emoji: '🤝', title: `You and ${o.name} are friends`, text: 'Your ratings will swap whenever you’re both online.' }) }).catch((err) => toast({ error: true, title: 'Couldn’t add that friend', text: err.message })) }
 
   const act = useCallback((action, arg) => api('lobbyAction', action, arg).catch((err) => toast({ error: true, title: 'Couldn’t do that', text: err.message })), [toast])
 
@@ -221,7 +234,7 @@ function Table ({ lobby, choices, active, events, settings }) {
           </span>
         </div>
 
-        <div className='table'>
+        <div className={`table felt-${lobby.table || 'classic'}`}>
           {left !== null && phase !== 'reveal' && timerSecs > 0 && (
             <svg className='timer' viewBox='0 0 100 100' preserveAspectRatio='none' aria-hidden='true'>
               <ellipse cx='50' cy='50' rx='49' ry='49' fill='none' stroke='var(--accent)' strokeWidth='1.2' vectorEffect='non-scaling-stroke' pathLength='100' strokeDasharray={`${(left / (timerSecs * 1000)) * 100} 100`} transform='rotate(-90 50 50)' />
@@ -257,7 +270,7 @@ function Table ({ lobby, choices, active, events, settings }) {
               showCard && (
                 <div key={`c${p.id}`} data-card={p.id} className={`card ${p.locked || phase === 'guessing' ? 'locked' : ''} ${face ? 'flip' : ''} ${face && (cardHi ?? (hi || best)) ? 'card-hi' : ''} ${face && (cardLo ?? (lo || worst)) ? 'card-lo' : ''} ${face && face.v <= 0.5 && settings?.animations !== 'off' ? 'crack' : ''} ${style === 'hotseat' && p.id === c.seat ? 'card-seat' : ''}`} style={cardPos} title={face?.title}>
                   <div style={{ transitionDelay: `${i * 90}ms` }}>
-                    <div className='back'>{p.locked || phase === 'guessing' ? '✓' : ''}</div>
+                    <div className={`back cb-${p.look?.cardBack || 'stripes'}`}>{p.locked || phase === 'guessing' ? '✓' : ''}</div>
                     <div className='face' style={face ? { '--rc': ratingColor(face.v) } : undefined}>{face ? formatRating(face.v) : ''}{face?.note && <small>{face.note}</small>}</div>
                   </div>
                 </div>
@@ -265,11 +278,11 @@ function Table ({ lobby, choices, active, events, settings }) {
               <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${style === 'hotseat' && c && p.id === c.seat ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => pickGuess(p.id) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `Guess ${p.me ? 'yourself' : p.name}` : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
                 {clickable && <span className='seat-key'>{guessIndex + 1}</span>}
-                <Avatar name={p.name} color={p.color} />
+                <Avatar name={p.name} color={p.color} frame={p.look?.frame} />
                 <div className='seat-text'>
-                  <span className='sname'>{p.me ? 'You' : p.name}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
+                  <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
                   <span className='slvl'>
-                    {style === 'hotseat' && c && phase !== 'results' && p.role ? (p.role === 'seat' ? 'in the hot seat' : 'picking') : `Level ${p.level}`}
+                    {style === 'hotseat' && c && phase !== 'results' && p.role ? (p.role === 'seat' ? 'in the hot seat' : 'picking') : titleText(p.look?.title) || `Level ${p.level}`}
                     {phase !== 'waiting' && scored && <b className='pts'> · {p.score} pts</b>}
                   </span>
                   <span className='seat-tags'>
@@ -285,6 +298,7 @@ function Table ({ lobby, choices, active, events, settings }) {
                   </span>
                   {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
                 </div>
+                {!p.me && !p.friend && p.userId && <button className={`seat-friend ${phase === 'waiting' || phase === 'results' ? 'show' : ''}`} onClick={(e) => { e.stopPropagation(); askFriend(p) }} disabled={asked.has(p.id)} title={asked.has(p.id) ? 'Asked' : `Add ${p.name} as a friend`}>{asked.has(p.id) ? 'Asked' : '+ Friend'}</button>}
                 {lobby.isHost && !p.me && phase === 'waiting' && <button className='btn small ghost' onClick={() => act('kick', p.id)}>Remove</button>}
               </div>
             ]
@@ -330,6 +344,13 @@ function Table ({ lobby, choices, active, events, settings }) {
       </section>
 
       <aside className='lobby-side'>
+        {offers.filter((o) => lobby.players.some((p) => p.id === o.from)).map((o) => (
+          <div key={o.from} className='sect friend-offer'>
+            <h3>🤝 {o.name} wants to be friends</h3>
+            <p className='opt-hint' style={{ margin: '0 0 8px' }}>You’d swap ratings, comments and playlists whenever you’re both online.</p>
+            <span><button className='btn small primary' onClick={() => answer(o, true)}>Be friends</button> <button className='btn small ghost' onClick={() => answer(o, false)}>Not now</button></span>
+          </div>
+        ))}
         {phase === 'choosing' && <HiveFinder mine={mine} name={name} act={act} setPeek={setPeek} waiting={waiting} you={you} />}
         {style === 'hive' && phase === 'reveal' && res?.entries && <HiveRound res={res} name={name} Name={Name} />}
         {details && word && <WordDetails w={word} onClose={() => setDetails(false)} />}
@@ -369,7 +390,7 @@ function Table ({ lobby, choices, active, events, settings }) {
         {scored && phase !== 'waiting' && (
           <div className='sect'>
             <h3>Scores</h3>
-            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
+            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
           </div>
         )}
         <div className='sect'>
@@ -383,7 +404,7 @@ function Table ({ lobby, choices, active, events, settings }) {
             if (e.kind === 'join') return <div key={i} className='sys'>{who} sat down.</div>
             if (e.kind === 'leave') return <div key={i} className='sys'>{who} left.</div>
             if (e.kind === 'back') return <div key={i} className='sys'>{who} reconnected.</div>
-            return <div key={i}><b style={{ color: p?.color }}>{who}</b> {e.text}</div>
+            return <div key={i}><b className={`nm-${p?.look?.name || 'plain'}`} style={{ color: p?.color }}>{who}</b> {e.text}</div>
           })}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); if (chat.trim()) { act('chat', chat); setChat('') } e.currentTarget.querySelector('input')?.blur() }}>
@@ -643,7 +664,7 @@ function Podium ({ players, style }) {
           const place = top.indexOf(p)
           return (
             <div key={p.id}>
-              <Avatar name={p.name} color={p.color} />
+              <Avatar name={p.name} color={p.color} frame={p.look?.frame} />
               <span style={{ fontWeight: 500, fontSize: 13 }}>{p.me ? 'You' : p.name}</span>
               <i style={{ height: h[place] }}>{p.score}</i>
             </div>

@@ -6,6 +6,7 @@ import crypto from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { TOPICS, MODES } from './words.js'
 import { XP, BADGES, levelFor, titleFor } from '../shared/progress.js'
+import { cleanLook } from '../shared/cosmetics.js'
 
 const localDay = (d = new Date()) => d.toLocaleDateString('en-CA') // YYYY-MM-DD, local time
 export const utcDay = (d = new Date()) => d.toISOString().slice(0, 10)
@@ -422,7 +423,7 @@ export class Game extends EventEmitter {
   _refreshProfile (stats = null) {
     const s = stats || this.stats()
     const lvl = levelFor(this.store.progress.xp)
-    this.store.put('me', { name: this.identityName?.() || '', color: this.identityColor?.() || '#e8c686', level: lvl.level, xp: this.store.progress.xp, title: titleFor(lvl.level), rated: s.rated, badges: Object.keys(this.store.progress.badges).length, badgeIds: Object.keys(this.store.progress.badges), bestStreak: s.bestStreak })
+    this.store.put('me', { name: this.identityName?.() || '', color: this.identityColor?.() || '#e8c686', level: lvl.level, xp: this.store.progress.xp, title: titleFor(lvl.level), rated: s.rated, badges: Object.keys(this.store.progress.badges).length, badgeIds: Object.keys(this.store.progress.badges), bestStreak: s.bestStreak, ...(this.extraProfile?.() || {}) })
   }
 
   // A friend's profile, the way you see your own: their numbers, how they
@@ -461,6 +462,8 @@ export class Game extends EventEmitter {
       badgeCount: me.badges || earned.size,
       badges: earned.size ? BADGES.filter((b) => earned.has(b.id)).map(({ id, emoji, name, hint }) => ({ id, emoji, name, hint })) : null,
       bestStreak: me.bestStreak ?? null,
+      look: cleanLook(me.look),
+      edition: Math.max(0, Math.floor(Number(me.look?.edition) || 0)),
       stats: { rated: ratings.length, average, median, histogram },
       ratings: ratings.sort((a, b) => b.t - a.t),
       favorites: favorites.sort((a, b) => b.t - a.t),

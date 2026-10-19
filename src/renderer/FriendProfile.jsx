@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { api, Avatar, Bar, ratingColor, timeAgo, plural, useToast } from './ui.jsx'
+import { titleText } from '../shared/cosmetics.js'
 
 // A friend's profile, laid out like your own Collection: their numbers, how
 // they rate (with yours drawn behind for comparison), how the two of you line
@@ -30,11 +31,11 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
     <div className='page friend-profile'>
       <button className='btn small ghost back' onClick={onBack}>← Friends</button>
       <div className='fp-head'>
-        <Avatar name={p.name} color={p.color}><i className={online ? 'on' : ''} /></Avatar>
+        <Avatar name={p.name} color={p.color} frame={p.look?.frame}><i className={online ? 'on' : ''} /></Avatar>
         <div>
-          <h1>{p.name}</h1>
+          <h1 className={`nm-${p.look?.name || 'plain'}`}>{p.name}</h1>
           <p className='lede'>
-            {p.title}, level {p.level}. {online ? 'Online now.' : p.lastSeen ? `Last seen ${timeAgo(p.lastSeen)}.` : 'Not seen yet.'} {p.addedAt && `Friends since ${new Date(p.addedAt).toLocaleDateString()}.`}
+            {titleText(p.look?.title) ? <b className='fp-title'>{titleText(p.look.title)}. </b> : null}{p.title}, level {p.level}{p.edition > 0 ? `, edition ${p.edition + 1}` : ''}. {online ? 'Online now.' : p.lastSeen ? `Last seen ${timeAgo(p.lastSeen)}.` : 'Not seen yet.'} {p.addedAt && `Friends since ${new Date(p.addedAt).toLocaleDateString()}.`}
           </p>
         </div>
         <span className='fp-actions'>

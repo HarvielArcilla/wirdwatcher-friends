@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
-import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor } from './ui.jsx'
+import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor, Coins, useInterval } from './ui.jsx'
 import { playRating } from './sound.js'
 import { burst, centerOf, fxFor, burstFor } from './effects.js'
 
@@ -12,7 +12,7 @@ import { burst, centerOf, fxFor, burstFor } from './effects.js'
 //               newest unrated word skips it (with a note, in case)
 //   Space       say it      / or Ctrl+K  search
 //   F favorite  C comment  A add to playlist   M playlists
-export default function Play ({ mode, setMode, modes, settings, refreshTop, focusWord, clearFocusWord, active }) {
+export default function Play ({ mode, setMode, modes, settings, refreshTop, focusWord, clearFocusWord, active, econ }) {
   const toast = useToast()
   const [card, setCard] = useState(null) // { word, info, chain, note, empty }
   const [text, setText] = useState('')
@@ -133,7 +133,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       setRated({ ...earned, r })
       setText(formatRating(r))
       setStampKey((k) => k + 1)
-      setFloats(earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` })))
+      setFloats([...(earned.coins ? [{ coin: true, amount: earned.coins.coins, why: earned.coins.firstToday ? 'first word today' : earned.coins.streak.n > 1 ? `×${earned.coins.streak.mult.toFixed(2)} streak` : '', id: `${stampKey}-c` }] : []), ...earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` }))])
       setTimeout(() => setFloats([]), 1900)
       playRating(r, settings)
       // The extremes get a moment of their own.
@@ -294,8 +294,9 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                     {isRated
                       ? <span><Kbd>Enter</Kbd> next word{rated.again && !rated.xp ? ', or type to change your rating' : ''}</span>
                       : r !== null ? <span><Kbd>Enter</Kbd> to rate <b>{text}</b></span> : <span>Type a rating out of 5</span>}
+                    <StreakMeter streak={econ?.streak} />
                     <div className='xp-float' aria-hidden='true'>
-                      {floats.map((f) => <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
+                      {floats.map((f) => f.coin ? <span key={f.id} className='coin-float'>+<Coins n={f.amount} /><em>{f.why}</em></span> : <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
                     </div>
                   </div>
                 </div>
@@ -504,5 +505,23 @@ export function ModePicker ({ modes, mode, onPick, onClose }) {
         <Group title='Topics' items={modes.topics} />
       </div>
     </div>
+  )
+}
+
+// The pace streak: how much more each new word pays while you keep going,
+// and how long until it runs out.
+function StreakMeter ({ streak }) {
+  const [, tick] = useState(0)
+  useInterval(() => tick((x) => x + 1), streak?.endsAt ? 250 : 0)
+  if (!streak || streak.n < 2 || !streak.endsAt) return null
+  const left = Math.max(0, streak.endsAt - Date.now())
+  if (!left) return null
+  const frac = left / (streak.window * 1000)
+  return (
+    <span className={`streak-meter ${frac < 0.25 ? 'ending' : ''}`} title='Rate another new word before it runs out to keep the streak'>
+      <b>🔥 ×{streak.mult.toFixed(2)}</b> {streak.n} in a row
+      <i><u style={{ width: `${frac * 100}%` }} /></i>
+      <small>{Math.ceil(left / 1000)}s</small>
+    </span>
   )
 }

@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node build.mjs && electron .",
     "dev": "node build.mjs && electron .",
+    "dev:account": "node build.mjs && electron . --dev",
     "build": "node build.mjs",
     "test": "node --test --test-concurrency=1 --test-timeout=180000 \"test/*.test.js\"",
     "smoke": "node build.mjs && electron . --smoke-test",

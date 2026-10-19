@@ -86,3 +86,81 @@ test('strangers can’t sync with you', async (t) => {
   await new Promise((resolve) => setTimeout(resolve, 3000))
   assert.equal(alice.friends.mesh.connected(mallory.identity.userId), false)
 })
+
+test('a friend code works even when the code-maker can’t be reached', async (t) => {
+  const { make } = await network(t)
+  const alice = await make()
+  const bob = await make()
+  alice.setProfile({ name: 'Alice' })
+  bob.setProfile({ name: 'Bob' })
+  const { code } = await alice.friends.makeCode()
+  // Alice stops announcing herself (as if nobody could connect to her) and
+  // only searches. Bob, using the code, is now the one who has to be found.
+  const { codeKeys, parseFriendCode } = await import('../src/core/crypto.js')
+  const { topic } = codeKeys(parseFriendCode(code))
+  const mesh = alice.friends.pairing.mesh
+  await mesh.swarm.leave(topic)
+  const entry = mesh.topics.get(topic.toString('hex'))
+  entry.opts = { server: false, client: true }
+  entry.discovery = mesh.swarm.join(topic, entry.opts)
+  const friend = await bob.friends.redeem(code)
+  assert.equal(friend.name, 'Alice')
+  await until(() => alice.friends.list().length === 1)
+  await until(() => alice.friends.list()[0].online && bob.friends.list()[0].online)
+})
+
+test('two people at a lobby table become friends without a code', async (t) => {
+  const { make } = await network(t)
+  const host = await make()
+  const pip = await make()
+  const quinn = await make()
+  host.setProfile({ name: 'Host' }); pip.setProfile({ name: 'Pip' }); quinn.setProfile({ name: 'Quinn' })
+  const s = await host.hostLobby({})
+  await pip.joinLobby(s.code)
+  await quinn.joinLobby(s.code)
+  await until(() => host.lobbyState.players.length === 3 && pip.lobbyState?.players.length === 3 && quinn.lobbyState?.players.length === 3)
+  // Pip asks Quinn (both guests: the request goes through the host).
+  const asks = []
+  quinn.on('friend-ask', (a) => asks.push(a))
+  const quinnSeat = pip.lobbyState.players.find((p) => p.name === 'Quinn').id
+  pip.askFriend(quinnSeat)
+  await until(() => asks.length === 1)
+  assert.equal(asks[0].name, 'Pip')
+  quinn.answerFriend(asks[0].from, true)
+  await until(() => pip.friends.list().length === 1 && quinn.friends.list().length === 1)
+  assert.equal(pip.friends.list()[0].name, 'Quinn')
+  assert.equal(quinn.friends.list()[0].userId, pip.identity.userId)
+  // And they find each other afterwards, like any friends.
+  await until(() => pip.friends.list()[0].online && quinn.friends.list()[0].online)
+  // The host can ask too.
+  const asksPip = []
+  pip.on('friend-ask', (a) => asksPip.push(a))
+  host.askFriend(pip.lobbyState.you)
+  await until(() => asksPip.length === 1)
+  pip.answerFriend(asksPip[0].from, true)
+  await until(() => host.friends.list().length === 1 && pip.friends.list().length === 2)
+})
+
+test('friends notice drift and repair it', async (t) => {
+  const { make } = await network(t)
+  const alice = await make()
+  const bob = await make()
+  alice.setProfile({ name: 'Alice' })
+  bob.setProfile({ name: 'Bob' })
+  for (const w of ['cat', 'dog', 'owl', 'emu']) alice.game.rate(w, 3)
+  const { code } = await alice.friends.makeCode()
+  await bob.friends.redeem(code)
+  await until(() => bob.store.friendsOn('emu').length === 1)
+  const aliceId = alice.identity.userId
+  // Something got lost on Bob's side: a record vanished but his "up to"
+  // number didn't change.
+  delete bob.store.friend(aliceId).records['r/dog']
+  // Reconnecting compares counts and fills the gap.
+  bob.friends.mesh.drop(aliceId)
+  await until(() => bob.store.friendsOn('dog').length === 1, { timeout: 30000 })
+  // Alice's data goes back in time (a restore): Bob is told to start over.
+  alice.store.mine.seq = 2
+  alice.store.mine.records = Object.fromEntries(Object.entries(alice.store.mine.records).filter(([, r]) => r.seq <= 2))
+  bob.friends.mesh.drop(aliceId)
+  await until(() => !bob.store.friend(aliceId).records['r/emu'], { timeout: 30000 })
+})

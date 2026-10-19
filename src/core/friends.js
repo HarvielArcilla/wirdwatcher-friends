@@ -28,12 +28,16 @@ import { Mesh } from './mesh.js'
 import { channel } from './channel.js'
 import { derive, codeKeys, newFriendCode, parseFriendCode } from './crypto.js'
 import { verify } from './identity.js'
+import { cleanLook } from '../shared/cosmetics.js'
+import { netlog, short } from './netlog.js'
 
 const BATCH = 2000
-const PROTOCOL = 2
+const PROTOCOL = 3
+const CHECK_EVERY_MS = 10 * 60 * 1000 // how often friends who stay connected compare notes
 
 export const friendTopic = (pairSecretHex) => derive('friend-topic', Buffer.from(pairSecretHex, 'hex'))
 const pairProof = (fromKey, toKey) => `wirdwatcher/v2/pair|${fromKey}|${toKey}`
+const lobbyPairProof = (fromSeat, toSeat, nonce) => `wirdwatcher/v2/lobby-pair|${fromSeat}|${toSeat}|${nonce}`
 
 export class Friends extends EventEmitter {
   constructor ({ identity, store, settings, swarm = {}, lan = {} }) {
@@ -63,9 +67,14 @@ export class Friends extends EventEmitter {
     this.store.on('records', this._onRecords)
     // Not awaited: the window can open while the network finds friends.
     for (const f of this.store.listFriends()) this.mesh.join(friendTopic(f.pairSecret)).catch(() => {})
+    this._checker = setInterval(() => {
+      for (const [id, set] of this.links) set.values().next().value?.({ type: 'check', ...this.store.friendDigest(id) })
+    }, CHECK_EVERY_MS)
+    this._checker.unref?.()
   }
 
   async stop () {
+    clearInterval(this._checker)
     this.store.off('records', this._onRecords)
     await this.cancelCode()
     await this.mesh?.destroy()
@@ -82,7 +91,7 @@ export class Friends extends EventEmitter {
     return this.store.listFriends().map((f) => {
       const data = this.store.friend(f.userId)
       const me = data.records.me?.v || {}
-      return { userId: f.userId, name: f.name, color: f.color, addedAt: f.addedAt, lastSeen: f.lastSeen || null, online: this.links.has(f.userId), level: me.level || 1, title: me.title || '', rated: me.rated ?? Object.keys(data.records).filter((k) => k.startsWith('r/')).length, badges: me.badges || 0, match: this.store.tasteMatch(f.userId) }
+      return { userId: f.userId, name: f.name, color: f.color, addedAt: f.addedAt, lastSeen: f.lastSeen || null, online: this.links.has(f.userId), level: me.level || 1, title: me.title || '', rated: me.rated ?? Object.keys(data.records).filter((k) => k.startsWith('r/')).length, badges: me.badges || 0, look: cleanLook(me.look), edition: Math.max(0, Math.floor(Number(me.look?.edition) || 0)), match: this.store.tasteMatch(f.userId) }
     })
   }
 
@@ -102,24 +111,44 @@ export class Friends extends EventEmitter {
     })
     if (!this.links.has(remote)) this.links.set(remote, new Set())
     this.links.get(remote).add(send)
-    send({ type: 'hello', v: PROTOCOL, have: this.store.friend(remote)?.seq || 0 })
+    send({ type: 'hello', v: PROTOCOL, ...this.store.friendDigest(remote) })
     this.store.updateFriendInfo(remote, { lastSeen: Date.now() })
     this.emit('presence')
   }
 
   _message (remote, send, msg) {
     if (!this.store.friend(remote)) return send.close()
-    if (msg.type === 'hello') {
-      const have = Number.isSafeInteger(msg.have) ? msg.have : 0
-      const recs = Object.entries(this.store.since(have)).sort((a, b) => a[1].seq - b[1].seq)
-      for (let i = 0; i < recs.length; i += BATCH) send({ type: 'records', records: Object.fromEntries(recs.slice(i, i + BATCH)) })
+    if (msg.type === 'hello' || msg.type === 'check') {
+      // "I have your records up to #have, n of them." Sync is a diff: send
+      // what they're missing after #have. Then two drift checks:
+      //   - they have a higher number than I've ever used: my data went back
+      //     in time (restored from a backup), so start them over;
+      //   - they hold a different count of records up to #have than I do:
+      //     something went missing on the way, so send that stretch again.
+      const have = Number.isSafeInteger(msg.have) && msg.have >= 0 ? msg.have : 0
+      if (have > this.store.mySeq) {
+        netlog('friends', short(remote), 'is ahead of my records; starting them over')
+        return this._sendAll(send, Object.entries(this.store.upTo(Infinity)), true)
+      }
+      if (msg.type === 'hello') this._sendAll(send, Object.entries(this.store.since(have)), false)
+      if (Number.isSafeInteger(msg.n) && msg.n !== this.store.countUpTo(have) && !send.repaired) {
+        send.repaired = true // once per connection, in case they keep fewer on purpose (their limit)
+        netlog('friends', short(remote), `has ${msg.n} of ${this.store.countUpTo(have)} of my records; resending`)
+        this._sendAll(send, Object.entries(this.store.upTo(have)), false)
+      }
     } else if (msg.type === 'records') {
-      const n = this.store.applyFriend(remote, msg.records, { maxRecords: this.settings.get('maxFriendRecords'), maxCommentChars: this.settings.get('maxCommentChars') })
+      const n = this.store.applyFriend(remote, msg.records, { maxRecords: this.settings.get('maxFriendRecords'), maxCommentChars: this.settings.get('maxCommentChars'), reset: msg.reset === true })
       if (n) this.emit('records', remote)
     } else if (msg.type === 'bye') {
       // They removed me: stop syncing too, and keep nothing of theirs.
       this._forget(remote)
     }
+  }
+
+  _sendAll (send, entries, reset) {
+    entries.sort((a, b) => a[1].seq - b[1].seq)
+    if (!entries.length && reset) return send({ type: 'records', records: {}, reset: true })
+    for (let i = 0; i < entries.length; i += BATCH) send({ type: 'records', records: Object.fromEntries(entries.slice(i, i + BATCH)), ...(reset && i === 0 ? { reset: true } : {}) })
   }
 
   _broadcast (records) {
@@ -128,30 +157,38 @@ export class Friends extends EventEmitter {
 
   // --- adding friends -----------------------------------------------------------
 
+  // Adding a friend with a code. Both computers wait on the code's meeting
+  // place AND look for each other there, over the internet and the same
+  // Wi-Fi, so whichever direction gets through is enough: a computer that
+  // can't be reached (a strict firewall, an awkward router) can still reach
+  // out. Each side picks one nonce for the whole attempt, so if several
+  // connections form, or one drops halfway, every one of them agrees on the
+  // same friendship. The handshake is a single message each way; everything
+  // else (ratings, comments, playlists) follows later through ordinary sync.
+
   // Makes a one-time friend code and waits for someone to use it.
   async makeCode () {
     await this.cancelCode()
     if (this.store.listFriends().length >= this.settings.get('maxFriends')) throw new Error('You’re at your friend limit (Settings → Friends).')
     const code = newFriendCode()
     const { topic, key } = codeKeys(parseFriendCode(code))
-    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? this.lanOpts : false, label: 'friend code (made)' })
+    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? this.lanOpts : false, refreshMs: 4000, label: 'friend code (made)' })
     const expiresAt = Date.now() + this.settings.get('friendCodeMinutes') * 60000
-    const pairing = this.pairing = { code, mesh, expiresAt }
+    const session = { nonce: crypto.randomBytes(32).toString('hex'), friend: null }
+    const pairing = this.pairing = { code, mesh, expiresAt, session }
+    mesh.isLonely = () => !session.friend
     pairing.timer = setTimeout(() => { if (this.pairing === pairing) { this.cancelCode(); this.emit('code', { code, expired: true }) } }, expiresAt - Date.now())
     pairing.timer.unref?.()
     await mesh.start()
-    // One friend per code: the first connection gets it (a second one could
-    // be the same friend arriving over Wi-Fi and the internet at once).
     mesh.on('connection', (socket) => {
-      if (pairing.taken) return socket.destroy()
-      pairing.taken = true
-      this._pair(socket, mesh, key, (err, friend) => {
-        if (err) { pairing.taken = false; return this.emit('code', { code, error: err.message }) }
+      if (session.friend) return socket.destroy()
+      this._pair(socket, mesh, key, session, (err, friend) => {
+        if (err) { netlog('friend code (made)', 'handshake failed:', err.message); if (!session.friend && !err.transient) this.emit('code', { code, error: err.message }); return }
         if (this.pairing === pairing) this.cancelCode()
         this.emit('code', { code, friend })
       })
     })
-    await mesh.join(topic, { server: true, client: false })
+    await mesh.join(topic, { server: true, client: true })
     return { code, expiresAt }
   }
 
@@ -160,77 +197,112 @@ export class Friends extends EventEmitter {
     if (!p) return
     this.pairing = null
     clearTimeout(p.timer)
-    setTimeout(() => p.mesh.destroy().catch(() => {}), 1500).unref?.() // let the last message leave
+    setTimeout(() => p.mesh.destroy().catch(() => {}), 3000).unref?.() // let the last messages leave
   }
 
   // Uses a friend's code. Resolves with the new friend.
-  async redeem (text, { timeoutMs = 60000 } = {}) {
+  async redeem (text, { timeoutMs = 90000 } = {}) {
     const secret = parseFriendCode(text)
     if (!secret) throw new Error('That doesn’t look like a friend code. They start with WW.')
     if (this.store.listFriends().length >= this.settings.get('maxFriends')) throw new Error('You’re at your friend limit (Settings → Friends).')
     if (this.pairing?.code && parseFriendCode(this.pairing.code).equals(secret)) throw new Error('That’s your own code. Send it to a friend.')
     const { topic, key } = codeKeys(secret)
-    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? { ...this.lanOpts, announce: false, dialAll: true } : false, refreshMs: 2000, label: 'friend code (used)' })
+    const session = { nonce: crypto.randomBytes(32).toString('hex'), friend: null }
+    const mesh = new Mesh({ keyPair: hcrypto.keyPair(), swarm: this.swarmOpts, internet: this.settings.get('internet'), lan: this.settings.get('lan') ? { ...this.lanOpts, dialAll: true } : false, refreshMs: 2000, isLonely: () => !session.friend, label: 'friend code (used)' })
     await mesh.start()
     try {
       return await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Couldn’t reach your friend. Check the code, and that their wirdwatcher is open and showing it.')), timeoutMs)
-        let taken = false
+        let lastError = null
+        const timer = setTimeout(() => reject(lastError || new Error('Couldn’t reach your friend. Check the code, and that their wirdwatcher is open and showing it. If it keeps failing, try it the other way round: you make the code and they type it. Or add each other from a lobby.')), timeoutMs)
         mesh.on('connection', (socket) => {
-          if (taken) return socket.destroy()
-          taken = true
-          this._pair(socket, mesh, key, (err, friend) => { clearTimeout(timer); err ? reject(err) : resolve(friend) })
+          if (session.friend) return socket.destroy()
+          this._pair(socket, mesh, key, session, (err, friend) => {
+            if (err) { if (!err.transient) lastError = err; netlog('friend code (used)', 'handshake failed:', err.message); if (err.final) { clearTimeout(timer); reject(err) } return }
+            clearTimeout(timer)
+            resolve(friend)
+          })
         })
-        mesh.join(topic, { server: false, client: true })
+        mesh.join(topic, { server: true, client: true })
       })
     } finally {
-      setTimeout(() => mesh.destroy().catch(() => {}), 1500).unref?.()
+      setTimeout(() => mesh.destroy().catch(() => {}), 3000).unref?.()
     }
   }
 
-  // Both sides of adding a friend run this over the code's connection.
-  _pair (socket, mesh, key, done) {
+  // One handshake over one of the code's connections. `session` is shared by
+  // every connection in the same attempt: the first one to finish makes the
+  // friendship, and the rest just close.
+  _pair (socket, mesh, key, session, done) {
     const myKey = mesh.publicKey
     const theirKey = socket.remotePublicKey.toString('hex')
-    const nonce = crypto.randomBytes(32).toString('hex')
     let finished = false
     const finish = (err, value) => { if (!finished) { finished = true; done(err, value) } }
     const send = channel(socket, {
       key,
       maxBytes: 64 * 1024,
-      onClose: () => finish(new Error('Your friend’s computer went away before you finished. Try a new code.')),
-      onMessage: async (msg) => {
-        if (msg.type === 'refused') return finish(new Error(msg.reason || 'Your friend couldn’t add you.'))
+      onClose: () => finish(Object.assign(new Error('Your friend’s computer went away before you finished. Try a new code.'), { transient: true })),
+      onMessage: (msg) => {
+        if (msg.type === 'refused') return finish(Object.assign(new Error(msg.reason || 'Your friend couldn’t add you.'), { final: true }))
         if (msg.type !== 'hello') return
+        if (session.friend) { send({ type: 'done' }); return finish(null, session.friend) }
         const userId = String(msg.userId || '')
         if (!/^[0-9a-f]{64}$/.test(userId) || !/^[0-9a-f]{64}$/.test(String(msg.nonce)) || !verify(userId, pairProof(theirKey, myKey), String(msg.sig || ''))) {
           send({ type: 'refused', reason: 'That code was answered by something that isn’t wirdwatcher.' })
           return finish(new Error('The other side couldn’t prove who it is.'))
         }
-        if (userId === this.identity.userId) return finish(new Error('That’s your own code. Send it to a friend.'))
+        if (userId === this.identity.userId) return finish(Object.assign(new Error('That’s your own code. Send it to a friend.'), { final: true }))
         if (!this.store.friend(userId) && this.store.listFriends().length >= this.settings.get('maxFriends')) {
           send({ type: 'refused', reason: 'They’re at their friend limit.' })
-          return finish(new Error('You’re at your friend limit (Settings → Friends).'))
+          return finish(Object.assign(new Error('You’re at your friend limit (Settings → Friends).'), { final: true }))
         }
-        // Same secret on both sides: both nonces, in the order of the user IDs.
-        const [a, b] = this.identity.userId < userId ? [nonce, msg.nonce] : [msg.nonce, nonce]
-        const pairSecret = derive('pair-secret', Buffer.from(a + b, 'hex')).toString('hex')
-        const name = String(msg.name || '').slice(0, 24) || `Watcher ${userId.slice(0, 4).toUpperCase()}`
-        const color = /^#[0-9a-f]{6}$/i.test(msg.color) ? msg.color : '#e8c686'
-        const old = this.store.friend(userId)
-        const friend = this.store.addFriend({ userId, name, color, pairSecret })
-        // Done as soon as both sides have what they need. Finding each other
-        // on the new friendship's topic can take a few seconds on the
-        // internet, and the other side may hang up meanwhile; that's fine.
+        session.friend = this._befriend({ userId, name: msg.name, color: msg.color, myNonce: session.nonce, theirNonce: msg.nonce })
         send({ type: 'done' })
-        finish(null, friend)
-        this.emit('friends')
-        if (old) await this.mesh?.leave(friendTopic(old.info.pairSecret)).catch(() => {})
-        this.mesh?.join(friendTopic(pairSecret)).catch(() => {})
+        finish(null, session.friend)
       }
     })
     const me = this.identity.toPublic()
-    send({ type: 'hello', userId: me.userId, name: me.name, color: me.color, nonce, sig: this.identity.sign(pairProof(myKey, theirKey)) })
+    send({ type: 'hello', userId: me.userId, name: me.name, color: me.color, nonce: session.nonce, sig: this.identity.sign(pairProof(myKey, theirKey)) })
+  }
+
+  // Both sides have each other's identity and nonce: they're friends. The
+  // shared secret is made from both nonces in the order of the user IDs, so
+  // both sides make the same one. Data follows through sync.
+  _befriend ({ userId, name, color, myNonce, theirNonce }) {
+    const [a, b] = this.identity.userId < userId ? [myNonce, theirNonce] : [theirNonce, myNonce]
+    const pairSecret = derive('pair-secret', Buffer.from(a + b, 'hex')).toString('hex')
+    const old = this.store.friend(userId)
+    const friend = this.store.addFriend({ userId, name: String(name || '').slice(0, 24) || `Watcher ${userId.slice(0, 4).toUpperCase()}`, color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#e8c686', pairSecret })
+    netlog('friends', 'new friend', short(userId))
+    this.emit('friends')
+    if (old && old.info.pairSecret !== pairSecret) this.mesh?.leave(friendTopic(old.info.pairSecret)).catch(() => {})
+    this.mesh?.join(friendTopic(pairSecret)).catch(() => {})
+    return friend
+  }
+
+  // --- adding friends at a lobby table --------------------------------------
+  //
+  // Two people at the same table can become friends without a code: the
+  // lobby connection already works, so the two hellos travel through it.
+  // Each hello is signed by its sender's identity and names both seats, so
+  // the host passing it along can't forge or redirect one.
+
+  lobbyHello (fromSeat, toSeat) {
+    const nonce = crypto.randomBytes(32).toString('hex')
+    const me = this.identity.toPublic()
+    return { hello: { userId: me.userId, name: me.name, color: me.color, nonce, sig: this.identity.sign(lobbyPairProof(fromSeat, toSeat, nonce)) }, nonce }
+  }
+
+  // Checks a hello that came through a lobby. Returns the sender's userId.
+  checkLobbyHello (hello, fromSeat, toSeat) {
+    const userId = String(hello?.userId || '')
+    if (!/^[0-9a-f]{64}$/.test(userId) || !/^[0-9a-f]{64}$/.test(String(hello?.nonce)) || !verify(userId, lobbyPairProof(fromSeat, toSeat, hello.nonce), String(hello.sig || ''))) throw new Error('That friend request couldn’t be checked.')
+    if (userId === this.identity.userId) throw new Error('That’s you.')
+    if (!this.store.friend(userId) && this.store.listFriends().length >= this.settings.get('maxFriends')) throw new Error('You’re at your friend limit (Settings → Friends).')
+    return userId
+  }
+
+  befriendFromLobby (hello, myNonce) {
+    return this._befriend({ userId: hello.userId, name: hello.name, color: hello.color, myNonce, theirNonce: hello.nonce })
   }
 
   // --- removing friends -------------------------------------------------------

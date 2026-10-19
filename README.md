@@ -79,10 +79,33 @@ Every rating also moves the word on the Play screen:
 
 A preview in Settings shows a sample word in either mode as you change things. Appearance is saved on this computer only and is never sent to friends.
 
+## Coins, the wirdhouse and the shop
+
+Every word you rate for the first time pays coins, the same whatever you give it, so there's never a reason to fudge a rating. Changing a rating pays nothing. Rating new words within a minute of each other builds a **pace streak** that multiplies what each one pays (ratings closer than 1.5 seconds apart don't count, so mashing digits doesn't help). Lobby rounds pay too, win or lose.
+
+**The wirdhouse** turns coins into more coins:
+
+- **Buildings**, from Pencil to Word-cosmos, make coins every second, and each one costs more than the last.
+- **Upgrades** come in kinds, so there's more than one way to play:
+  - *words* (more per new word, bonuses for long words and your first word of the day, a share of the wirdhouse's output with every word);
+  - *streak* (bigger, longer, more forgiving, and eventually boosting the wirdhouse too);
+  - *muse* (each new word speeds the wirdhouse up for a while);
+  - *offline* (how fast, and for how long, it earns while the app is closed);
+  - *social* (lobby rounds, hosting, friends online);
+  - *buildings*, *synergy* (buildings that help each other) and *global*.
+- **Publishing your dictionary** (prestige) starts the wirdhouse over, coins, buildings and upgrades, for **ink**. Every ink you've ever earned makes everything earn 2% more, forever, and ink buys **perks** that last through every edition (head start, seed money, a higher streak, better time away, and more). Your first, third and fifth editions each bring a cosmetic you can't buy.
+- **The coinflip**: bet any amount, call heads or tails, double it or lose it. It means nothing, and flip winnings don't count toward ink.
+
+**The shop** sells looks, never advantages: tables (everyone at your table sees your felt when you host), face frames, card backs, titles and name styles that others see in lobbies and on your profile, plus confetti and coin designs just for you. Everything you buy is kept through every edition.
+
+Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see only what you're wearing and your edition.
+
 ## Friends
 
-1. Open **Friends → Make a friend code** and send the code (`WW-XXXXX-XXXXX-XXXXX-XXXXX`) to a friend.
-2. Your friend types it under **Got a code?**. The code works once and lasts 15 minutes.
+There are two ways to add a friend:
+
+- **At a lobby table:** hover over someone's seat and press **+ Friend**. They get a request in the side panel. This uses the lobby's connection, so it works whenever the lobby does.
+- **With a code:** open **Friends → Make a friend code** and send the code (`WW-XXXXX-XXXXX-XXXXX-XXXXX`) to a friend, who types it under **Got a code?**. The code works once and lasts 15 minutes. Both computers wait for each other *and* look for each other, so it's enough for either one to be reachable.
 
 From then on, whenever you’re both online, your ratings, comments, favorites and playlists sync both ways. Your friends’ ratings stay hidden on each word until you’ve rated it, so they don’t sway you. Removing a friend removes their data from both computers.
 
@@ -112,14 +135,14 @@ The design follows [commonplace](https://github.com/HarvielArcilla/commonplace):
   - [Hyperswarm](https://github.com/holepunchto/hyperswarm) works over the internet. Peers find each other on a DHT made of users’ own machines, hole-punch through NATs and talk over Noise-encrypted streams.
   - A multicast LAN transport works on the same Wi-Fi with no internet at all. Its announcements carry HMAC tags instead of topics, so other devices on the network learn nothing.
 - **Codes.** Friend codes and lobby codes are secrets. Both the meeting place on the network and an AES-GCM key are derived from the code, so only people who have the code can talk there.
-- **Adding a friend.** Each side signs both connection keys with its identity key. Both sides then derive a shared secret, and that secret gives the friendship its own topic. Your computer accepts connections from friends’ keys only.
-- **Sync.** Your records (ratings, comments, favorites, playlists and a short profile) have a single writer, you, plus a sequence number. Catching a friend up means sending everything after the last number they have, so records never conflict.
+- **Adding a friend.** The handshake is one message each way: your identity, a random nonce, and a signature by your identity key over both connection keys (with a code) or both lobby seats (at a table). Both sides then derive a shared secret from the two nonces, and that secret gives the friendship its own topic. Your computer accepts friend connections from friends’ keys only. Nothing else is exchanged during pairing; everything follows through sync.
+- **Sync.** Your records (ratings, comments, favorites, playlists and a short profile) have a single writer, you, plus a sequence number. On connecting, each side says "I have your records up to #N, this many of them" and the other sends everything after N, so records never conflict. The same note is compared every 10 minutes while connected. If the counts disagree, the stretch up to N is sent again, and if a friend has a number you've never reached (your data was restored from a backup), they start over from what you have.
 - **Lobbies.** A lobby is a star around the host, and players get fresh keys for each lobby. Ratings go only to the host, which reveals them only when everyone has locked in.
 - **Limits.** Every limit is a setting you can change: the most friends, how many records to keep from each friend, comment length, lobby size, and how many messages a player can send per minute.
 
 If two computers can’t reach each other, **Settings → About → Network log** shows what the network tried (`network.log` in the data folder). It contains no codes, keys or addresses, so it’s safe to share.
 
-Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `friends/`, `settings.json`, `appearance.json` and `sounds/` (your custom rating sound).
+Everything is stored in your app data folder: `identity.json`, `me.json`, `progress.json`, `economy.json`, `friends/`, `settings.json`, `appearance.json` and `sounds/` (your custom rating sound).
 
 ## Install
 
@@ -182,6 +205,14 @@ To try friends and lobbies on one computer, run a second copy with its own ident
 ```sh
 WIRDWATCHER_PROFILE=bob npm start
 ```
+
+To play with every cosmetic unlocked, use the **dev account**, a separate profile with its own data folder and buttons in the Wirdhouse for coins and time:
+
+```sh
+npm run dev:account
+```
+
+An installed copy does the same with `--dev` (on Windows, `"%LOCALAPPDATA%\Programs\wirdwatcher\wirdwatcher.exe" --dev`; on macOS, `open -a wirdwatcher --args --dev`).
 
 Other commands:
 

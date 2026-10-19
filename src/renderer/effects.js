@@ -2,9 +2,15 @@
 // on one canvas over the window, colored from the current theme, and
 // skipped when motion is reduced.
 
+import { cosmetic } from '../shared/cosmetics.js'
+
 let canvas = null
 let parts = []
 let frame = null
+let style = null // the confetti cosmetic you wear: emoji, letters, or the theme's colors
+
+export function setConfettiStyle (id) { style = cosmetic('confetti', id) }
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 const calm = () => document.documentElement.classList.contains('calm') || window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -41,7 +47,12 @@ function tick () {
     c.translate(x * dpr, y * dpr)
     c.rotate(p.spin * t + p.rot)
     c.fillStyle = p.color
-    if (p.shape === 'star') {
+    if (p.glyph) {
+      c.font = `${Math.round(16 * dpr * p.size)}px "Fredoka", system-ui, sans-serif`
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.fillText(p.glyph, 0, 0)
+    } else if (p.shape === 'star') {
       c.beginPath()
       for (let i = 0; i < 8; i++) { const r = (i % 2 ? 2 : 6) * dpr * p.size; c.lineTo(Math.cos(i * Math.PI / 4) * r, Math.sin(i * Math.PI / 4) * r) }
       c.fill()
@@ -88,7 +99,8 @@ export function burst (x, y, kind = 'confetti') {
       rot: Math.random() * 6, spin: (Math.random() - 0.5) * 14, flip: 4 + Math.random() * 8,
       size: kind === 'confetti' ? 0.8 + Math.random() * 0.6 : 0.6 + Math.random() * 0.5,
       shape: kind === 'confetti' ? (Math.random() < 0.7 ? 'rect' : 'dot') : 'star',
-      color: colors[i % colors.length]
+      color: colors[i % colors.length],
+      glyph: kind === 'confetti' && style && !style.free ? (style.letters ? LETTERS[Math.floor(Math.random() * 26)] : style.emoji ? (Math.random() < 0.6 ? style.emoji[i % style.emoji.length] : null) : null) : null
     })
   }
   if (!frame) frame = requestAnimationFrame(tick)

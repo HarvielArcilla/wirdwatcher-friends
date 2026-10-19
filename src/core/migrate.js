@@ -18,7 +18,7 @@ import { readJson, writeJson } from './files.js'
 
 export const SCHEMA = 3
 
-const DATA_FILES = ['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json']
+const DATA_FILES = ['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'economy.json']
 const DATA_DIRS = ['friends', 'sounds']
 
 // MIGRATIONS[n] moves a folder from layout n to n + 1.

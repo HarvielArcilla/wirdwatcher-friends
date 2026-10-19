@@ -49,6 +49,7 @@ import { codeKeys, newLobbyCode, parseLobbyCode, normalizeCode } from './crypto.
 import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
+import { cleanLook } from '../shared/cosmetics.js'
 
 // How long a player who lost their connection keeps their seat while their
 // computer reconnects.
@@ -119,7 +120,7 @@ export class LobbyHost extends EventEmitter {
     this.used = new Set()
     this.banned = new Set()
     this.closed = false
-    this._addPlayer(this.hostId, { name: me.name, color: me.color, level: me.level, title: me.title, userId: me.userId || null })
+    this._addPlayer(this.hostId, { name: me.name, color: me.color, level: me.level, title: me.title, look: me.look, userId: me.userId || null })
   }
 
   async start () {
@@ -186,7 +187,7 @@ export class LobbyHost extends EventEmitter {
         if (wasAway) this._event({ kind: 'back', id })
         return this._changed()
       }
-      this._addPlayer(id, { name: msg.name, color: msg.color, level: msg.level, title: msg.title, userId })
+      this._addPlayer(id, { name: msg.name, color: msg.color, level: msg.level, title: msg.title, look: msg.look, userId })
       send({ type: 'welcome', you: id, host: this.hostId })
       this._event({ kind: 'join', id })
       return this._changed()
@@ -224,6 +225,16 @@ export class LobbyHost extends EventEmitter {
         p.ready = Boolean(msg.ready)
         return this._changed()
       }
+      // A friend request (or its answer) for another seat: passed along as
+      // is. Both ends check the signatures; the host can't make one up.
+      case 'friendAsk':
+      case 'friendAnswer': {
+        const to = String(msg.to || '')
+        if (to === id || !this.players.has(to)) return
+        const out = { type: 'friend', kind: msg.type === 'friendAsk' ? 'ask' : 'answer', from: id, hello: msg.hello && typeof msg.hello === 'object' ? msg.hello : null }
+        if (to === this.hostId) return this.emit('friend', out)
+        return this.links.get(to)?.(out)
+      }
       case 'leave': {
         // Leaving on purpose: no seat held.
         this.links.delete(id)
@@ -232,6 +243,7 @@ export class LobbyHost extends EventEmitter {
       case 'profile': {
         p.name = cleanName(msg.name)
         p.color = cleanColor(msg.color)
+        if (msg.look) { p.look = cleanLook(msg.look); p.edition = Math.max(0, Math.min(9999, Math.floor(Number(msg.look.edition) || 0))) }
         return this._changed()
       }
     }
@@ -366,6 +378,8 @@ export class LobbyHost extends EventEmitter {
       level: Math.max(1, Math.min(9999, Number(info.level) || 1)),
       title: String(info.title || '').slice(0, 40),
       userId: info.userId || null,
+      look: cleanLook(info.look),
+      edition: Math.max(0, Math.min(9999, Math.floor(Number(info.look?.edition) || 0))),
       ready: back?.ready || id === this.hostId,
       score: back?.score || 0,
       joinedAt: Date.now()
@@ -590,7 +604,9 @@ export class LobbyHost extends EventEmitter {
   react (emoji) { this._act(this.hostId, { type: 'react', emoji }) }
   chat (text) { this._act(this.hostId, { type: 'chat', text }) }
   setReady (ready) { this._act(this.hostId, { type: 'ready', ready }) }
-  setProfile (me) { this._act(this.hostId, { type: 'profile', ...me }) }
+  setProfile (me) { const { sign, ...pub } = me; this._act(this.hostId, { type: 'profile', ...pub }) }
+  friendAsk (to, hello) { this._act(this.hostId, { type: 'friendAsk', to, hello }) }
+  friendAnswer (to, hello) { this._act(this.hostId, { type: 'friendAnswer', to, hello }) }
 
   // --- what each player sees --------------------------------------------------
 
@@ -637,11 +653,12 @@ export class LobbyHost extends EventEmitter {
       options: this.options,
       phase: this.phase,
       game: this.game || 0,
+      table: this.players.get(this.hostId)?.look?.table || 'classic',
       round: this.round,
       players: this.order.map((id) => {
         const p = this.players.get(id)
         const inRound = Boolean(c && c.roster.includes(id))
-        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
+        return { id, name: p.name, color: p.color, level: p.level, title: p.title, userId: p.userId, ready: p.ready, score: p.score, away: Boolean(p.away), look: p.look, edition: p.edition, playing: inRound, role: role(id), locked: inRound && !waiting.has(id) && this.phase !== 'reveal', next: Boolean(c && c.next.has(id)) }
       }),
       waitingOn: [...waiting],
       current,
@@ -795,7 +812,7 @@ export class LobbyClient extends EventEmitter {
     if (old) old.close() // the newer connection wins
     this._found()
     const proof = this.me.userId && this.me.sign ? { userId: this.me.userId, sig: this.me.sign(lobbyProof(this.you, remote)) } : {}
-    send({ type: 'join', v: PROTOCOL, name: this.me.name, color: this.me.color, level: this.me.level, title: this.me.title, ...proof })
+    send({ type: 'join', v: PROTOCOL, name: this.me.name, color: this.me.color, level: this.me.level, title: this.me.title, look: this.me.look, ...proof })
   }
 
   // The connection to the host dropped: look for it again until the host
@@ -829,6 +846,8 @@ export class LobbyClient extends EventEmitter {
       this._emitState()
     } else if (msg.type === 'event' && msg.event) {
       this.emit('event', msg.event)
+    } else if (msg.type === 'friend' && typeof msg.from === 'string') {
+      this.emit('friend', { kind: msg.kind, from: msg.from, hello: msg.hello || null })
     }
   }
 
@@ -849,7 +868,9 @@ export class LobbyClient extends EventEmitter {
   react (emoji) { this.send?.({ type: 'react', emoji }) }
   chat (text) { this.send?.({ type: 'chat', text }) }
   setReady (ready) { this.send?.({ type: 'ready', ready }) }
-  setProfile (me) { this.send?.({ type: 'profile', ...me }) }
+  setProfile (me) { this.me = { ...this.me, ...me }; const { sign, ...pub } = me; this.send?.({ type: 'profile', ...pub }) }
+  friendAsk (to, hello) { this.send?.({ type: 'friendAsk', to, hello }) }
+  friendAnswer (to, hello) { this.send?.({ type: 'friendAnswer', to, hello }) }
 
   async leave () {
     if (this.closed) return

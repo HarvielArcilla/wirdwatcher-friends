@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('ww', {
   on: {
     friends: listen('friends'),
     friendRecords: listen('friend-records'),
+    economy: listen('economy'),
+    lobbyFriend: listen('lobby-friend'),
     friendCode: listen('friend-code'),
     progress: listen('progress'),
     lobby: listen('lobby'),

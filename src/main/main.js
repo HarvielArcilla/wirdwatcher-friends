@@ -18,8 +18,12 @@ const root = path.join(here, '..', '..')
 // --smoke-test: start with a throwaway profile, check the window comes up
 // and can talk to the background process, then quit (0 = fine). CI runs this
 // on Windows, macOS and Linux.
+// --dev: a separate developer account (its own data folder) with every
+// cosmetic unlocked and buttons in Settings → About for coins and time.
 const smoke = process.argv.includes('--smoke-test')
+const dev = process.argv.includes('--dev') || process.env.WIRDWATCHER_DEV === '1'
 if (smoke) process.env.WIRDWATCHER_PROFILE = `smoke-${process.pid}`
+else if (dev && !process.env.WIRDWATCHER_PROFILE) process.env.WIRDWATCHER_PROFILE = 'dev'
 const profile = process.env.WIRDWATCHER_PROFILE
 if (profile) app.setPath('userData', `${app.getPath('userData')}-${profile.replace(/[^a-z0-9-]/gi, '')}`)
 if (!profile && !app.requestSingleInstanceLock()) app.quit()
@@ -76,7 +80,7 @@ function handlers () {
     setProfile: (patch) => ww.setProfile(patch),
     deal: (mode, after) => g.deal(mode, { after }),
     wordInfo: (word) => g.wordInfo(word),
-    rate: (word, r) => g.rate(word, r),
+    rate: (word, r) => ww.rate(word, r),
     unrate: (word) => g.unrate(word),
     comment: (word, text) => g.comment(word, text),
     favorite: (word, on) => g.favorite(word, on),
@@ -101,7 +105,17 @@ function handlers () {
     joinLobby: (code) => ww.joinLobby(code),
     leaveLobby: () => ww.leaveLobby(),
     lobbyAction: (action, arg) => ww.lobbyAction(action, arg),
+    askFriend: (seat) => ww.askFriend(seat),
+    answerFriend: (seat, yes) => ww.answerFriend(seat, yes),
     lobbyState: () => ww.lobbyState,
+    economy: () => ({ ...ww.economy.view(), away: ww.economy.takeAway() }),
+    economyAction: (action, ...args) => {
+      const allowed = ['buyBuilding', 'buyUpgrade', 'buyPerk', 'prestige', 'flip', 'buyCosmetic', 'equip']
+      const devOnly = ['devUnlockAll', 'devAddCoins', 'devWarp', 'devReset']
+      if (!allowed.includes(action) && !(dev && devOnly.includes(action))) throw new Error('Unknown action.')
+      const out = ww.economy[action](...args)
+      return out === undefined ? ww.economy.view() : out
+    },
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
     customSound: () => ww.customSound(),
@@ -141,7 +155,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null)
   try {
     setNetlogFolder(app.getPath('userData'))
-    ww = new WirdApp({ dataDir: app.getPath('userData') })
+    ww = new WirdApp({ dataDir: app.getPath('userData'), dev })
   } catch (err) {
     // Most likely data from a newer version. Say so, and change nothing.
     dialog.showErrorBox('wirdwatcher can’t open your data', `${err.message}\n\nYour data folder: ${app.getPath('userData')}`)
@@ -165,6 +179,9 @@ app.whenReady().then(async () => {
   ww.on('friend-code', (e) => send('friend-code', e))
   ww.on('progress', (p) => { if (p.source === 'lobby') send('progress', p) })
   ww.on('lobby', (s) => send('lobby', s))
+  ww.on('economy', (c) => send('economy', c))
+  ww.on('friend-ask', (a) => send('lobby-friend', { kind: 'ask', ...a }))
+  ww.on('friend-answer', (a) => send('lobby-friend', { kind: 'answer', ...a }))
   ww.on('lobby-event', (e) => send('lobby-event', e))
   ww.on('lobby-closed', (reason) => send('lobby-closed', reason))
   createWindow()

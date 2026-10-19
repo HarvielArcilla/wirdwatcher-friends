@@ -18,6 +18,7 @@ import { XP } from '../shared/progress.js'
 import { normalizeAppearance } from '../shared/appearance.js'
 import { readJson, writeJson } from './files.js'
 import { migrate } from './migrate.js'
+import { Economy } from './economy.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const WORDS_FILE = path.join(here, '..', '..', 'data', 'words.json.gz')
@@ -25,13 +26,13 @@ export const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', '..'
 
 const SOUND_TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.webm': 'audio/webm' }
 const MAX_SOUND_BYTES = 3 * 1024 * 1024
-const OUR_FILES = new Set(['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'version.json', 'friends', 'sounds', 'backups', 'network.log', 'network.log.1'])
+const OUR_FILES = new Set(['identity.json', 'me.json', 'progress.json', 'settings.json', 'appearance.json', 'version.json', 'friends', 'sounds', 'backups', 'network.log', 'network.log.1', 'economy.json'])
 
 let sharedWords = null // the list is read-only, so copies in one process share it
 
 export class WirdApp extends EventEmitter {
   // swarm / lan: options for the network (tests use a local DHT and port).
-  constructor ({ dataDir, swarm = {}, lan = {}, settings = {}, wordsFile = WORDS_FILE, now, appVersion = APP_VERSION } = {}) {
+  constructor ({ dataDir, swarm = {}, lan = {}, settings = {}, wordsFile = WORDS_FILE, now, appVersion = APP_VERSION, dev = false } = {}) {
     super()
     this.dataDir = dataDir
     this.migration = migrate(dataDir, { appVersion })
@@ -46,12 +47,26 @@ export class WirdApp extends EventEmitter {
     this.game.identityName = () => this.identity.name
     this.game.identityColor = () => this.identity.color
     this.friends = new Friends({ identity: this.identity, store: this.store, settings: this.settings, swarm, lan })
+    this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, dev })
+    // Friends see what you wear and which edition you're on.
+    this.game.extraProfile = () => ({ look: this.economy.look() })
+    this.economy.on('look', () => { this.game._refreshProfile(); if (this.lobby) this.lobby.setProfile(this._lobbyMe()) })
+    this.economy.on('tick', (c) => this.emit('economy', c))
+    this.economy.on('changed', () => this.emit('economy', this.economy.compact()))
     this.lobby = null
     this.lobbyState = null
     this.lobbyRated = new Set()
   }
 
+  // Rating a word: the game's result, plus what it paid.
+  rate (word, r, opts) {
+    const res = this.game.rate(word, r, opts)
+    res.coins = this.economy.onWord(word, { fresh: res.fresh })
+    return res
+  }
+
   async start () {
+    this.economy.start()
     await this.friends.start()
     this.friends.on('presence', () => this.emit('friends'))
     this.friends.on('friends', () => this.emit('friends'))
@@ -63,6 +78,7 @@ export class WirdApp extends EventEmitter {
   }
 
   async stop () {
+    this.economy.stop()
     await this.leaveLobby()
     await this.friends.stop()
     this.store.flush()
@@ -157,7 +173,7 @@ export class WirdApp extends EventEmitter {
 
   _lobbyMe () {
     const lvl = this.game.profile().level
-    return { name: this.identity.name, color: this.identity.color, level: lvl.level, title: lvl.title, userId: this.identity.userId, sign: (t) => this.identity.sign(t) }
+    return { name: this.identity.name, color: this.identity.color, level: lvl.level, title: lvl.title, look: this.economy.look(), userId: this.identity.userId, sign: (t) => this.identity.sign(t) }
   }
 
   _wireLobby (lobby) {
@@ -165,6 +181,9 @@ export class WirdApp extends EventEmitter {
     this.lobbyRated = new Set()
     lobby.on('state', (s) => this._lobbyState(s))
     lobby.on('event', (e) => this.emit('lobby-event', e))
+    this.friendAsks = new Map() // seat -> my nonce, for requests I sent
+    this.friendOffers = new Map() // seat -> their hello, for requests I got
+    lobby.on('friend', (m) => this._lobbyFriend(lobby, m))
     lobby.on('closed', ({ reason }) => {
       if (this.lobby !== lobby) return
       this.lobby = null
@@ -187,11 +206,13 @@ export class WirdApp extends EventEmitter {
       this.lobbyRated.add(key)
       const xp = []
       const badges = []
+      let coins = 0
       let levelUp = false
       // Words I rated at the table become my ratings.
       for (const { by, word, r } of res.rated || []) {
         if (by !== s.you || !this.words.has(word)) continue
-        const earned = this.game.rate(word, r, { source: 'lobby' })
+        const earned = this.rate(word, r, { source: 'lobby' })
+        if (earned.coins) coins += earned.coins.coins
         xp.push(...earned.xp)
         badges.push(...earned.badges)
         levelUp = levelUp || earned.levelUp
@@ -207,7 +228,8 @@ export class WirdApp extends EventEmitter {
       const mine = res.entries?.find((e) => e.picker === s.you)
       if (mine?.diff !== null && mine?.diff !== undefined && mine.diff <= 0.1) { items.push({ amount: XP.hiveMind, why: 'Bullseye' }); counters.bullseyes = 1 }
       const bonus = this.game.award(items, counters)
-      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, source: 'lobby' })
+      coins += this.economy.onLobbyRound({ hosting: Boolean(this.lobby?.isHost) })
+      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, coins, source: 'lobby' })
     }
     if (s.phase === 'results' && prev?.phase !== 'results' && s.history.length) {
       const counters = { lobbyGames: 1 }
@@ -216,6 +238,60 @@ export class WirdApp extends EventEmitter {
       this.emit('progress', { ...this.game.award([{ amount: XP.lobbyGame, why: 'Lobby game' }], counters), source: 'lobby' })
     }
     this.emit('lobby', view)
+  }
+
+  // --- friends at the table ------------------------------------------------
+
+  _mySeat () { return this.lobbyState?.you || this.lobby?.you || this.lobby?.hostId }
+
+  askFriend (seat) {
+    const l = this.lobby
+    if (!l) throw new Error('You’re not in a lobby.')
+    const p = this.lobbyState?.players.find((x) => x.id === seat)
+    if (!p || p.me) throw new Error('Nobody’s in that seat.')
+    if (p.friend) throw new Error(`You and ${p.name} are already friends.`)
+    if (!p.userId) throw new Error(`${p.name} is on an older wirdwatcher that can’t add friends at the table yet.`)
+    const { hello, nonce } = this.friends.lobbyHello(this._mySeat(), seat)
+    this.friendAsks.set(seat, nonce)
+    l.friendAsk(seat, hello)
+    return true
+  }
+
+  answerFriend (seat, yes) {
+    const l = this.lobby
+    const hello = this.friendOffers.get(seat)
+    if (!l || !hello) throw new Error('That request has gone.')
+    this.friendOffers.delete(seat)
+    if (!yes) { l.friendAnswer(seat, null); return null }
+    const mine = this.friends.lobbyHello(this._mySeat(), seat)
+    const friend = this.friends.befriendFromLobby(hello, mine.nonce)
+    l.friendAnswer(seat, mine.hello)
+    return friend
+  }
+
+  _lobbyFriend (lobby, { kind, from, hello }) {
+    if (lobby !== this.lobby) return
+    const me = this._mySeat()
+    try {
+      if (kind === 'ask') {
+        if (!hello) return
+        const userId = this.friends.checkLobbyHello(hello, from, me)
+        if (this.store.friend(userId)) return // already friends
+        if (this.friendOffers.has(from)) return
+        this.friendOffers.set(from, hello)
+        this.emit('friend-ask', { from, userId, name: String(hello.name || '').slice(0, 24), color: hello.color })
+      } else if (kind === 'answer') {
+        const nonce = this.friendAsks.get(from)
+        if (!nonce) return
+        this.friendAsks.delete(from)
+        if (!hello) return this.emit('friend-answer', { from, yes: false })
+        this.friends.checkLobbyHello(hello, from, me)
+        const friend = this.friends.befriendFromLobby(hello, nonce)
+        this.emit('friend-answer', { from, yes: true, name: friend.name })
+      }
+    } catch (err) {
+      this.emit('friend-answer', { from, yes: false, error: err.message })
+    }
   }
 
   // Small counters the window reports (for badges).

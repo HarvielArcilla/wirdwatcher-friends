@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { useCallback, useEffect, useState } from 'react'
-import { api, icons, ToastHost, useToast, celebrate } from './ui.jsx'
+import { api, icons, ToastHost, useToast, celebrate, Coins } from './ui.jsx'
 import Play from './Play.jsx'
 import Lobby from './Lobby.jsx'
 import Collection from './Collection.jsx'
@@ -9,12 +9,18 @@ import Settings from './Settings.jsx'
 import { applyAppearance, onSystemScheme } from './theme.js'
 import Search from './Search.jsx'
 import { setCustomSound } from './sound.js'
+import { setConfettiStyle } from './effects.js'
+import Wirdhouse from './Wirdhouse.jsx'
+import Shop from './Shop.jsx'
+import { formatCoins } from '../shared/economy.js'
 
 const TABS = [
   { id: 'play', label: 'Play', icon: icons.play },
   { id: 'collection', label: 'Collection', icon: icons.collection },
   { id: 'friends', label: 'Friends', icon: icons.friends },
-  { id: 'lobby', label: 'Lobby', icon: icons.lobby }
+  { id: 'lobby', label: 'Lobby', icon: icons.lobby },
+  { id: 'wirdhouse', label: 'Wirdhouse', icon: icons.house },
+  { id: 'shop', label: 'Shop', icon: icons.shop }
 ]
 
 function App () {
@@ -32,6 +38,7 @@ function App () {
   const [mode, setMode] = useState(() => { try { return localStorage.getItem('mode') || 'everyday' } catch { return 'everyday' } })
   const [focusWord, setFocusWord] = useState(null)
   const [searching, setSearching] = useState(false)
+  const [econ, setEcon] = useState(null) // coins, coins per second, the streak, your look
 
   useEffect(() => {
     api('boot').then((b) => {
@@ -39,7 +46,13 @@ function App () {
       if (b.platform === 'darwin') document.body.classList.add('mac')
     })
     api('customSound').then((snd) => setCustomSound(snd?.dataUrl || null))
-  }, [])
+    api('economy').then((e) => {
+      setEcon(e)
+      if (e.away?.coins >= 1) toast({ emoji: '🏠', title: `The wirdhouse made ${formatCoins(e.away.coins)} coins while you were away`, text: `${Math.round(e.away.rate * 100)}% speed for ${e.away.secs >= 3600 ? `${(e.away.secs / 3600).toFixed(1)} hours` : `${Math.round(e.away.secs / 60)} minutes`}${e.away.capped ? ' (the most it can hold)' : ''}.`, ms: 7000 })
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => window.ww.on.economy((c) => setEcon((old) => ({ ...(old || {}), ...c }))), [])
+  useEffect(() => { setConfettiStyle(econ?.look?.confetti || 'classic') }, [econ?.look?.confetti])
 
   // A button clicked with the mouse gives the keyboard back to the game, so
   // Space or Enter afterwards don't press it again. Tabbing still works.
@@ -128,6 +141,7 @@ function App () {
           <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' aria-hidden='true'><circle cx='11' cy='11' r='7' /><path d='m20 20-3.5-3.5' /></svg>
           <span>Search words</span><kbd>/</kbd>
         </button>
+        {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''}`} onClick={() => setTab('wirdhouse')} title={`${formatCoins(econ.cps)} coins a second`}><strong><Coins n={econ.coins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
         <span className='stat flame' title='Days in a row'><strong>{me.streak || 0}</strong>day streak 🔥</span>
         <span className='stat'><strong>{profile.stats.rated.toLocaleString()}</strong>rated</span>
         <span className='stat'><strong>{onlineFriends}</strong>friends online</span>
@@ -135,13 +149,15 @@ function App () {
 
       <main className='main'>
         <div style={{ display: tab === 'play' ? 'contents' : 'none' }}>
-          <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play' && !searching} />
+          <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play' && !searching} econ={econ} />
         </div>
         {tab === 'collection' && <Collection profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         {tab === 'friends' && <Friends friends={friends} profile={profile} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
           <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} />
         </div>
+        {tab === 'wirdhouse' && <Wirdhouse econ={econ} />}
+        {tab === 'shop' && <Shop econ={econ} me={me} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
         {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
       </main>

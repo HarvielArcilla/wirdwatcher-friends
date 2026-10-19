@@ -131,6 +131,22 @@ export class Store extends EventEmitter {
     return out
   }
 
+  // For drift checks: how many of my records a friend should have if they
+  // have everything up to `seq`, and those records.
+  countUpTo (seq) { let n = 0; for (const rec of Object.values(this.mine.records)) if (rec.seq <= seq) n++; return n }
+  upTo (seq) {
+    const out = {}
+    for (const [k, rec] of Object.entries(this.mine.records)) if (rec.seq <= seq) out[k] = rec
+    return out
+  }
+  get mySeq () { return this.mine.seq }
+
+  // How far along I am with a friend's records.
+  friendDigest (id) {
+    const data = this.friends.get(id)
+    return data ? { have: data.seq, n: Object.keys(data.records).length } : { have: 0, n: 0 }
+  }
+
   rating (word) { return this.get(`r/${word}`) }
   ratings () {
     const out = []
@@ -196,10 +212,13 @@ export class Store extends EventEmitter {
   }
 
   // Records a friend sent. Keeps at most maxRecords of theirs.
-  applyFriend (id, records, { maxRecords = 100000, maxCommentChars = 280 } = {}) {
+  // reset: they've started their numbering over (restored from a backup, say),
+  // so what I had of theirs is thrown away and this is the new start.
+  applyFriend (id, records, { maxRecords = 100000, maxCommentChars = 280, reset = false } = {}) {
     const data = this.friends.get(id)
     if (!data || !records || typeof records !== 'object') return 0
     let applied = 0
+    if (reset) { data.records = {}; data.seq = 0; applied = 1 }
     for (const [key, raw] of Object.entries(records)) {
       const rec = cleanRecord(key, raw, { maxCommentChars: Math.max(maxCommentChars, 1) })
       if (!rec) continue
