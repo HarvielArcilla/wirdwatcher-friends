@@ -85,7 +85,7 @@ import { STAKES, splitPot } from '../shared/stakes.js'
 // computer reconnects.
 export const SEAT_GRACE_MS = 45000
 
-const PROTOCOL = 3
+const PROTOCOL = 4 // 4: Grand Jury, Clues and stakes (2.3)
 export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues']
 export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic', stake: 0 }
 export const LOBBY_STAKES = STAKES
