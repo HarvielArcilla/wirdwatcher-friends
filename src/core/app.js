@@ -47,9 +47,15 @@ export class WirdApp extends EventEmitter {
     this.game.identityName = () => this.identity.name
     this.game.identityColor = () => this.identity.color
     this.friends = new Friends({ identity: this.identity, store: this.store, settings: this.settings, swarm, lan })
-    this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, dev })
+    this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, hasBadge: (id) => Boolean(this.store.progress.badges[id]), dev })
     // Friends see what you wear and which edition you're on.
     this.game.extraProfile = () => ({ look: this.economy.look() })
+    this.game.extraStats = () => this.economy.badgeStats()
+    // Spending, flipping and publishing can earn badges too.
+    this.economy.on('changed', () => {
+      const res = this.game.award()
+      if (res.badges?.length || res.levelUp) this.emit('progress', { ...res, source: 'economy' })
+    })
     this.economy.on('look', () => { this.game._refreshProfile(); if (this.lobby) this.lobby.setProfile(this._lobbyMe()) })
     this.economy.on('tick', (c) => this.emit('economy', c))
     this.economy.on('changed', () => this.emit('economy', this.economy.compact()))
@@ -61,7 +67,7 @@ export class WirdApp extends EventEmitter {
   // Rating a word: the game's result, plus what it paid.
   rate (word, r, opts) {
     const res = this.game.rate(word, r, opts)
-    res.coins = this.economy.onWord(word, { fresh: res.fresh })
+    res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
     return res
   }
 

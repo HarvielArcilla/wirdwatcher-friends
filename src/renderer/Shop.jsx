@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { COSMETICS, KINDS, RARITY } from '../shared/cosmetics.js'
-import { api, Avatar, Coins, useToast } from './ui.jsx'
+import { api, Avatar, Coins, CoinArt, useToast } from './ui.jsx'
 import { burst, centerOf, setConfettiStyle } from './effects.js'
 import { useLiveCoins } from './Wirdhouse.jsx'
 
@@ -61,7 +61,9 @@ export default function Shop ({ econ, me }) {
                   ? <span className='wearing-tag'>{k.seen === 'you' ? 'In use' : 'Wearing'}</span>
                   : have
                     ? <button className='btn small' onClick={() => act('equip', c.kind, c.id)}>{k.seen === 'you' ? 'Use' : 'Wear'}</button>
-                    : c.price === null
+                    : c.badge
+                      ? <span className='locked-tag'>🏅 Comes with a badge</span>
+                      : c.price === null
                       ? <span className='locked-tag'>🔒 Publish {c.edition === 1 ? 'once' : `${c.edition} times`}</span>
                       : <button className='btn small primary' disabled={coins < c.price} onClick={(e) => act('buyCosmetic', c.kind, c.id, e.currentTarget)}><Coins n={c.price} /></button>}
                 {c.kind === 'confetti' && <button className='btn small ghost' onClick={(e) => { setConfettiStyle(c.id); const at = centerOf(e.currentTarget); burst(at.x, at.y, 'confetti'); setTimeout(() => setConfettiStyle(look.confetti), 50) }}>Try</button>}
@@ -76,6 +78,14 @@ export default function Shop ({ econ, me }) {
 
 // A small picture of each item, drawn with the same styles the real thing uses.
 export function Preview ({ c, me }) {
+  if (c.kind === 'room') {
+    return (
+      <div className={`mini-room room-${c.id}`}>
+        <div className='mini-table felt-classic'><div className='felt' /><span className='mini-card' /><span className='mini-card' /><span className='mini-card' /></div>
+      </div>
+    )
+  }
+  if (c.kind === 'reactions') return <div className='mini-confetti'>{c.emoji.length ? c.emoji.join(' ') : '😂 😮 🔥 💀'}</div>
   if (c.kind === 'table') {
     return (
       <div className={`mini-table felt-${c.id}`}>
@@ -89,6 +99,6 @@ export function Preview ({ c, me }) {
   if (c.kind === 'title') return <div className='mini-title'><b>{me?.name || 'You'}</b><span>{c.text || 'Level 12'}</span></div>
   if (c.kind === 'name') return <div className={`mini-name nm-${c.id}`}>{me?.name || 'You'}</div>
   if (c.kind === 'confetti') return <div className='mini-confetti'>{c.letters ? 'A B C' : c.emoji ? c.emoji.join(' ') : '🎉'}</div>
-  if (c.kind === 'coin') return <div className={`flipcoin small coin-${c.id}`}><span className='side heads'>H</span></div>
+  if (c.kind === 'coin') return <div className='mini-coins'><CoinArt skin={c.id} side='heads' size={58} /><CoinArt skin={c.id} side='tails' size={58} /></div>
   return null
 }

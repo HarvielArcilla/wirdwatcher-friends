@@ -81,11 +81,11 @@ A preview in Settings shows a sample word in either mode as you change things. A
 
 ## Coins, the wirdhouse and the shop
 
-Every word you rate for the first time pays coins, the same whatever you give it, so there's never a reason to fudge a rating. Changing a rating pays nothing. Rating new words within a minute of each other builds a **pace streak** that multiplies what each one pays (ratings closer than 1.5 seconds apart don't count, so mashing digits doesn't help). Lobby rounds pay too, win or lose.
+Every word you rate for the first time pays coins, the same whatever you give it, so there's never a reason to fudge a rating. Changing a rating pays nothing. Rating new words within a minute of each other builds a **pace streak** that multiplies what each one pays. Ratings closer than 1.5 seconds apart don't count, and giving the **same score five times running ends the streak** (the meter warns you from the third), so mashing one number never pays. Lobby rounds pay too, win or lose.
 
 **The wirdhouse** turns coins into more coins:
 
-- **Buildings**, from Pencil to Word-cosmos, make coins every second, and each one costs more than the last.
+- **Buildings**, twelve of them from Pencil to The first word, make coins every second, and each one costs more than the last.
 - **Upgrades** come in kinds, so there's more than one way to play:
   - *words* (more per new word, bonuses for long words and your first word of the day, a share of the wirdhouse's output with every word);
   - *streak* (bigger, longer, more forgiving, and eventually boosting the wirdhouse too);
@@ -96,7 +96,13 @@ Every word you rate for the first time pays coins, the same whatever you give it
 - **Publishing your dictionary** (prestige) starts the wirdhouse over, coins, buildings and upgrades, for **ink**. Every ink you've ever earned makes everything earn 2% more, forever, and ink buys **perks** that last through every edition (head start, seed money, a higher streak, better time away, and more). Your first, third and fifth editions each bring a cosmetic you can't buy.
 - **The coinflip**: bet any amount, call heads or tails, double it or lose it. It means nothing, and flip winnings don't count toward ink.
 
-**The shop** sells looks, never advantages: tables (everyone at your table sees your felt when you host), face frames, card backs, titles and name styles that others see in lobbies and on your profile, plus confetti and coin designs just for you. Everything you buy is kept through every edition.
+**The shop** sells looks, never advantages:
+
+- **Rooms** (the space around the table) and **tables** (the felt): everyone at your table sees yours when you host.
+- **Frames, card backs, titles, name styles and reaction packs**: others see them in lobbies and on your profile. Some titles can't be bought; they come with badges.
+- **Confetti and coins**: just for you.
+
+Frames never hide gameplay: the rings for your guesses, the hot seat and pickable seats are drawn outside any frame, and the frame fades back while they show. Everything you buy is kept through every edition. There are badges for coins, building, publishing, flipping and shopping too.
 
 Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see only what you're wearing and your edition.
 

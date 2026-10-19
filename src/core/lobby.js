@@ -49,7 +49,7 @@ import { codeKeys, newLobbyCode, parseLobbyCode, normalizeCode } from './crypto.
 import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
-import { cleanLook } from '../shared/cosmetics.js'
+import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
 
 // How long a player who lost their connection keeps their seat while their
 // computer reconnects.
@@ -213,7 +213,7 @@ export class LobbyHost extends EventEmitter {
         return this._changed()
       }
       case 'react': {
-        if (!REACTIONS.includes(msg.emoji)) return
+        if (!ALL_REACTIONS.includes(msg.emoji)) return
         return this._event({ kind: 'react', id, emoji: msg.emoji })
       }
       case 'chat': {
@@ -654,6 +654,7 @@ export class LobbyHost extends EventEmitter {
       phase: this.phase,
       game: this.game || 0,
       table: this.players.get(this.hostId)?.look?.table || 'classic',
+      room: this.players.get(this.hostId)?.look?.room || 'plain',
       round: this.round,
       players: this.order.map((id) => {
         const p = this.players.get(id)

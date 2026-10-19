@@ -177,7 +177,7 @@ app.whenReady().then(async () => {
   ww.on('friends', () => send('friends', ww.friends.list()))
   ww.on('friend-records', () => send('friend-records'))
   ww.on('friend-code', (e) => send('friend-code', e))
-  ww.on('progress', (p) => { if (p.source === 'lobby') send('progress', p) })
+  ww.on('progress', (p) => { if (p.source === 'lobby' || p.source === 'economy') send('progress', p) })
   ww.on('lobby', (s) => send('lobby', s))
   ww.on('economy', (c) => send('economy', c))
   ww.on('friend-ask', (a) => send('lobby-friend', { kind: 'ask', ...a }))

@@ -104,7 +104,35 @@ export const BADGES = [
   { id: 'telepath', emoji: '🧠', name: 'Telepath', hint: 'In Hot seat, predict the rating within 0.1.', test: (s) => s.exactReads >= 1 },
   { id: 'bullseye', emoji: '🎯', name: 'Bullseye', hint: 'In Hive mind, land within 0.1 of your target.', test: (s) => s.bullseyes >= 1 },
   { id: 'allmodes', emoji: '🎲', name: 'Tried them all', hint: 'Finish a lobby game in every mode.', test: (s) => ['classic', 'highlow', 'hotseat', 'hive'].every((m) => s[`games_${m}`] >= 1) },
-  { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 }
+  { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 },
+  // Rating, a little further.
+  { id: 'longword', emoji: '📏', name: 'Sesquipedalian', hint: 'Rate a word of 15 letters or more.', test: (s) => s.longest >= 15 },
+  { id: 'chatterbox', emoji: '💬', name: 'Chatterbox', hint: 'Leave 50 comments.', test: (s) => s.comments >= 50 },
+  { id: 'hoarder', emoji: '🗃️', name: 'Hoarder', hint: 'Keep 100 favorites.', test: (s) => s.favorites >= 100 },
+  { id: 'fiftyk', emoji: '🌍', name: 'Lexicon', hint: 'Rate 50,000 words.', test: (s) => s.rated >= 50000 },
+  // Coins and the wirdhouse.
+  { id: 'coin1k', emoji: '🪙', name: 'Pocket change', hint: 'Earn 1,000 coins.', test: (s) => s.ecoEver >= 1e3 },
+  { id: 'coin1m', emoji: '💰', name: 'Millionaire', hint: 'Earn a million coins.', test: (s) => s.ecoEver >= 1e6 },
+  { id: 'coin1b', emoji: '🏦', name: 'Billionaire', hint: 'Earn a billion coins.', test: (s) => s.ecoEver >= 1e9 },
+  { id: 'coin1t', emoji: '🌌', name: 'Trillionaire', hint: 'Earn a trillion coins.', test: (s) => s.ecoEver >= 1e12 },
+  { id: 'builder', emoji: '🏗️', name: 'Builder', hint: 'Own 100 buildings at once.', test: (s) => s.ecoBuildings >= 100 },
+  { id: 'tycoon', emoji: '🏰', name: 'Tycoon', hint: 'Own one of every building.', test: (s) => s.ecoKinds >= 12 },
+  { id: 'tinkerer', emoji: '🔧', name: 'Tinkerer', hint: 'Own 25 upgrades at once.', test: (s) => s.ecoUpgrades >= 25 },
+  { id: 'engineer', emoji: '⚙️', name: 'Engineer', hint: 'Own 75 upgrades at once.', test: (s) => s.ecoUpgrades >= 75 },
+  { id: 'published', emoji: '📖', name: 'Published', hint: 'Publish your dictionary.', test: (s) => s.ecoEditions >= 1 },
+  { id: 'prolific', emoji: '📚', name: 'Prolific', hint: 'Publish five times.', test: (s) => s.ecoEditions >= 5 },
+  { id: 'perked', emoji: '🎓', name: 'Well read', hint: 'Buy 10 levels of ink perks.', test: (s) => s.ecoPerks >= 10 },
+  { id: 'pace25', emoji: '🏃', name: 'In the flow', hint: 'Rate 25 new words in a pace streak.', test: (s) => s.ecoPace >= 25 },
+  { id: 'pace100', emoji: '🌪️', name: 'Unbroken', hint: 'Rate 100 new words in a pace streak.', test: (s) => s.ecoPace >= 100 },
+  // The coinflip.
+  { id: 'flipper', emoji: '🪙', name: 'Heads or tails', hint: 'Flip a coin.', test: (s) => s.ecoFlips >= 1 },
+  { id: 'flip5', emoji: '🍀', name: 'Lucky streak', hint: 'Win 5 flips in a row.', test: (s) => s.ecoFlipBest >= 5 },
+  { id: 'flip10', emoji: '🎰', name: 'Unlikely', hint: 'Win 10 flips in a row.', test: (s) => s.ecoFlipBest >= 10 },
+  { id: 'flipbad', emoji: '🌧️', name: 'Down bad', hint: 'Lose 7 flips in a row.', test: (s) => s.ecoFlipWorst >= 7 },
+  { id: 'highroller', emoji: '🎲', name: 'High roller', hint: 'Flip a billion coins at once.', test: (s) => s.ecoFlipBig >= 1e9 },
+  // The shop.
+  { id: 'shopper', emoji: '🛍️', name: 'Window shopper', hint: 'Buy something in the shop.', test: (s) => s.ecoCosmetics >= 1 },
+  { id: 'wardrobe', emoji: '👗', name: 'Wardrobe', hint: 'Own 25 things from the shop.', test: (s) => s.ecoCosmetics >= 25 }
 ]
 
 // Rating input: what the box shows after each keystroke, like the original

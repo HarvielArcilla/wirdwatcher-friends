@@ -609,11 +609,6 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 .hive-results .hr-nums b { font-family: var(--font-word); font-size: 14px; }
 .hive-results .hr-pts { grid-row: 2 / 4; grid-column: 2; align-self: center; font-weight: 700; color: var(--good); }
 .seat.pickable { cursor: pointer; }
-.seat.pickable .avatar { box-shadow: 0 0 0 3px var(--slate, var(--bg)), 0 0 0 5px var(--line); transition: box-shadow .15s; }
-.seat.pickable:hover .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
-.seat.g-high .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--good); }
-.seat.g-low .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--bad); }
-.seat.in-seat .avatar { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--accent), 0 0 24px color-mix(in oklab, var(--accent) 60%, transparent); }
 .seat .seat-key { position: absolute; top: -6px; right: 30px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 11px; border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; z-index: 3; }
 .seat .guess-line { font-size: 11px; color: var(--dim); white-space: nowrap; }
 .seat .guess-line b { font-weight: 600; }
@@ -858,7 +853,6 @@ div.rating-input.away { opacity: .4; border-bottom-style: dashed; }
 .frame-first-edition .frame-art::after { content: '1st'; position: absolute; right: -10px; bottom: -6px; font: 800 9px var(--font-ui); background: #7a5c3a; color: #f6efe0; padding: 1px 4px; border-radius: 4px; }
 .frame-legend .frame-art { inset: -8px; background: conic-gradient(#f4c542, #fff, #f4c542, #c8901e, #f4c542); -webkit-mask: radial-gradient(circle, transparent 57%, #000 60%); mask: radial-gradient(circle, transparent 57%, #000 60%); animation: spin 3s linear infinite; box-shadow: 0 0 20px rgba(244, 197, 66, .8); }
 @keyframes spin { to { transform: rotate(360deg); } }
-.seat .framed .avatar { box-shadow: none; }
 .html.calm .frame-art, html.calm .frame-art { animation: none !important; }
 
 /* ===== Card backs (when your card is face down) ===== */
@@ -919,3 +913,108 @@ html.calm .felt { animation: none !important; }
 .seat .seat-friend:disabled { cursor: default; color: var(--faint); opacity: 1; }
 .friend-offer { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .rate-help .xp-float { margin-top: 22px; }
+/* The coin is an SVG now; the flip just turns two of them. */
+.coin-glyph { background: none !important; box-shadow: none !important; border-radius: 0; }
+.flipcoin .side { background: none !important; box-shadow: none !important; display: block; filter: drop-shadow(0 14px 18px var(--shadow)); }
+.flipcoin .side svg { display: block; }
+.mini-coins { display: flex; gap: 8px; }
+.mini-coins svg { filter: drop-shadow(0 4px 6px var(--shadow)); }
+
+/* Gameplay rings (your guesses, the hot seat, seats you can pick) are their
+   own layer, drawn outside and above any cosmetic frame, and the frame
+   fades back while one is showing, so a frame never hides what's going on. */
+.seat-face { position: relative; display: inline-grid; place-items: center; }
+.seat-ring { position: absolute; inset: -4px; border-radius: 50%; pointer-events: none; z-index: 4; transition: box-shadow .15s; }
+.seat-face:has(.framed) .seat-ring { inset: -13px; }
+.seat.pickable .seat-ring { box-shadow: 0 0 0 2px var(--line); }
+.seat.pickable:hover .seat-ring { box-shadow: 0 0 0 3px var(--accent); }
+.seat.g-high .seat-ring { box-shadow: 0 0 0 4px var(--good), 0 0 14px color-mix(in oklab, var(--good) 55%, transparent); }
+.seat.g-low .seat-ring { box-shadow: 0 0 0 4px var(--bad), 0 0 14px color-mix(in oklab, var(--bad) 55%, transparent); }
+.seat.in-seat .seat-ring { box-shadow: 0 0 0 4px var(--accent), 0 0 24px color-mix(in oklab, var(--accent) 60%, transparent); }
+.seat.g-high .frame-art, .seat.g-low .frame-art, .seat.in-seat .frame-art, .seat.pickable:hover .frame-art { opacity: .3; }
+.seat-face:has(.framed) + .seat-text, .seat.row .seat-face:has(.framed) { margin-top: 4px; }
+.streak-wrap { display: grid; gap: 4px; }
+.same-warn { font-size: 12px; color: var(--bad); font-weight: 600; }
+.xp-float .coin-float.warn em { color: var(--bad); }
+
+/* ===== Rooms: the space around the table (the host's, seen by all) =====
+   The art sits behind a veil of the theme's background, so text and seats
+   stay readable in light and dark. */
+.lobby-stage[class*='room-'] { isolation: isolate; }
+.lobby-stage[class*='room-']::before, .mini-room::before { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--room); }
+.lobby-stage[class*='room-']::after { content: ''; position: absolute; inset: 0; z-index: -1; background: color-mix(in oklab, var(--bg) 52%, transparent); pointer-events: none; }
+.lobby-stage.room-plain::before, .lobby-stage.room-plain::after { display: none; }
+.room-study { --room: repeating-linear-gradient(90deg, #6b4423 0 3px, transparent 3px 120px), linear-gradient(180deg, #8a5a32 0 62%, #5a3a1f 62% 64%, #a8744a 64%), radial-gradient(circle at 80% 18%, rgba(255, 220, 140, .55), transparent 30%); }
+.room-cafe { --room: radial-gradient(circle at 20% 10%, rgba(255, 210, 120, .5), transparent 20%), radial-gradient(circle at 60% 6%, rgba(255, 210, 120, .45), transparent 18%), linear-gradient(180deg, #c98d5c 0 58%, transparent 58%), conic-gradient(#2a2a2a 25%, #f2efe6 0 50%, #2a2a2a 0 75%, #f2efe6 0) 0 0 / 60px 60px; }
+.room-garden { --room: radial-gradient(circle, #ff9ec7 0 3px, transparent 4px) 0 0 / 80px 70px, radial-gradient(circle, #fff3a0 0 2.5px, transparent 3.5px) 35px 30px / 90px 80px, linear-gradient(180deg, #bfe6ff 0 35%, #8ccf6a 35%, #5aa543); }
+.room-beach { --room: radial-gradient(circle at 82% 16%, #fff3a0 0 40px, transparent 42px), linear-gradient(180deg, #8fd3ff 0 45%, #3fb0d8 45% 58%, #f4dba4 58%); }
+.room-library { --room: repeating-linear-gradient(0deg, #3b2412 0 10px, transparent 10px 96px), repeating-linear-gradient(90deg, #8a3a2a 0 14px, #2a4a6b 14px 24px, #7a6a2a 24px 36px, #4a6b3a 36px 44px, #6b2a4a 44px 56px, #2a2a4a 56px 64px), #2b1a0c; }
+.room-snow { --room: radial-gradient(2px 2px at 10% 20%, #fff, transparent), radial-gradient(2px 2px at 30% 60%, #fff, transparent), radial-gradient(3px 3px at 55% 30%, #fff, transparent), radial-gradient(2px 2px at 80% 70%, #fff, transparent), radial-gradient(2px 2px at 70% 15%, #fff, transparent), linear-gradient(180deg, #9fb8d8, #e8f0fa 70%, #fff); animation: snowfall 8s linear infinite; background-size: 300px 300px, 300px 300px, 300px 300px, 300px 300px, 300px 300px, 100% 100%; }
+@keyframes snowfall { to { background-position: 0 300px, 20px 300px, -10px 300px, 15px 300px, 0 300px, 0 0; } }
+.room-sea { --room: radial-gradient(circle, rgba(255, 255, 255, .5) 0 4px, transparent 5px) 0 0 / 120px 140px, radial-gradient(circle, rgba(255, 255, 255, .35) 0 2.5px, transparent 3.5px) 50px 60px / 90px 110px, linear-gradient(180deg, #1f8ab0, #0b3a6b 80%); animation: bubbles 9s linear infinite; }
+@keyframes bubbles { to { background-position: 0 -140px, 50px -50px, 0 0; } }
+.room-arcade { --room: linear-gradient(180deg, transparent 0 50%, rgba(255, 42, 109, .0) 50%), repeating-linear-gradient(90deg, rgba(255, 42, 109, .55) 0 2px, transparent 2px 70px), repeating-linear-gradient(0deg, rgba(5, 217, 232, .5) 0 2px, transparent 2px 50px), linear-gradient(180deg, #2a0b4a 0 45%, #ff6b9a 45% 46%, #12062a 46%); }
+.room-space { --room: radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent), radial-gradient(1px 1px at 40% 70%, #fff, transparent), radial-gradient(2px 2px at 70% 30%, #cde, transparent), radial-gradient(1px 1px at 85% 80%, #fff, transparent), radial-gradient(1.5px 1.5px at 25% 85%, #fff, transparent), radial-gradient(ellipse at 70% 120%, #3a1a6e, transparent 60%), #05060f; background-size: 220px 220px, 220px 220px, 220px 220px, 220px 220px, 220px 220px, 100% 100%, 100% 100%; animation: warp 6s linear infinite; }
+@keyframes warp { to { background-position: -220px 0, -440px 0, -220px 0, -440px 0, -220px 0, 0 0, 0 0; } }
+.room-throne { --room: radial-gradient(ellipse at 50% 0, rgba(255, 220, 120, .55), transparent 55%), repeating-linear-gradient(90deg, #4a0f3a 0 60px, #5a1446 60px 64px), linear-gradient(180deg, transparent 70%, #c9a227 70% 71%, #7a1030 71%); }
+.room-press { --room: repeating-linear-gradient(0deg, rgba(0, 0, 0, .12) 0 1px, transparent 1px 24px), radial-gradient(circle at 30% 30%, rgba(0, 0, 0, .15), transparent 40%), #e9dfc8; }
+html.calm .lobby-stage::before { animation: none !important; }
+.mini-room { position: relative; width: 100%; height: 100%; isolation: isolate; display: grid; place-items: center; }
+.mini-room .mini-table { transform: scale(.7); }
+
+/* ===== More tables ===== */
+.felt-chalk .felt { background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, .08), transparent 30%), radial-gradient(ellipse at 50% 40%, #2f5a45, #1d3a2b 80%); box-shadow: inset 0 0 0 10px #8a5a2b, inset 0 0 0 12px #c9a45c, 0 30px 60px var(--shadow); }
+.felt-denim .felt { background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .06) 0 2px, transparent 2px 5px), radial-gradient(ellipse at 50% 40%, #4a6fa5, #2a4470 80%); box-shadow: inset 0 0 0 9px #2a4470, inset 0 0 0 11px #f2c27a, inset 0 0 0 12px #2a4470, 0 30px 60px var(--shadow); outline: 2px dashed #f2c27a; outline-offset: -16px; }
+.felt-blueprint .felt { background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .15) 0 1px, transparent 1px 16px), repeating-linear-gradient(90deg, rgba(255, 255, 255, .15) 0 1px, transparent 1px 16px), #1f5fa8; box-shadow: inset 0 0 0 10px #174a85, inset 0 0 0 12px #e8f0fa, 0 30px 60px var(--shadow); }
+.felt-comic .felt { background: radial-gradient(circle, #ff5a5a 0 2px, transparent 2.5px) 0 0 / 9px 9px, #ffe66b; box-shadow: inset 0 0 0 8px #111, inset 0 0 0 12px #fff, inset 0 0 0 14px #111, 0 30px 60px var(--shadow); }
+.felt-ice .felt { background: linear-gradient(120deg, transparent 45%, rgba(255, 255, 255, .7) 46%, transparent 47%), linear-gradient(30deg, transparent 60%, rgba(255, 255, 255, .5) 61%, transparent 62%), radial-gradient(ellipse at 50% 40%, #e8f6ff, #9fd4f0 80%); box-shadow: inset 0 0 0 10px #d8eefa, inset 0 0 0 12px #6fb4d8, 0 30px 60px var(--shadow); }
+.felt-sunset .felt { background: radial-gradient(circle at 50% 75%, #ffe08a 0 12%, transparent 13%), linear-gradient(180deg, #ff7a59, #ff4d7a 45%, #6b2a8a 90%); box-shadow: inset 0 0 0 10px #3a1a4a, inset 0 0 0 12px #ffb36b, 0 30px 60px var(--shadow); }
+.felt-lava .felt { background: radial-gradient(circle at 30% 40%, #ffd23a, transparent 18%), radial-gradient(circle at 70% 60%, #ffb21a, transparent 20%), radial-gradient(circle at 50% 30%, #ff6a1a, transparent 30%), #8a1a0a; background-size: 200% 200%; box-shadow: inset 0 0 0 10px #2a0a05, inset 0 0 0 12px #ff6a1a, 0 0 30px rgba(255, 90, 20, .5), 0 30px 60px var(--shadow); animation: lava 14s ease-in-out infinite alternate; }
+@keyframes lava { to { background-position: 100% 100%, 0 0, 30% 70%, 0 0; } }
+.felt-chalk .felt-center, .felt-denim .felt-center, .felt-blueprint .felt-center, .felt-sunset .felt-center, .felt-lava .felt-center { --word: #fbf6e8; --text: #fbf6e8; --dim: #e6dcc6; --faint: #c9bfa8; --read-text: #f1e9d6; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); color: var(--text); }
+.felt-chalk .felt-center { --word: #ffffff; font-family: var(--font-read); }
+.felt-comic .felt-center, .felt-ice .felt-center { --word: #111; --text: #111; --dim: #333; --faint: #555; --read-text: #222; color: var(--text); }
+
+/* ===== More frames ===== */
+.frame-halo .frame-art::after { content: ''; position: absolute; left: 12%; right: 12%; top: -12px; height: 9px; border-radius: 50%; border: 3px solid #ffe27a; box-shadow: 0 0 8px #ffe27a; }
+.frame-hearts .frame-art { inset: -10px; animation: spin 10s linear infinite; }
+.frame-hearts .frame-art::before, .frame-hearts .frame-art::after { content: '❤'; position: absolute; color: #ff5a8a; font-size: 12px; }
+.frame-hearts .frame-art::before { top: -4px; left: 46%; } .frame-hearts .frame-art::after { bottom: -4px; left: 46%; }
+.frame-hearts .frame-art { box-shadow: 0 0 0 2px rgba(255, 90, 138, .5); }
+.frame-neon .frame-art { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #ff2a6d, 0 0 14px 2px #ff2a6d, 0 0 26px 4px rgba(5, 217, 232, .6); animation: buzz 3s steps(1) infinite; }
+@keyframes buzz { 0%, 90%, 100% { opacity: 1; } 92%, 96% { opacity: .5; } }
+.frame-ice .frame-art { inset: -7px; background: conic-gradient(#e8f6ff, #9fd4f0, #ffffff, #6fb4d8, #e8f6ff); -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); box-shadow: 0 0 10px rgba(160, 220, 255, .8); }
+.frame-sakura .frame-art { inset: -10px; border-radius: 50%; background: radial-gradient(circle at 15% 25%, #ffb7d0 0 4px, transparent 5px), radial-gradient(circle at 85% 20%, #ffc8dc 0 5px, transparent 6px), radial-gradient(circle at 80% 85%, #ffb7d0 0 4px, transparent 5px), radial-gradient(circle at 18% 80%, #ffd6e6 0 5px, transparent 6px), radial-gradient(circle at 50% 2%, #ffc8dc 0 4px, transparent 5px); box-shadow: 0 0 0 2px #ffc8dc; animation: spin 14s linear infinite; }
+.frame-gears .frame-art { inset: -8px; border: 5px dotted #c9a24a; box-shadow: 0 0 0 2px #7a5a1a, inset 0 0 0 2px #7a5a1a; animation: spin 8s linear infinite; }
+.frame-sparkle .frame-art { box-shadow: 0 0 0 2px #fff6c8; }
+.frame-sparkle .frame-art::before, .frame-sparkle .frame-art::after { content: '✦'; position: absolute; color: #fff; text-shadow: 0 0 6px #f4c542, 0 0 12px #f4c542; font-size: 14px; animation: glint 2.4s ease-in-out infinite; }
+.frame-sparkle .frame-art::before { top: -10px; right: -2px; } .frame-sparkle .frame-art::after { bottom: -8px; left: -4px; animation-delay: 1.2s; }
+@keyframes glint { 0%, 100% { opacity: 0; transform: scale(.4) rotate(0); } 50% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
+.frame-eclipse .frame-art { inset: -9px; background: conic-gradient(#ff6a1a, #ffd23a, #ff3a1a, #ffb21a, #ff6a1a); -webkit-mask: radial-gradient(circle, transparent 55%, #000 58%, transparent 75%); mask: radial-gradient(circle, transparent 55%, #000 58%, transparent 75%); filter: blur(1px); animation: spin 5s linear infinite; box-shadow: 0 0 22px rgba(255, 120, 30, .8); }
+
+/* ===== More card backs ===== */
+.card.locked .back.cb-zigzag, .mini-back.cb-zigzag { background: linear-gradient(135deg, #1fb5a8 25%, transparent 25%) -8px 0 / 16px 16px, linear-gradient(225deg, #1fb5a8 25%, transparent 25%) -8px 0 / 16px 16px, linear-gradient(315deg, #1fb5a8 25%, transparent 25%) 0 0 / 16px 16px, linear-gradient(45deg, #1fb5a8 25%, #ffe08a 25%) 0 0 / 16px 16px; }
+.card.locked .back.cb-grid, .mini-back.cb-grid { background: repeating-linear-gradient(0deg, #9ab4d8 0 1px, transparent 1px 8px), repeating-linear-gradient(90deg, #9ab4d8 0 1px, transparent 1px 8px), #fbfbf6; color: #3e8ed0; }
+.card.locked .back.cb-sunset, .mini-back.cb-sunset { background: linear-gradient(180deg, #ffb36b, #ff4d7a 55%, #6b2a8a); }
+.card.locked .back.cb-circuit, .mini-back.cb-circuit { background: radial-gradient(circle, #6bd68a 0 2px, transparent 2.5px) 0 0 / 12px 12px, repeating-linear-gradient(90deg, rgba(107, 214, 138, .5) 0 1px, transparent 1px 12px), #0d3a22; color: #6bd68a; }
+.card.locked .back.cb-marble, .mini-back.cb-marble { background: linear-gradient(115deg, transparent 40%, rgba(110, 110, 120, .35) 41%, transparent 44%), linear-gradient(35deg, transparent 60%, rgba(110, 110, 120, .3) 61%, transparent 63%), #f2f0ea; color: #555; }
+.card.locked .back.cb-aurora, .mini-back.cb-aurora { background: linear-gradient(160deg, #0b1a3a, #1a6b5a 40%, #6bd6a8 55%, #6b4ad6 75%, #0b1a3a); background-size: 200% 200%; animation: foil 5s ease-in-out infinite alternate; }
+
+/* ===== More name styles ===== */
+.nm-outline { color: transparent !important; -webkit-text-stroke: 1px var(--text); font-weight: 800; }
+.nm-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace !important; letter-spacing: -.5px; }
+.nm-neon { color: #fff !important; text-shadow: 0 0 4px #ff2a6d, 0 0 10px #ff2a6d, 0 0 18px #ff2a6d; }
+.nm-fire { background: linear-gradient(0deg, #ff3a1a, #ffb21a 60%, #ffe08a); -webkit-background-clip: text; background-clip: text; color: transparent !important; font-weight: 800; }
+.nm-ice { background: linear-gradient(180deg, #ffffff, #9fd4f0 50%, #3e8ed0); -webkit-background-clip: text; background-clip: text; color: transparent !important; font-weight: 800; }
+.nm-shimmer { background: linear-gradient(100deg, var(--text) 40%, #fff6c8 50%, var(--text) 60%); background-size: 250% auto; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: slide 2.8s linear infinite; font-weight: 700; }
+.rarity.r-badge { color: #fff; background: linear-gradient(90deg, #3e8ed0, #2aa39a); }
+.mini-room::before { z-index: -1; }
+.mini-room::after { content: ''; position: absolute; inset: 0; z-index: -1; background: color-mix(in oklab, var(--bg) 35%, transparent); }
+.mini-room.room-plain::before, .mini-room.room-plain::after { display: none; }
+.shop-item.r-badge { background: linear-gradient(160deg, color-mix(in srgb, #2aa39a 10%, var(--panel)), var(--panel) 60%); }
+.flipcoin .side { filter: none !important; }
+.flip-shadow { width: 110px; height: 14px; border-radius: 50%; background: radial-gradient(ellipse, var(--shadow), transparent 70%); margin-top: -8px; }
+.flipcoin.still { transform: none; } .flipcoin.still svg { display: block; }
+.lobby-stage[class*='room-']::after { background: color-mix(in oklab, var(--bg) 66%, transparent); }
+.lobby-stage[class*='room-'] .seat-text, .lobby-stage[class*='room-'] .lobby-bottom, .lobby-stage[class*='room-'] .lobby-top .round { text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg); }
+.nm-gold, .nm-rainbow, .nm-fire, .nm-ice, .nm-shimmer, .nm-outline { text-shadow: none !important; }

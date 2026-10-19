@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatCoins, UPGRADE_KINDS } from '../shared/economy.js'
-import { api, Coins, useToast, useInterval } from './ui.jsx'
+import { api, Coins, CoinArt, useToast, useInterval } from './ui.jsx'
 import { burst, centerOf } from './effects.js'
 
 // The wirdhouse: where coins are invested. Buildings make coins every
@@ -34,7 +34,7 @@ export default function Wirdhouse ({ econ }) {
             {econ?.museUntil > Date.now() && <span className='muse'>💡 muse ×{v.fx.museMult}</span>}
           </div>
         </div>
-        <p className='lede'>Every new word you rate pays the same, whatever you give it. The wirdhouse turns coins into more coins; spend them here, or on looks in the shop.</p>
+        <p className='lede'>Every new word you rate pays the same, whatever you give it. Rate new words within a minute of each other for a streak, but the same score five times running ends it. The wirdhouse turns coins into more coins; spend them here, or on looks in the shop.</p>
       </div>
       <div className='tabs' role='tablist'>
         {[['build', 'Build'], ['upgrades', 'Upgrades'], ['publish', `Publish${v.prestige.gain ? ' ✨' : ''}`], ['flip', 'Coinflip'], ['stats', 'Stats']].map(([id, label]) => (
@@ -215,10 +215,15 @@ function Coinflip ({ v, coins, act, look }) {
   return (
     <div className='coinflip'>
       <div className='flip-stage'>
-        <div key={flip?.key} className={`flipcoin coin-${look?.coin || 'gold'} ${flip ? `land-${flip.side}` : ''}`} aria-live='polite'>
-          <span className='side heads'>H</span>
-          <span className='side tails'>T</span>
-        </div>
+        {spinning && flip
+          ? (
+            <div key={flip.key} className={`flipcoin land-${flip.side}`}>
+              <span className='side heads'><CoinArt skin={look?.coin || 'gold'} side='heads' size={150} /></span>
+              <span className='side tails'><CoinArt skin={look?.coin || 'gold'} side='tails' size={150} /></span>
+            </div>
+            )
+          : <div className='flipcoin still' aria-live='polite'><CoinArt skin={look?.coin || 'gold'} side={flip?.side || 'heads'} size={150} /></div>}
+        <div className='flip-shadow' aria-hidden='true' />
         <div className='flip-result'>
           {flip && !spinning && (flip.win ? <span className='win'>It’s {flip.side}! +<Coins n={flip.stake} /></span> : <span className='loss'>It’s {flip.side}. −<Coins n={flip.stake} /></span>)}
           {spinning && <span>…</span>}
@@ -233,7 +238,7 @@ function Coinflip ({ v, coins, act, look }) {
           <button onClick={() => setStake(String(Math.min(whole, Math.max(1, amount * 2))))}>×2</button>
         </div>
         <div className='seg call'>
-          {['heads', 'tails'].map((s) => <button key={s} className={call === s ? 'on' : ''} onClick={() => setCall(s)}>{s === 'heads' ? 'Heads' : 'Tails'}</button>)}
+          {['heads', 'tails'].map((s) => <button key={s} className={call === s ? 'on' : ''} onClick={() => setCall(s)}>{s === 'heads' ? 'Heads (ww)' : 'Tails (★)'}</button>)}
         </div>
         <button className='btn primary big' disabled={spinning || amount < 1 || amount > whole} onClick={go}>{amount > whole ? 'You don’t have that many' : `Flip for ${formatCoins(Math.min(amount, whole) || 0)}`}</button>
         <p className='opt-hint'>Heads or tails. Win and it doubles, lose and it’s gone. It doesn’t count toward ink, and it doesn’t mean anything. That’s the point.</p>

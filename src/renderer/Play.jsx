@@ -133,7 +133,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       setRated({ ...earned, r })
       setText(formatRating(r))
       setStampKey((k) => k + 1)
-      setFloats([...(earned.coins ? [{ coin: true, amount: earned.coins.coins, why: earned.coins.firstToday ? 'first word today' : earned.coins.streak.n > 1 ? `×${earned.coins.streak.mult.toFixed(2)} streak` : '', id: `${stampKey}-c` }] : []), ...earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` }))])
+      setFloats([...(earned.coins ? [{ coin: true, amount: earned.coins.coins, why: earned.coins.broke ? `same score ${earned.coins.same.n}× in a row: no streak` : earned.coins.firstToday ? 'first word today' : earned.coins.streak.n > 1 ? `×${earned.coins.streak.mult.toFixed(2)} streak` : '', warn: earned.coins.broke, id: `${stampKey}-c` }] : []), ...earned.xp.map((x, i) => ({ ...x, id: `${stampKey}-${i}` }))])
       setTimeout(() => setFloats([]), 1900)
       playRating(r, settings)
       // The extremes get a moment of their own.
@@ -145,6 +145,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       }
       setSkipNote(null)
       celebrate(toast, earned)
+      if (earned.coins?.broke && earned.coins.same.n === 5) toast({ emoji: '🧯', title: 'Streak lost', text: `That’s ${formatRating(r)} five times in a row. The pace streak is for real ratings, so the same score over and over ends it. Give each word the score it deserves.`, ms: 7000 })
       if (earned.twins.length) toast({ emoji: '👯', title: `Same as ${earned.twins.join(' and ')}`, text: `You both gave “${card.word}” a ${formatRating(r)}.` })
       refreshTop()
       if (settings.autoAdvanceMs) autoTimer.current = setTimeout(() => next(), settings.autoAdvanceMs)
@@ -294,9 +295,9 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                     {isRated
                       ? <span><Kbd>Enter</Kbd> next word{rated.again && !rated.xp ? ', or type to change your rating' : ''}</span>
                       : r !== null ? <span><Kbd>Enter</Kbd> to rate <b>{text}</b></span> : <span>Type a rating out of 5</span>}
-                    <StreakMeter streak={econ?.streak} />
+                    <StreakMeter streak={econ?.streak} same={econ?.same} limit={econ?.sameLimit || 5} />
                     <div className='xp-float' aria-hidden='true'>
-                      {floats.map((f) => f.coin ? <span key={f.id} className='coin-float'>+<Coins n={f.amount} /><em>{f.why}</em></span> : <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
+                      {floats.map((f) => f.coin ? <span key={f.id} className={`coin-float ${f.warn ? 'warn' : ''}`}>+<Coins n={f.amount} /><em>{f.why}</em></span> : <span key={f.id}>+{f.amount} xp<em>{f.why}</em></span>)}
                     </div>
                   </div>
                 </div>
@@ -510,18 +511,24 @@ export function ModePicker ({ modes, mode, onPick, onClose }) {
 
 // The pace streak: how much more each new word pays while you keep going,
 // and how long until it runs out.
-function StreakMeter ({ streak }) {
+// A warning shows when the same score keeps coming up: at `limit` in a row
+// the streak ends.
+function StreakMeter ({ streak, same, limit }) {
   const [, tick] = useState(0)
   useInterval(() => tick((x) => x + 1), streak?.endsAt ? 250 : 0)
   if (!streak || streak.n < 2 || !streak.endsAt) return null
   const left = Math.max(0, streak.endsAt - Date.now())
   if (!left) return null
   const frac = left / (streak.window * 1000)
+  const repeats = same && same.r !== null && same.n >= 3 ? same.n : 0
   return (
-    <span className={`streak-meter ${frac < 0.25 ? 'ending' : ''}`} title='Rate another new word before it runs out to keep the streak'>
-      <b>🔥 ×{streak.mult.toFixed(2)}</b> {streak.n} in a row
-      <i><u style={{ width: `${frac * 100}%` }} /></i>
-      <small>{Math.ceil(left / 1000)}s</small>
+    <span className='streak-wrap'>
+      <span className={`streak-meter ${frac < 0.25 ? 'ending' : ''}`} title='Rate another new word before it runs out to keep the streak'>
+        <b>🔥 ×{streak.mult.toFixed(2)}</b> {streak.n} in a row
+        <i><u style={{ width: `${frac * 100}%` }} /></i>
+        <small>{Math.ceil(left / 1000)}s</small>
+      </span>
+      {repeats > 0 && <span className='same-warn'>⚠ {formatRating(same.r)} {repeats} times running. {limit - repeats === 1 ? 'One more' : `${limit - repeats} more`} and the streak ends.</span>}
     </span>
   )
 }

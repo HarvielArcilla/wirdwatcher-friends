@@ -395,6 +395,7 @@ export class Game extends EventEmitter {
     s.average = ratings.length ? s.sum / ratings.length : null
     const sorted = ratings.map((x) => x.r).sort((a, b) => a - b)
     s.median = sorted.length ? (sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : null
+    Object.assign(s, this.extraStats?.() || {})
     return s
   }
 

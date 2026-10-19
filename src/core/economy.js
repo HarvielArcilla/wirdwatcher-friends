@@ -20,6 +20,7 @@ import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../share
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
 const ASLEEP_MS = 30000 // a gap this long between ticks means the computer slept: count it as time away
+export const SAME_LIMIT = 5 // this many of the same score in a row ends the pace streak
 
 const blank = (now) => ({
   v: 1,
@@ -47,11 +48,12 @@ const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.
 
 export class Economy extends EventEmitter {
   // now(): milliseconds. friendsOnline(): how many friends are online.
-  constructor ({ dir, now = () => Date.now(), friendsOnline = () => 0, dev = false }) {
+  constructor ({ dir, now = () => Date.now(), friendsOnline = () => 0, hasBadge = () => false, dev = false }) {
     super()
     this.file = path.join(dir, 'economy.json')
     this.now = now
     this.friendsOnline = friendsOnline
+    this.hasBadge = hasBadge
     this.dev = dev
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
@@ -129,23 +131,31 @@ export class Economy extends EventEmitter {
 
   // A word was rated. Only the first time a word is ever rated pays, and what
   // the rating was never matters.
-  onWord (word, { fresh }) {
+  //
+  // Giving the same score SAME_LIMIT times running ends the pace streak (and
+  // that word pays without it): the streak is for rating, not for holding a
+  // key down.
+  onWord (word, { fresh, r = null }) {
     if (!fresh || this.paid.has(word)) return null
     const t = this.now()
     this.tick(t)
     const day = localDay(t)
     const firstToday = this.s.lastWordDay !== day
     const fx = effects(this.s)
+    const same = r !== null && this.s.same?.r === r ? this.s.same.n + 1 : 1
+    this.s.same = { r, n: same }
+    const spam = same >= SAME_LIMIT
     const pay = wordPay(this.s, { word, now: t, firstToday }, fx)
+    if (spam) { pay.coins /= pay.streak.mult; pay.streak = { n: 0, mult: 1 } }
     this.paid.add(word)
     this.s.lastWordDay = day
-    this.s.streak = { n: pay.streak.n, last: t }
+    this.s.streak = spam ? { n: 0, last: 0 } : { n: pay.streak.n, last: t }
     this.s.stats.bestStreak = Math.max(this.s.stats.bestStreak, pay.streak.n)
     if (fx.museSecs) this.s.museUntil = t + fx.museSecs * 1000
     this.s.stats.words++
     this._earn(pay.coins)
     this.emit('changed')
-    return { coins: pay.coins, streak: { n: pay.streak.n, mult: pay.streak.mult }, firstToday: pay.firstToday, muse: fx.museSecs ? { mult: fx.museMult, until: this.s.museUntil } : null }
+    return { coins: pay.coins, streak: { n: pay.streak.n, mult: pay.streak.mult }, same: { r, n: same }, broke: spam, firstToday: pay.firstToday, muse: fx.museSecs ? { mult: fx.museMult, until: this.s.museUntil } : null }
   }
 
   onLobbyRound ({ hosting = false } = {}) {
@@ -204,7 +214,7 @@ export class Economy extends EventEmitter {
     s.coins = [0, 1e3, 1e4, 1e5, 1e6, 1e7][seed]
     s.runCoins = 0
     s.buildings = { pencil: [0, 5, 15, 30, 50, 100][head], notebook: [0, 0, 5, 10, 25, 50][head] }
-    s.upgrades = []
+    s.upgrades = s.perks.momentum ? ['streak-1', 'streak-2'] : []
     s.streak = { n: 0, last: 0 }
     s.museUntil = 0
     // Each edition can bring something only editions bring.
@@ -265,13 +275,14 @@ export class Economy extends EventEmitter {
 
   owns (kind, id) {
     const c = cosmetic(kind, id)
-    return Boolean(c && (c.free || this.s.owned.includes(`${kind}:${id}`)))
+    return Boolean(c && (c.free || this.s.owned.includes(`${kind}:${id}`) || (c.badge && this.hasBadge(c.badge))))
   }
 
   buyCosmetic (kind, id) {
     const c = cosmetic(kind, id)
     if (!c) throw new Error('No such item.')
     if (this.owns(kind, id)) throw new Error('You already have it.')
+    if (c.badge) throw new Error('That one comes with a badge.')
     if (c.price === null) throw new Error(`That one comes from publishing ${c.edition === 1 ? 'once' : `${c.edition} times`}.`)
     this._spend(c.price)
     this.s.owned.push(`${kind}:${id}`)
@@ -291,6 +302,25 @@ export class Economy extends EventEmitter {
     return this.view()
   }
 
+  // Numbers for badges.
+  badgeStats () {
+    const s = this.s
+    return {
+      ecoEver: s.allCoins,
+      ecoBuildings: Object.values(s.buildings).reduce((a, b) => a + b, 0),
+      ecoKinds: BUILDINGS.filter((b) => (s.buildings[b.id] || 0) > 0).length,
+      ecoUpgrades: s.upgrades.length,
+      ecoEditions: s.edition,
+      ecoFlips: s.flips.count,
+      ecoFlipBest: s.flips.bestStreak,
+      ecoFlipBig: Math.max(s.flips.biggestWin, s.flips.biggestLoss),
+      ecoFlipWorst: -s.flips.worstStreak,
+      ecoPace: s.stats.bestStreak,
+      ecoCosmetics: s.owned.length,
+      ecoPerks: Object.values(s.perks).reduce((a, b) => a + b, 0)
+    }
+  }
+
   // What others see.
   look () {
     return { ...Object.fromEntries(PUBLIC_KINDS.map((k) => [k, this.s.look[k] || DEFAULT_LOOK[k]])), edition: this.s.edition }
@@ -299,7 +329,7 @@ export class Economy extends EventEmitter {
   // --- for testing (the dev account) -------------------------------------------------
 
   devUnlockAll (notify = true) {
-    for (const c of COSMETICS) if (!c.free && !this.s.owned.includes(`${c.kind}:${c.id}`)) this.s.owned.push(`${c.kind}:${c.id}`)
+    for (const c of COSMETICS) if (!c.free && !this.s.owned.includes(`${c.kind}:${c.id}`)) this.s.owned.push(`${c.kind}:${c.id}`) // badge titles too, for testing
     this.dirty = true
     if (notify) { this.emit('changed'); this.emit('look') }
   }
@@ -331,6 +361,8 @@ export class Economy extends EventEmitter {
       coins: this.s.coins,
       cps: cpsNow(this.s, { now: t, friendsOnline: this.friendsOnline() }, fx),
       streak: { n: st.n, mult: st.mult, endsAt: st.endsAt, window: fx.streakWindow },
+      same: this.s.same || { r: null, n: 0 },
+      sameLimit: SAME_LIMIT,
       museUntil: this.s.museUntil > t ? this.s.museUntil : 0,
       museMult: fx.museMult,
       edition: this.s.edition,
@@ -358,7 +390,7 @@ export class Economy extends EventEmitter {
       prestige: { edition: s.edition, ink: s.ink, inkTotal: s.inkTotal, gain: inkGain(s), nextAt: ((inkTotalFor(s.allCoins) + 1) ** 3) * INK_PER, bonus: INK_BONUS, perks: PERKS.map((p) => { const level = s.perks[p.id] || 0; return { id: p.id, emoji: p.emoji, name: p.name, max: p.max, level, cost: level < p.max ? p.cost(level) : null, desc: p.desc(level), nextDesc: level < p.max ? p.desc(level + 1) : null } }) },
       flips: { ...s.flips },
       stats: { ...s.stats },
-      owned: [...COSMETICS.filter((c) => c.free).map((c) => `${c.kind}:${c.id}`), ...s.owned],
+      owned: [...COSMETICS.filter((c) => c.free || (c.badge && this.hasBadge(c.badge))).map((c) => `${c.kind}:${c.id}`), ...s.owned],
       dev: this.dev
     }
   }

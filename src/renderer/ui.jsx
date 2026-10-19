@@ -26,7 +26,57 @@ export function Avatar ({ name, color, size, frame, children }) {
 
 // A coin amount, with the coin.
 export function Coins ({ n, className = '' }) {
-  return <span className={`coins ${className}`}><span className='coin-glyph' aria-hidden='true' />{formatCoins(n)}</span>
+  return <span className={`coins ${className}`}><CoinArt size='0.95em' side='plain' className='coin-glyph' />{formatCoins(n)}</span>
+}
+
+// The coin, drawn: a milled rim, a raised ring, and a face. Heads carries
+// the ww monogram, tails a five-point star (a 5.0). `skin` is a coin from the
+// shop.
+const SKINS = {
+  gold: ['#fff4c2', '#f2c23e', '#b07a12', '#7a5208'],
+  silver: ['#ffffff', '#cfd4dc', '#7c8591', '#3c434d'],
+  bronze: ['#f6d2a6', '#c47f3d', '#7a4416', '#4a260a'],
+  rose: ['#ffe7e3', '#e9a9a2', '#a65f5c', '#6b3030'],
+  obsidian: ['#9a7ae8', '#2c2340', '#0c0a12', '#cbb8ff'],
+  rainbow: ['#fff', '#f4c542', '#6b4ad6', '#ffffff'],
+  emerald: ['#d8ffe6', '#3fbf74', '#1a6b3f', '#0c3a20'],
+  sapphire: ['#dfeaff', '#4a7ee8', '#1c3a8a', '#0c1c4a'],
+  ruby: ['#ffe0e4', '#e0405a', '#8a1426', '#4a0812'],
+  pearl: ['#ffffff', '#eae6f0', '#b8b0c8', '#6a6080'],
+  pixel: ['#fff4c2', '#f2c23e', '#b07a12', '#5a3a00'],
+  ink: ['#e8eaf6', '#3a3f6b', '#141632', '#e8eaf6']
+}
+let coinIds = 0
+export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className = '' }) {
+  const [hi, mid, lo, ink] = SKINS[skin] || SKINS.gold
+  const id = useRef(null)
+  if (!id.current) id.current = `cg${++coinIds}`
+  const g = id.current
+  const rainbow = skin === 'rainbow'
+  return (
+    <svg className={className} width={size} height={size} viewBox='0 0 100 100' aria-hidden='true' style={{ flex: 'none', display: 'inline-block', verticalAlign: '-0.12em' }}>
+      <defs>
+        <radialGradient id={`${g}f`} cx='35%' cy='28%' r='80%'>
+          <stop offset='0' stopColor={hi} /><stop offset='.5' stopColor={mid} /><stop offset='1' stopColor={lo} />
+        </radialGradient>
+        {rainbow && (
+          <linearGradient id={`${g}r`} x1='0' y1='0' x2='1' y2='1'>
+            <stop offset='0' stopColor='#ff6b6b' /><stop offset='.25' stopColor='#f4c542' /><stop offset='.5' stopColor='#6bd68a' /><stop offset='.75' stopColor='#4ab1f0' /><stop offset='1' stopColor='#a66bd8' />
+          </linearGradient>
+        )}
+      </defs>
+      <circle cx='50' cy='50' r='48' fill={rainbow ? `url(#${g}r)` : `url(#${g}f)`} />
+      <circle cx='50' cy='50' r='45' fill='none' stroke={lo} strokeWidth='4' strokeDasharray='2 2.2' opacity='.55' />
+      <circle cx='50' cy='50' r='38' fill='none' stroke={rainbow ? '#fff' : hi} strokeWidth='2.5' opacity='.7' />
+      <circle cx='50' cy='50' r='35.5' fill='none' stroke={lo} strokeWidth='1.5' opacity='.5' />
+      {side === 'plain'
+        ? <circle cx='50' cy='50' r='24' fill={lo} opacity='.28' />
+        : side === 'heads'
+        ? <text x='50' y='51' textAnchor='middle' dominantBaseline='central' fontFamily='Fredoka, system-ui, sans-serif' fontWeight='700' fontSize='34' fill={ink} opacity='.9' style={{ letterSpacing: '-1px' }}>ww</text>
+        : <path d='M50 24 L57.6 41.2 L76 42.8 L62 55 L66.2 73 L50 63.4 L33.8 73 L38 55 L24 42.8 L42.4 41.2 Z' fill={ink} opacity='.85' />}
+      <ellipse cx='36' cy='26' rx='16' ry='7' fill='#fff' opacity={skin === 'obsidian' || skin === 'ink' ? 0.12 : 0.28} transform='rotate(-25 36 26)' />
+    </svg>
+  )
 }
 
 export function Kbd ({ children }) { return <kbd>{children}</kbd> }

@@ -3,7 +3,7 @@ import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress
 import { playRating } from './sound.js'
 import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
-import { titleText } from '../shared/cosmetics.js'
+import { titleText, packEmoji } from '../shared/cosmetics.js'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player and a card on the felt in front of each seat. What happens
@@ -215,7 +215,7 @@ function Table ({ lobby, choices, active, events, settings }) {
 
   return (
     <div className='lobby' onClickCapture={(e) => { const b = e.target.closest?.('button'); if (b) setTimeout(() => { if (document.activeElement === b) b.blur() }, 0) }}>
-      <section className='lobby-stage' onMouseDown={(e) => { if (!['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) document.activeElement?.blur?.() }}>
+      <section className={`lobby-stage room-${lobby.room || 'plain'}`} onMouseDown={(e) => { if (!['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) document.activeElement?.blur?.() }}>
         {lobby.reconnecting && <div className='reconnecting' role='status'>Lost the host for a moment. Reconnecting… your seat is saved.</div>}
         <div className='lobby-top'>
           <span className='round'>
@@ -278,7 +278,7 @@ function Table ({ lobby, choices, active, events, settings }) {
               <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${style === 'hotseat' && c && p.id === c.seat ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => pickGuess(p.id) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `Guess ${p.me ? 'yourself' : p.name}` : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
                 {clickable && <span className='seat-key'>{guessIndex + 1}</span>}
-                <Avatar name={p.name} color={p.color} frame={p.look?.frame} />
+                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' /></span>
                 <div className='seat-text'>
                   <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}</span>
                   <span className='slvl'>
@@ -390,12 +390,12 @@ function Table ({ lobby, choices, active, events, settings }) {
         {scored && phase !== 'waiting' && (
           <div className='sect'>
             <h3>Scores</h3>
-            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
+            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
           </div>
         )}
         <div className='sect'>
           <h3>React <span style={{ fontWeight: 400, fontSize: 12 }}>Alt + 1–8</span></h3>
-          <div className='reactions'>{choices.reactions.map((e) => <button key={e} onClick={() => act('react', e)} aria-label={`React ${e}`}>{e}</button>)}</div>
+          <div className='reactions'>{[...choices.reactions, ...packEmoji(me?.look?.reactions)].map((e) => <button key={e} onClick={() => act('react', e)} aria-label={`React ${e}`}>{e}</button>)}</div>
         </div>
         <div className='chat' aria-live='polite'>
           {events.filter((e) => e.kind !== 'react').map((e, i) => {

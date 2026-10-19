@@ -123,7 +123,7 @@ test('the shop: buy, wear, and only real items reach others', () => {
   e.equip('frame', 'none')
   assert.equal(e.look().frame, 'none')
   assert.throws(() => e.buyCosmetic('frame', 'legend'), /publishing 5 times/)
-  assert.deepEqual(cleanLook({ frame: 'made-up', table: 'velvet', evil: 'x' }), { table: 'velvet', frame: 'none', cardBack: 'stripes', title: 'none', name: 'plain' })
+  assert.deepEqual(cleanLook({ frame: 'made-up', table: 'velvet', evil: 'x' }), { room: 'plain', table: 'velvet', frame: 'none', cardBack: 'stripes', title: 'none', name: 'plain', reactions: 'none' })
 })
 
 test('economy survives an update, and the dev account has everything', () => {
@@ -158,4 +158,36 @@ test('the host’s table and everyone’s frames show up at the table', async (t
   pip.economy.equip('frame', 'crown')
   await until(() => host.lobbyState.players.find((p) => !p.me).look.frame === 'crown')
   void wordPay
+})
+
+test('the same score five times running ends the streak', () => {
+  const c = clock()
+  const e = new Economy({ dir: tmp(), now: c.now })
+  let last
+  for (let i = 0; i < 4; i++) { c.add(4000); last = e.onWord(`w${i}`, { fresh: true, r: 2.5 }) }
+  assert.equal(last.streak.n, 4)
+  assert.equal(last.broke, false)
+  c.add(4000)
+  const fifth = e.onWord('w4', { fresh: true, r: 2.5 })
+  assert.equal(fifth.broke, true)
+  assert.equal(fifth.streak.mult, 1, 'the fifth pays without a streak')
+  c.add(4000)
+  const next = e.onWord('w5', { fresh: true, r: 3.1 })
+  assert.equal(next.streak.n, 1, 'a different score starts a new streak')
+  assert.equal(next.broke, false)
+})
+
+test('badge titles come with their badge, and coins earn badges', () => {
+  const dir = tmp()
+  const app = new WirdApp({ dataDir: dir, settings: { lan: false, internet: false } })
+  assert.equal(app.economy.owns('title', 'centurion'), false)
+  app.store.progress.badges.hundred = Date.now()
+  assert.equal(app.economy.owns('title', 'centurion'), true)
+  assert.throws(() => app.economy.buyCosmetic('title', 'centurion'), /already have|badge/)
+  const got = []
+  app.on('progress', (p) => got.push(...(p.badges || []).map((b) => b.id)))
+  app.economy.devAddCoins(2e6)
+  assert.ok(got.includes('coin1k') && got.includes('coin1m'))
+  app.economy.flip(1)
+  assert.ok(got.includes('flipper'))
 })
