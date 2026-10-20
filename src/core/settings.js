@@ -32,7 +32,8 @@ export const SETTING_FIELDS = {
   // Network
   showCasinoStats: { group: 'friends', kind: 'bool', default: true, label: 'Show friends how I do at the market and casino', hint: 'Your returns, coinflips and slots on your profile.' },
   lan: { group: 'network', kind: 'bool', default: true, label: 'Find friends and lobbies on the same Wi-Fi directly', hint: 'Works with no internet. Others on the network see only scrambled tags, never who you are.' },
-  internet: { group: 'network', kind: 'bool', default: true, label: 'Use the internet peer-to-peer network', hint: 'Off means same-network only.' }
+  internet: { group: 'network', kind: 'bool', default: true, label: 'Use the internet peer-to-peer network', hint: 'Off means same-network only.' },
+  autoUpdate: { group: 'network', kind: 'bool', default: true, label: 'Update by itself', hint: 'New releases download in the background and install when you restart or quit. Off still checks, and asks first.' }
 }
 
 export const SETTING_GROUPS = { play: 'Playing', sound: 'Sound', friends: 'Friends', lobbies: 'Lobbies', network: 'Network' }

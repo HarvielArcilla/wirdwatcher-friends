@@ -30,6 +30,7 @@
   "dependencies": {
     "@hyperswarm/secret-stream": "^6.9.2",
     "b4a": "^1.9.0",
+    "electron-updater": "6.8.10",
     "hypercore-crypto": "^3.7.0",
     "hyperswarm": "^4.17.2",
     "react": "^18.3.1",
@@ -66,10 +67,25 @@
       "**/prebuilds/**"
     ],
     "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "HarvielArcilla",
+        "repo": "wirdwatcher-friends",
+        "releaseType": "release"
+      }
+    ],
     "mac": {
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64",
             "x64"

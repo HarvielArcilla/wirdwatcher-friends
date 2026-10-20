@@ -70,12 +70,33 @@ jobs:
             codesign --verify --deep --strict --verbose=2 "$app"
             codesign -dv "$app" 2>&1 | grep -E 'Signature|Identifier|flags'
           done
+      # The apps update themselves from these; a release without them would
+      # leave everyone on it stuck.
+      - name: Check the update files are there
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            test -f release/latest-mac.yml
+            for a in arm64 x64; do ls release/wirdwatcher-*-$a.zip; done
+            grep -q 'arm64.zip' release/latest-mac.yml && grep -q 'x64.zip' release/latest-mac.yml
+          else
+            test -f release/latest.yml
+            ls release/*.blockmap
+            test -f release/win-unpacked/resources/app-update.yml
+          fi
+          cat release/*.yml
       - uses: actions/upload-artifact@v4
         with:
           name: wirdwatcher-${{ runner.os }}
+          # The installers, plus what the apps read to update themselves:
+          # latest.yml / latest-mac.yml (versions and SHA-512s), the Mac
+          # .zip (what the Mac app swaps in) and the blockmaps.
           path: |
             release/*.exe
             release/*.dmg
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   # The one-command installers, on clean machines.

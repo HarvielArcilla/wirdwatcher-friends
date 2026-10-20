@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { WirdApp } from '../core/app.js'
 import { setNetlogFolder } from '../core/netlog.js'
 import { themeById, themeColors } from '../shared/appearance.js'
+import { Updater } from './updater.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
@@ -33,6 +34,7 @@ if (process.platform === 'win32') app.setAppUserModelId('com.harvielarcilla.wird
 
 let win = null
 let ww = null
+let updater = null
 
 const send = (channel, ...args) => { if (win && !win.isDestroyed()) win.webContents.send(channel, ...args) }
 
@@ -156,6 +158,11 @@ function handlers () {
     netWorth: () => ww.netWorth(),
     declareBankruptcy: () => ww.declareBankruptcy(),
     etfTrade: (kind, id, amount) => (kind === 'buy' ? ww.derivs.buyEtf(id, amount) : ww.derivs.sellEtf(id, amount)),
+    update: () => updater?.view() || { status: 'idle', kind: 'off', current: app.getVersion() },
+    updateCheck: () => updater?.check({ manual: true }),
+    updateDownload: () => updater?.download(),
+    updateRestart: () => updater?.restart(),
+    updateOpen: () => updater?.openDownload(),
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
     customSound: () => ww.customSound(),
@@ -227,6 +234,11 @@ app.whenReady().then(async () => {
   createWindow()
   app.on('activate', () => { if (!win) createWindow() })
   if (smoke) runSmokeTest()
+  else {
+    updater = new Updater({ appDir: root, enabled: () => ww.settings.get('autoUpdate') !== false })
+    updater.on('state', (st) => send('update', { ...st, enabled: updater.enabled() }))
+    updater.start()
+  }
 })
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus() } })
@@ -236,6 +248,7 @@ app.on('before-quit', async (e) => {
   if (quitting || !ww) return
   e.preventDefault()
   quitting = true
+  try { updater?.onQuit() } catch {}
   await Promise.race([ww.stop().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 2000))])
   app.quit()
 })

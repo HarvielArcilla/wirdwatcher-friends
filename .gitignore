@@ -4,3 +4,4 @@ release/
 renderer/dist/
 *.log
 .DS_Store
+.update-to

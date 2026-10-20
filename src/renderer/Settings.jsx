@@ -19,7 +19,7 @@ const remembered = () => { try { return localStorage.getItem('settingsTab') || '
 
 // Settings, in tabs. Every limit that protects this computer from what
 // others send is here too (Friends & lobbies, Network).
-export default function Settings ({ appearance, setAppearance, me, settings, setSettings, setMe, wordCount, source }) {
+export default function Settings ({ update, appearance, setAppearance, me, settings, setSettings, setMe, wordCount, source }) {
   const [tab, setTab] = useState(remembered)
   const save = async (patch) => setSettings(await api('setSettings', patch))
   const pick = (id) => { setTab(id); try { localStorage.setItem('settingsTab', id) } catch {} }
@@ -44,7 +44,7 @@ export default function Settings ({ appearance, setAppearance, me, settings, set
         {tab === 'friends' && <section><h2>Friends</h2>{fields(['friends'])}<h2>Lobbies</h2>{fields(['lobbies'])}</section>}
         {tab === 'network' && <section><h2>Network</h2>{fields(['network'])}</section>}
         {tab === 'profile' && <Profile me={me} setMe={setMe} />}
-        {tab === 'about' && <About wordCount={wordCount} source={source} />}
+        {tab === 'about' && <About wordCount={wordCount} source={source} update={update} />}
         {['play', 'friends', 'network'].includes(tab) && <div style={{ marginTop: 18 }}><button className='btn small ghost' onClick={async () => setSettings(await api('resetSettings', TABS.find((t) => t.id === tab).id))}>Reset these to defaults</button></div>}
       </div>
     </div>
@@ -93,12 +93,13 @@ function Profile ({ me, setMe }) {
   )
 }
 
-function About ({ wordCount, source }) {
+function About ({ wordCount, source, update }) {
   const [folder, setFolder] = useState('')
   useEffect(() => { api('dataFolder').then(setFolder) }, [])
   return (
     <section>
       <h2>About</h2>
+      <Updates u={update} />
       <p className='lede'>
         wirdwatcher 2, free and open source (MIT). {wordCount.toLocaleString()} words from {source.replace(/, https:.*/, '')}, <a href='https://en-word.net' target='_blank' rel='noreferrer'>en-word.net</a>.
         Fonts: Fredoka, Newsreader, Source Serif 4, EB Garamond, Fraunces, Inter, Bricolage Grotesque, Atkinson Hyperlegible, IBM Plex Mono and OpenDyslexic, all under the SIL Open Font License.
@@ -214,6 +215,42 @@ function VoicePicker ({ value, save }) {
         </select>
         <button className='btn small' style={{ whiteSpace: 'nowrap' }} onClick={() => speak('sesquipedalian')}>Try it</button>
       </span>
+    </div>
+  )
+}
+
+// Where this copy stands against the latest release, and what to do about it.
+function Updates ({ u }) {
+  if (!u) return null
+  const manual = u.kind === 'manual' || u.kind === 'mac-manual' || u.manualOnly
+  const pct = u.progress == null ? null : Math.round(u.progress * 100)
+  const line = {
+    idle: 'Checks for a new release a little after starting, then every six hours.',
+    checking: 'Checking for a new release…',
+    current: `You have the latest release.${u.checked ? ` Checked ${new Date(u.checked).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ''}`,
+    available: manual
+      ? `wirdwatcher ${u.version} is out. ${u.kind === 'mac-manual' ? 'This copy can’t replace itself (it’s running from the disk image or a folder it can’t write to), so download it and drag it to Applications.' : 'Download it from the Releases page.'}`
+      : `wirdwatcher ${u.version} is out.${u.enabled ? '' : ' Updating by itself is off, so it waits for you.'}`,
+    downloading: `Getting wirdwatcher ${u.version}${pct != null ? `… ${pct}%` : '…'}`,
+    ready: `wirdwatcher ${u.version} is ready. Restart now, or it installs when you quit.`,
+    error: `Couldn’t update: ${u.error || 'something went wrong'}`
+  }[u.status] || ''
+  const off = u.kind === 'off'
+  return (
+    <div className='setting updates'>
+      <div>
+        Version {u.current}
+        <small>{off ? 'This copy is run from a developer folder (npm start), so it doesn’t update itself. Copies from the installers and the install scripts do.' : line}</small>
+        {u.status === 'downloading' && pct != null && <span className='upd-bar'><i style={{ width: `${pct}%` }} /></span>}
+      </div>
+      {!off && (
+        <span style={{ justifySelf: 'end', display: 'flex', gap: 6 }}>
+          {u.status === 'ready' && <button className='btn small primary' onClick={() => api('updateRestart')}>Restart now</button>}
+          {u.status === 'available' && manual && <button className='btn small primary' onClick={() => api('updateOpen')}>Download</button>}
+          {u.status === 'available' && !manual && !u.enabled && <button className='btn small primary' onClick={() => api('updateDownload')}>Get it</button>}
+          {['idle', 'current', 'error'].includes(u.status) && <button className='btn small' onClick={() => api('updateCheck')}>Check now</button>}
+        </span>
+      )}
     </div>
   )
 }

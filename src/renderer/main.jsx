@@ -48,6 +48,8 @@ function App () {
   const [searching, setSearching] = useState(false)
   const [econ, setEcon] = useState(null) // coins, coins per second, the streak, your look
   const [today, setToday] = useState(null) // for the dot on Today
+  const [update, setUpdate] = useState(null) // a new release, as it downloads and gets ready
+  const [sure, setSure] = useState(false)
 
   useEffect(() => {
     api('boot').then((b) => {
@@ -61,6 +63,8 @@ function App () {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => window.ww.on.economy((c) => setEcon((old) => ({ ...(old || {}), ...c }))), [])
+  useEffect(() => { api('update').then(setUpdate).catch(() => {}); return window.ww.on.update(setUpdate) }, [])
+  useEffect(() => { if (update?.status === 'ready') toast({ emoji: '✨', title: `wirdwatcher ${update.version} is ready`, text: 'Restart whenever you like, or it installs when you quit.', ms: 8000 }) }, [update?.status === 'ready']) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const get = () => api('today').then(setToday).catch(() => {}); get(); const id = setInterval(get, 30000); return () => clearInterval(id) }, [])
   const todayDot = today && (today.quests.some((q) => !q.claimed && q.have >= q.n) || (today.weekly.have >= today.weekly.n && !today.weekly.claimed) || !(today.clues.solved || today.clues.gaveUp) || today.freeSpin.ready)
   useEffect(() => { setConfettiStyle(econ?.look?.confetti || 'classic') }, [econ?.look?.confetti])
@@ -162,6 +166,11 @@ function App () {
           <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' aria-hidden='true'><circle cx='11' cy='11' r='7' /><path d='m20 20-3.5-3.5' /></svg>
           <span>Search words</span><kbd>/</kbd>
         </button>
+        {update?.status === 'ready' && (
+          <button className='stat updchip' onClick={() => { if (lobby && !sure) { setSure(true); setTimeout(() => setSure(false), 5000); return } api('updateRestart').catch(() => {}) }} title={`Restart into wirdwatcher ${update.version}`}>
+            {sure ? 'Restart and leave the lobby?' : `✨ Restart for ${update.version}`}
+          </button>
+        )}
         {econ?.bankrupt && <button className='stat bankchip' onClick={() => setTab('market')} title='Bankrupt: see what’s left to be discharged'>⚖️ Bankrupt</button>}
         {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''} ${econ.coins < 0 ? 'debt' : ''}`} onClick={() => setTab('wirdhouse')} title={econ.coins < 0 ? `In debt: ${formatCoins(-econ.coins)} coins owed` : `${formatCoins(econ.cps)} coins a second`}><strong><Coins n={econ.coins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
         <span className='stat flame' title='Days in a row'><strong>{me.streak || 0}</strong>day streak 🔥</span>
@@ -185,7 +194,7 @@ function App () {
         {tab === 'leximon' && <Leximon econ={econ} friends={friends} settings={settings.values} />}
         {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
-        {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
+        {tab === 'settings' && <Settings update={update} appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
       </main>
 
       {!me.hasChosenName && <Welcome onDone={(m) => { setMe(m); refreshTop() }} />}
