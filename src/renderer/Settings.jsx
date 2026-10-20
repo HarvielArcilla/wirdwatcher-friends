@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api, ratingColor } from './ui.jsx'
+import { api, ratingColor, englishVoices, bestVoice, voiceScore, setVoice, speak } from './ui.jsx'
 import Appearance from './Appearance.jsx'
 import { SOUND_PRESETS, playRating, setCustomSound } from './sound.js'
 
@@ -178,6 +178,7 @@ function SoundSettings ({ settings, save, setSettings }) {
         <div>{settings.fields.animations.label}<small>{settings.fields.animations.hint}</small></div>
         <div className='seg'>{[['all', 'Every rating'], ['ends', 'Only the ends'], ['off', 'Off']].map(([x, label]) => <button key={x} className={v.animations === x ? 'on' : ''} onClick={() => save({ animations: x })}>{label}</button>)}</div>
       </div>
+      <VoicePicker value={v.voice} save={save} />
       {['celebrate', 'soundPitch'].map((key) => {
         const f = settings.fields[key]
         return (
@@ -188,5 +189,31 @@ function SoundSettings ({ settings, save, setSettings }) {
         )
       })}
     </section>
+  )
+}
+
+// The voice that says words out loud: the system's voices, best first.
+function VoicePicker ({ value, save }) {
+  const [voices, setVoices] = useState(() => englishVoices())
+  useEffect(() => {
+    const load = () => setVoices(englishVoices())
+    load()
+    window.speechSynthesis?.addEventListener?.('voiceschanged', load)
+    return () => window.speechSynthesis?.removeEventListener?.('voiceschanged', load)
+  }, [])
+  const sorted = [...voices].sort((a, b) => voiceScore(b) - voiceScore(a) || a.name.localeCompare(b.name))
+  const auto = bestVoice()
+  const choose = (name) => { setVoice(name); save({ voice: name }); setTimeout(() => speak('sesquipedalian'), 60) }
+  return (
+    <div className='setting'>
+      <div>Voice for saying words<small>{voices.length ? `Space says the word. Voices marked Enhanced, Premium or Natural are much better; ${navigator.platform.startsWith('Mac') ? 'add them in System Settings → Accessibility → Spoken Content → System voice → Manage Voices' : 'Windows adds more under Settings → Time & language → Speech'}.` : 'This computer has no English voices for speech.'}</small></div>
+      <span style={{ justifySelf: 'end', display: 'flex', gap: 6 }}>
+        <select className='field' value={value} onChange={(e) => choose(e.target.value)} aria-label='Voice for saying words' style={{ width: 230 }}>
+          <option value=''>Best available{auto ? ` (${auto.name})` : ''}</option>
+          {sorted.map((x) => <option key={x.name} value={x.name}>{x.name} · {x.lang}</option>)}
+        </select>
+        <button className='btn small' style={{ whiteSpace: 'nowrap' }} onClick={() => speak('sesquipedalian')}>Try it</button>
+      </span>
+    </div>
   )
 }

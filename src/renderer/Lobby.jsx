@@ -119,6 +119,31 @@ function Table ({ lobby, choices, active, events, settings }) {
     const el = document.activeElement
     if (el && el !== document.body && !el.closest?.('.finder') && !el.closest?.('.clue-form')) el.blur?.()
   }, [lobby.round, phase])
+  // Perfect plays: confetti from the seat, and a fanfare if it's yours.
+  useEffect(() => {
+    if (phase !== 'reveal' || !res?.perfect) return
+    const ids = Object.keys(res.perfect)
+    if (!ids.length) return
+    const t = setTimeout(() => {
+      for (const id of ids) { const at = centerOf(document.querySelector(`[data-seat="${id}"] .seat-face`)); burst(at.x, at.y, 'confetti') }
+      if (ids.includes(you)) playRating(5, settings)
+    }, 900)
+    return () => clearTimeout(t)
+  }, [phase, lobby.round]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The end of a game: confetti from the winner's seat and the middle.
+  useEffect(() => {
+    if (phase !== 'results' || !lobby.summary?.scored) return
+    const best = Math.max(...lobby.players.map((p) => p.score))
+    if (!(best > 0)) return
+    const winners = lobby.players.filter((p) => p.score === best)
+    const t = setTimeout(() => {
+      for (const w of winners) { const at = centerOf(document.querySelector(`[data-seat="${w.id}"] .seat-face`)); burst(at.x, at.y, 'confetti') }
+      const mid = centerOf(document.querySelector('.felt-center'))
+      burst(mid.x, mid.y, 'confetti')
+      if (winners.some((w) => w.me)) playRating(5, settings)
+    }, 1100)
+    return () => clearTimeout(t)
+  }, [phase, lobby.game]) // eslint-disable-line react-hooks/exhaustive-deps
   // Celebrations at the reveal, from the card that earned them.
   useEffect(() => {
     if (phase !== 'reveal' || !res || style === 'jury' || style === 'clues') return
@@ -135,7 +160,7 @@ function Table ({ lobby, choices, active, events, settings }) {
   const unread = tab === 'chat' ? 0 : Math.max(0, said - seen)
   useEffect(() => { if (tab === 'chat') setSeen(said) }, [tab, said])
   // Finding a Hive mind word, and word details, are in the Game tab.
-  useEffect(() => { if (phase === 'choosing') setTab('game') }, [phase])
+  useEffect(() => { if (phase === 'choosing' || phase === 'results') setTab('game') }, [phase])
   useEffect(() => { if (details) setTab('game') }, [details])
   // Opening the chat shows the newest lines.
   useEffect(() => { if (tab === 'chat' && chatEl.current) chatEl.current.scrollTop = chatEl.current.scrollHeight }, [tab])
@@ -229,6 +254,8 @@ function Table ({ lobby, choices, active, events, settings }) {
   const potLive = pot && ['collecting', 'open', 'settling'].includes(pot.status) && (pot.status === 'collecting' || pot.members.length > 1)
   const myStakeAtRisk = potLive && pot.status === 'open' && pot.members.includes(you)
   const timerSecs = phase === 'clues' ? (c?.final ? 15 : 10) : lobby.options.timer * (phase === 'choosing' ? 3 : 1)
+  // Where the ring starts when it appears (already part-drained if you join late).
+  const ringDelay = useMemo(() => -Math.max(0, timerSecs * 1000 - (c?.endsIn ?? timerSecs * 1000)), [lobby.round, phase, c?.clue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // What each seat's card shows at the reveal, and a note under the number.
   const cardFor = (p) => {
@@ -293,7 +320,8 @@ function Table ({ lobby, choices, active, events, settings }) {
         <div className={`table felt-${lobby.table || 'classic'}`}>
           {left !== null && phase !== 'reveal' && timerSecs > 0 && (
             <svg className='timer' viewBox='0 0 100 100' preserveAspectRatio='none' aria-hidden='true'>
-              <ellipse cx='50' cy='50' rx='49' ry='49' fill='none' stroke='var(--accent)' strokeWidth='1.2' vectorEffect='non-scaling-stroke' pathLength='100' strokeDasharray={`${(left / (timerSecs * 1000)) * 100} 100`} transform='rotate(-90 50 50)' />
+              {/* Drained by the compositor, not redrawn every tick: smooth however busy the page is. */}
+              <ellipse key={`${lobby.round}:${phase}:${c?.clue ?? ''}`} className='timer-ring' cx='50' cy='50' rx='49' ry='49' fill='none' stroke='var(--accent)' strokeWidth='1.2' vectorEffect='non-scaling-stroke' pathLength='100' strokeDasharray='100 100' transform='rotate(-90 50 50)' style={{ animationDuration: `${timerSecs * 1000}ms`, animationDelay: `${ringDelay}ms` }} />
             </svg>
           )}
           <div className='felt' />
@@ -333,8 +361,9 @@ function Table ({ lobby, choices, active, events, settings }) {
                   </div>
                 </div>
               ),
-              <div key={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id || myVote ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${(style === 'hotseat' && c && p.id === c.seat) || (style === 'jury' && phase === 'reveal' && res?.defendant === p.id) ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => (phase === 'voting' ? vote(p.id) : pickGuess(p.id)) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? (phase === 'voting' ? `Vote for ${p.name}` : `Guess ${p.me ? 'yourself' : p.name}`) : undefined}>
+              <div key={p.id} data-seat={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id || myVote ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${(style === 'hotseat' && c && p.id === c.seat) || (style === 'jury' && phase === 'reveal' && res?.defendant === p.id) ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => (phase === 'voting' ? vote(p.id) : pickGuess(p.id)) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? (phase === 'voting' ? `Vote for ${p.name}` : `Guess ${p.me ? 'yourself' : p.name}`) : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
+                {phase === 'reveal' && res?.perfect?.[p.id] && <span className='perfect-pop' aria-live='polite'>💎 {res.perfect[p.id].map((x) => x.label).join(' · ')} <b>+{res.perfect[p.id].reduce((a, x) => a + x.bonus, 0)}</b></span>}
                 <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}{(phase === 'waiting' || phase === 'results' ? p.stakeIn : p.inPot) && <span className='seat-coin' title={phase === 'waiting' || phase === 'results' ? 'Bought in' : 'In the pot'}><CoinDot size={18} /></span>}</span>
                 <div className='seat-text'>
                   <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}
@@ -425,12 +454,6 @@ function Table ({ lobby, choices, active, events, settings }) {
                 : <button className='btn primary' onClick={() => act('begin')}>{phase === 'results' ? 'Play again' : lobby.players.length < 2 ? 'Start on your own' : `Start ${styleOf(lobby.options.style).name} with ${lobby.players.length}`}</button>)
             : <span className='rate-help'>The host will start {phase === 'results' ? 'the next game' : 'when everyone’s here'}.</span>)}
         </div>
-        {phase === 'results' && lobby.summary && (
-          <div className='awards'>
-            {pot?.status === 'paid' && pot.payouts && <PotResult pot={pot} Name={Name} />}
-            {lobby.summary.awards.map((a, i) => <div key={i} className='award'><span className='em'>{a.emoji}</span><strong>{a.title}{a.word && `: ${a.word}`}</strong><span>{a.detail}</span></div>)}
-          </div>
-        )}
       </section>
 
       <aside className='lobby-side'>
@@ -446,6 +469,14 @@ function Table ({ lobby, choices, active, events, settings }) {
             <span><button className='btn small primary' onClick={() => answer(o, true)}>Be friends</button> <button className='btn small ghost' onClick={() => answer(o, false)}>Not now</button></span>
           </div>
         ))}
+        {phase === 'results' && lobby.summary && (
+          <div className='sect recap'>
+            <h3>Game recap</h3>
+            {pot?.status === 'paid' && pot.payouts && <PotResult pot={pot} Name={Name} />}
+            {lobby.summary.awards.map((a, i) => <div key={i} className='award' style={{ animationDelay: `${0.15 + i * 0.12}s` }}><span className='em'>{a.emoji}</span><strong>{a.title}{a.word && `: ${a.word}`}</strong><span>{a.detail}</span></div>)}
+          </div>
+        )}
+        {phase === 'results' && lobby.history.length > 0 && <Rounds history={lobby.history} name={name} you={you} open />}
         {phase === 'choosing' && <HiveFinder mine={mine} name={name} act={act} setPeek={setPeek} waiting={waiting} you={you} />}
         {style === 'hive' && phase === 'reveal' && res?.entries && <HiveRound res={res} name={name} Name={Name} />}
         {details && word && <WordDetails w={word} onClose={() => setDetails(false)} />}
@@ -492,6 +523,7 @@ function Table ({ lobby, choices, active, events, settings }) {
             <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
           </div>
         )}
+        {phase !== 'results' && phase !== 'waiting' && lobby.history.length > (phase === 'reveal' ? 1 : 0) && <Rounds history={phase === 'reveal' ? lobby.history.slice(0, -1) : lobby.history} name={name} you={you} />}
         </div>}
         {tab === 'chat' && <>
         <div className='sect react-sect'>
@@ -689,6 +721,54 @@ function JuryTalk ({ res, name, Name, you }) {
   )
 }
 
+// The game so far, a round to a line: the word, what happened, and what it
+// meant for you. Open at the end of a game; during one, the latest first.
+function Rounds ({ history, name, you, open }) {
+  const rows = open ? history : [...history].reverse()
+  return (
+    <div className='sect rounds'>
+      <h3>{open ? 'Round by round' : 'Earlier this game'}</h3>
+      <ol>
+        {rows.map((h) => {
+          const line = roundLine(h, name, you)
+          const mine = h.points?.[you]
+          return (
+            <li key={h.round}>
+              <span className='rn'>{h.round}</span>
+              <div>
+                <b className='rw'>{line.word || '—'}</b>
+                <small>{line.text}</small>
+                {(h.perfect?.[you] || []).map((x) => <small key={x.label} className='rp'>💎 {x.label}</small>)}
+              </div>
+              {mine ? <span className='rpts'>+{mine}</span> : line.mine != null ? <span className='rmine' style={{ color: ratingColor(line.mine) }}>{formatRating(line.mine)}</span> : null}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
+// One round in words, for each mode.
+function roundLine (h, name, you) {
+  const r = (x) => (x === null || x === undefined ? '–' : formatRating(x))
+  switch (h.style) {
+    case 'hotseat': return { word: h.word, text: `${cap(name(h.seat))} gave it ${r(h.r)}${h.best?.length ? `; ${list(h.best.map(name))} read it best` : ''}`, mine: h.predictions?.[you] }
+    case 'hive': {
+      const best = [...(h.entries || [])].filter((e) => e.diff !== null).sort((a, b) => a.diff - b.diff)[0]
+      const mineE = (h.entries || []).find((e) => e.picker === you)
+      return { word: mineE?.word || best?.word, text: best ? `Closest: ${name(best.picker)}, aimed ${r(best.target)} and got ${r(best.r)}` : 'No words rated', mine: null }
+    }
+    case 'jury': return { word: h.word, text: `${cap(name(h.defendant))} gave it ${r(h.charge)} and ${h.convicted ? 'was caught' : 'got away with it'}`, mine: null }
+    case 'clues': {
+      const got = Object.keys(h.solved || {})
+      return { word: h.word, text: got.length ? `${got.length} solved it${h.solved[you] ? `, you after ${h.solved[you].clue} clue${h.solved[you].clue === 1 ? '' : 's'}` : ''}` : 'Nobody got it', mine: null }
+    }
+    default: return { word: h.word, text: h.mean === null || h.mean === undefined ? 'No ratings' : `Averaged ${r(h.mean)}${h.spread >= 1 ? `, ${h.spread.toFixed(1)} apart` : ''}${h.hive ? ', in sync' : ''}`, mine: h.ratings?.[you] }
+  }
+}
+const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1)
+
 // How the pot went, on the results screen.
 function PotResult ({ pot, Name }) {
   const top = Math.max(0, ...Object.values(pot.payouts))
@@ -862,18 +942,22 @@ function Podium ({ players, style }) {
   const top = [...players].sort((a, b) => b.score - a.score).slice(0, 3)
   const order = [top[1], top[0], top[2]].filter(Boolean)
   const h = { 0: 90, 1: 64, 2: 46 }
-  const label = { highlow: 'Best at reading the table', hotseat: 'Knew each other best', hive: 'Best aim' }[style] || 'Top scores'
+  const label = { highlow: 'Best at reading the table', hotseat: 'Knew each other best', hive: 'Best aim', jury: 'Sharpest jury', clues: 'Quickest minds' }[style] || 'Top scores'
+  const best = top[0]?.score || 0
+  const winners = top.filter((p) => p.score === best && best > 0)
   return (
     <>
+      <div className='winner-banner'>{winners.length === 1 ? `🏆 ${winners[0].me ? 'You win!' : `${winners[0].name} wins!`}` : winners.length ? `🏆 A tie at the top` : 'Game over'}</div>
       <div className='tsub'>{label}</div>
       <div className='podium'>
         {order.map((p) => {
           const place = top.indexOf(p)
           return (
-            <div key={p.id}>
+            <div key={p.id} style={{ '--d': `${[0.5, 0.2, 0.8][place]}s` }}>
+              {p.score === best && best > 0 && <span className='crown' aria-hidden='true'>👑</span>}
               <Avatar name={p.name} color={p.color} frame={p.look?.frame} />
               <span style={{ fontWeight: 500, fontSize: 13 }}>{p.me ? 'You' : p.name}</span>
-              <i style={{ height: h[place] }}>{p.score}</i>
+              <i className='bar' style={{ height: h[place] }}>{p.score}</i>
             </div>
           )
         })}

@@ -354,8 +354,8 @@ select.field { padding: 8px 10px; }
 .award strong { font-weight: 600; }
 .award span { color: var(--dim); font-size: 13px; }
 .podium { display: flex; align-items: flex-end; gap: 14px; margin-top: 10px; }
-.podium div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.podium i { width: 86px; border-radius: 10px 10px 0 0; background: color-mix(in oklab, var(--accent) 20%, var(--panel)); display: grid; place-items: start center; padding-top: 8px; font-style: normal; font-weight: 700; color: var(--accent); }
+.podium > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.podium > div > i.bar { width: 86px; border-radius: 10px 10px 0 0; background: color-mix(in oklab, var(--accent) 20%, var(--panel)); display: grid; place-items: start center; padding-top: 8px; font-style: normal; font-weight: 700; color: var(--accent); }
 
 /* ---------- settings ---------- */
 .settings { max-width: 720px; }
@@ -729,11 +729,12 @@ div.rating-input.away { opacity: .4; border-bottom-style: dashed; }
 @keyframes pulse { from { opacity: 1; } to { opacity: .45; } }
 
 /* ===== Wirdhouse ===== */
-.wh-head { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: end; margin-bottom: 8px; }
+.wh-head { display: grid; grid-template-columns: minmax(0, 400px) 1fr; gap: 28px; align-items: end; margin-bottom: 8px; }
 .wh-head h1 { margin: 0; display: flex; align-items: baseline; gap: 12px; }
 .wh-head h1 .edition { font-size: 14px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 3px 10px; border-radius: 999px; }
 .wh-head .lede { margin: 0 0 6px; max-width: 52ch; }
-.wh-coins { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 46px; line-height: 1.1; color: var(--text); }
+.wh-coins { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 46px; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wh-rates { font-variant-numeric: tabular-nums; }
 .wh-rates { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--dim); font-size: 14px; }
 .wh-rates b { color: var(--text); font-variant-numeric: tabular-nums; }
 .wh-rates .hot { color: #d98a12; font-weight: 600; }
@@ -1152,3 +1153,55 @@ html.calm .blanks .blank.new { animation: none; }
 .seat .seat-act.kick { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); font-size: 16px; }
 .seat .seat-act.kick:hover { background: color-mix(in srgb, var(--bad) 24%, transparent); }
 .seat-face .seat-coin { position: absolute; right: -4px; bottom: -3px; z-index: 3; display: grid; place-items: center; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); }
+
+/* --- Results: the recap in the sidebar, and the end-of-game moment ------------------------ */
+.lobby-side .recap .award { background: var(--panel-raise); margin-bottom: 8px; animation: recap-in .45s ease-out both; }
+.lobby-side .recap .award:last-child { margin-bottom: 0; }
+@keyframes recap-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.lobby-side .rounds ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.lobby-side .rounds li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: start; padding: 7px 4px; border-radius: 8px; }
+.lobby-side .rounds li:nth-child(odd) { background: color-mix(in oklab, var(--panel-raise) 55%, transparent); }
+.lobby-side .rounds .rn { font-size: 12px; color: var(--faint); font-weight: 600; padding-top: 2px; text-align: right; }
+.lobby-side .rounds .rw { display: block; font-family: var(--font-word); font-weight: var(--word-weight); color: var(--word); font-size: 15px; }
+.lobby-side .rounds small { display: block; color: var(--dim); font-size: 12px; line-height: 1.35; }
+.lobby-side .rounds .rp { color: var(--accent); font-weight: 600; }
+.lobby-side .rounds .rpts { font-weight: 700; color: var(--good); font-size: 13px; padding-top: 2px; }
+.lobby-side .rounds .rmine { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 15px; }
+.felt-center .winner-banner { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 26px; color: var(--word); animation: banner-in .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes banner-in { from { opacity: 0; transform: scale(.4) rotate(-6deg) } to { opacity: 1; transform: none } }
+.podium > div { position: relative; }
+.podium > div > i.bar { transform-origin: bottom; animation: bar-grow .7s cubic-bezier(.2, 1.2, .4, 1) var(--d, 0s) both; }
+@keyframes bar-grow { from { transform: scaleY(0) } to { transform: none } }
+.podium .crown { position: absolute; top: -26px; font-size: 24px; animation: crown-drop .6s cubic-bezier(.3, 1.6, .5, 1) 1.2s both; z-index: 2; }
+@keyframes crown-drop { from { opacity: 0; transform: translateY(-40px) rotate(-30deg) } to { opacity: 1; transform: rotate(-8deg) } }
+.seat .perfect-pop { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 6; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; color: #2a1d03; background: linear-gradient(90deg, #ffe08a, #f2b84b, #ffe08a); background-size: 200% 100%; box-shadow: 0 4px 14px rgba(242, 184, 75, .45); animation: perfect-pop .6s cubic-bezier(.2, 1.6, .4, 1) .8s both, shine 1.6s linear 1.4s infinite; pointer-events: none; }
+.seat .perfect-pop b { font-weight: 800; }
+@keyframes perfect-pop { from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.5) } to { opacity: 1; transform: translateX(-50%) } }
+@keyframes shine { to { background-position: -200% 0 } }
+html.calm .podium > div > i.bar, html.calm .podium .crown, html.calm .felt-center .winner-banner, html.calm .seat .perfect-pop, html.calm .lobby-side .recap .award { animation: none; }
+.timer .timer-ring { animation-name: timer-drain; animation-timing-function: linear; animation-fill-mode: both; }
+@keyframes timer-drain { from { stroke-dashoffset: 0 } to { stroke-dashoffset: -100 } }
+
+/* Surfaces on the felt follow the felt's ink, not the page's theme: a dark
+   table in light mode (or a bright one in dark mode) gets panels that match
+   its text, so picks, buttons and the podium stay readable on every table. */
+.felt-center { --surface: color-mix(in oklab, var(--panel) 94%, transparent); --surface-2: var(--raise); }
+.felt-casino .felt-center, .felt-velvet .felt-center, .felt-ocean .felt-center, .felt-neon .felt-center, .felt-night .felt-center, .felt-cosmos .felt-center, .felt-archive .felt-center, .felt-oak .felt-center,
+.felt-chalk .felt-center, .felt-denim .felt-center, .felt-blueprint .felt-center, .felt-sunset .felt-center, .felt-lava .felt-center, .felt-scholar .felt-center { --surface: rgba(8, 6, 18, .58); --surface-2: rgba(255, 255, 255, .16); }
+.felt-marble .felt-center, .felt-candy .felt-center, .felt-gilded .felt-center, .felt-comic .felt-center, .felt-ice .felt-center { --surface: rgba(255, 255, 255, .78); --surface-2: rgba(0, 0, 0, .08); }
+.felt-center .choice { background: var(--surface); color: var(--text); text-shadow: none; }
+.felt-center .choice .ck { background: var(--surface-2); color: var(--text); }
+.felt-center .choice small { color: var(--dim); }
+.felt-center .btn:not(.primary) { background: var(--surface); color: var(--text); text-shadow: none; }
+.felt-center .podium > div > i.bar { background: color-mix(in oklab, var(--accent) 30%, var(--surface)); color: var(--text); text-shadow: none; }
+.felt-center .clue-list .clue.new { background: color-mix(in oklab, var(--accent) 22%, var(--surface)); }
+.felt-classic .felt-center .choice { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 14%, transparent); }
+
+/* --- The muse meter ------------------------------------------------------------------------ */
+.muse-meter { display: grid; grid-template-columns: auto minmax(90px, 1fr) auto; gap: 4px 10px; align-items: center; margin-top: 10px; max-width: 400px; font-size: 13px; }
+.muse-meter .mm-label { font-weight: 600; }
+.muse-meter .mm-bar { height: 8px; border-radius: 999px; background: color-mix(in oklab, var(--text) 10%, transparent); overflow: hidden; }
+.muse-meter .mm-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f2b84b, #ffe08a); transition: width 1s linear; }
+.muse-meter.low .mm-bar i { background: linear-gradient(90deg, #9aa3b0, #c9ced6); }
+.muse-meter .mm-now { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muse-meter .mm-help { grid-column: 1 / -1; color: var(--faint); font-size: 12px; }

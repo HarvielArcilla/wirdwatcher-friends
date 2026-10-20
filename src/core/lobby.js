@@ -89,7 +89,8 @@ const PROTOCOL = 4 // 4: Grand Jury, Clues and stakes (2.2)
 export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues']
 export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic', stake: 0 }
 export const LOBBY_STAKES = STAKES
-const STAKE_ACK_MS = 8000 // how long the host waits for every member to see the result
+const STAKE_ACK_MS = 8000
+export const PERFECT_BONUS = 50 // on top, for a perfect play in any scored mode // how long the host waits for every member to see the result
 export const LOBBY_ROUNDS = [3, 5, 10, 15, 20]
 export const LOBBY_TIMERS = [0, 15, 30, 60] // seconds per phase (finding a word gets three times as long); 0 = no timer
 export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '👏', '🙈']
@@ -866,6 +867,9 @@ export class LobbyHost extends EventEmitter {
     const ratings = Object.fromEntries([...c.ratings].filter(([id]) => live(id)))
     const points = {}
     const give = (id, n) => { if (!n) return; points[id] = (points[id] || 0) + n; const p = this.players.get(id); if (p) p.score += n }
+    // Perfect plays earn a bonus on top, and the table celebrates them.
+    const perfect = {}
+    const flawless = (id, label, bonus) => { give(id, bonus); (perfect[id] = perfect[id] || []).push({ label, bonus }) }
     let result
     if (c.style === 'classic' || c.style === 'highlow') {
       const verdict = roundVerdict(ratings)
@@ -883,6 +887,7 @@ export class LobbyHost extends EventEmitter {
           const hitLow = split && lowest.includes(g.low)
           guesses[id] = { ...g, hitHigh, hitLow }
           give(id, (hitHigh ? 100 : 0) + (hitLow ? 100 : 0))
+          if (hitHigh && hitLow) flawless(id, 'Perfect read', PERFECT_BONUS)
         }
         result.guesses = guesses
         result.split = split
@@ -901,6 +906,7 @@ export class LobbyHost extends EventEmitter {
       for (const [id, pr] of Object.entries(predictions)) {
         diffs[id] = r === null ? null : round1(Math.abs(pr - r))
         if (r !== null) give(id, closePoints(pr, r))
+        if (r !== null && diffs[id] === 0) flawless(id, 'Exactly right', PERFECT_BONUS)
       }
       const best = r === null ? [] : Object.keys(diffs).filter((id) => diffs[id] === Math.min(...Object.values(diffs)))
       const reaction = r !== null && (r >= 4.5 || r <= 0.5)
@@ -919,10 +925,15 @@ export class LobbyHost extends EventEmitter {
       for (const id of right) give(id, 100)
       const missed = Object.keys(votes).filter((id) => id !== c.defendant && votes[id] !== c.defendant).length
       if (!convicted) give(c.defendant, 100 + 25 * missed)
+      // Everyone saw through it, or nobody so much as suspected them.
+      const jurors = Object.keys(votes).filter((id) => id !== c.defendant)
+      if (jurors.length >= 2 && right.length === jurors.length) for (const id of right) flawless(id, 'Unanimous', PERFECT_BONUS)
+      if (jurors.length >= 2 && !tally[c.defendant]) flawless(c.defendant, 'Not a single vote', PERFECT_BONUS)
       result = { style: 'jury', word: c.word, info: c.info, charge: c.charge, defendant: c.defendant, votes, tally, convicted, right, missed, past: c.past, ratings: c.past, rated: [] }
     } else if (c.style === 'clues') {
       const solved = Object.fromEntries([...c.solved].filter(([id]) => live(id)))
       for (const [id, s] of Object.entries(solved)) give(id, s.points)
+      for (const [id, s] of Object.entries(solved)) if (s.clue <= 1 && !s.wrong) flawless(id, s.clue === 0 ? 'From the blanks alone' : 'Flawless', PERFECT_BONUS)
       const wrong = Object.fromEntries([...c.wrong].filter(([id]) => live(id)))
       const ratings = Object.fromEntries(Object.entries(c.table).filter(([id, r]) => live(id) && r !== null))
       result = { style: 'clues', word: c.word, info: c.info, table: c.table, clues: c.clues.length, solved, wrong, ratings, rated: [] }
@@ -935,6 +946,7 @@ export class LobbyHost extends EventEmitter {
         const diff = counted ? round1(Math.abs(r - a.target)) : null
         const pts = counted ? closePoints(r, a.target) + (diff <= 0.1 ? 50 : 0) : 0
         give(picker, pts)
+        if (counted && diff === 0) flawless(picker, 'Bullseye', PERFECT_BONUS)
         entries.push({ picker, rater: a.rater, target: a.target, word: pick?.word || null, info: pick?.info || null, r: counted ? r : null, diff, points: pts })
       }
       const scored = entries.filter((e) => e.diff !== null)
@@ -947,6 +959,7 @@ export class LobbyHost extends EventEmitter {
       result = { style: 'hive', entries, best, worst, ratings: cards, rated: entries.filter((e) => e.r !== null).map((e) => ({ by: e.rater, word: e.word, r: e.r })) }
     }
     result.points = points
+    result.perfect = perfect
     c.result = result
     this.history.push({ round: this.round, ...result, players: c.roster.length })
     this._changed()
@@ -1190,6 +1203,11 @@ export function summarize (history, players, style = 'classic') {
     const bold = [...tries].sort((a, b) => b[1] - a[1])[0]
     if (bold?.[1] >= 3) awards.push({ emoji: '🎲', title: 'Never stopped guessing', player: bold[0], detail: `${name(bold[0])}, ${bold[1]} wrong guesses` })
   }
+  // Perfect plays, across the game.
+  const perfects = new Map()
+  for (const h of history) for (const [id, list] of Object.entries(h.perfect || {})) perfects.set(id, (perfects.get(id) || 0) + list.length)
+  const flawless = [...perfects].sort((a, b) => b[1] - a[1])[0]
+  if (flawless) awards.unshift({ emoji: '💎', title: 'Perfectionist', player: flawless[0], detail: `${name(flawless[0])}, ${flawless[1]} perfect play${flawless[1] === 1 ? '' : 's'}` })
   const words = history.flatMap((h) => (h.style === 'hive' ? (h.entries || []).filter((e) => e.word).map((e) => ({ word: e.word, mean: e.r, spread: 0 })) : h.word ? [{ word: h.word, mean: h.mean ?? h.r ?? null, spread: h.spread || 0 }] : []))
   return { awards, words, scored }
 }

@@ -160,7 +160,8 @@ test('High/Low: rate, guess who went highest and lowest, and score the guesses',
   const res = quinn.lobbyState.current.result
   assert.deepEqual(res.highest, [p])
   assert.deepEqual(res.lowest, [q])
-  assert.deepEqual(res.points, { [h]: 200, [p]: 100 })
+  assert.deepEqual(res.points, { [h]: 250, [p]: 100 }, 'both right is a perfect read: 200 plus 50')
+  assert.deepEqual(res.perfect, { [h]: [{ label: 'Perfect read', bonus: 50 }] })
   assert.equal(res.guesses[q].hitHigh, false)
   await until(() => host.store.counter('mindReads') === 1)
   assert.equal(pip.store.rating(res.word), 4.8, 'the rating counts as Pip’s own')
@@ -237,7 +238,7 @@ test('Hive mind: secret targets and raters, players choose words, raters rate th
   const res = quinn.lobbyState.current.result
   assert.equal(res.entries.length, 3)
   assert.deepEqual(res.best, [idOf(host)])
-  assert.equal(res.points[idOf(host)], 150, 'a bullseye: 100 plus 50')
+  assert.equal(res.points[idOf(host)], 200, 'dead on: 100, plus 50 within 0.1, plus 50 for exact')
   await until(() => host.store.counter('bullseyes') === 1)
   const raterOfCat = mine[idOf(host)].rater
   const raterApp = apps.find((a) => idOf(a) === raterOfCat)
@@ -416,7 +417,7 @@ test('Clues: blanks and the table’s ratings, clues over time, points for guess
   await until(() => host.lobbyState.phase === 'reveal')
   const res = host.lobbyState.current.result
   assert.equal(res.word, 'serendipity')
-  assert.equal(res.points[host.lobbyState.you], 100 - 12)
+  assert.equal(res.points[host.lobbyState.you], 100 - 12 + 50, 'after one clue with no misses: flawless')
 })
 
 test('Clues are fair: the word never shows up in them', async () => {

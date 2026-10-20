@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { COSMETICS, KINDS, RARITY } from '../shared/cosmetics.js'
+import { BADGES } from '../shared/progress.js'
 import { api, Avatar, Coins, CoinArt, useToast } from './ui.jsx'
 import { burst, centerOf, setConfettiStyle } from './effects.js'
 import { useLiveCoins } from './Wirdhouse.jsx'
@@ -58,16 +59,14 @@ export default function Shop ({ econ, me }) {
                 <strong>{c.name}</strong>
                 <span className={`rarity r-${c.rarity}`}>{RARITY[c.rarity]}</span>
               </div>
-              {c.desc && <small className='desc'>{c.desc}</small>}
+              {flavor(c) && <small className='desc'>{flavor(c)}</small>}
               <div className='buy'>
                 {wearing
                   ? <span className='wearing-tag'>{k.seen === 'you' ? 'In use' : 'Wearing'}</span>
                   : have
                     ? <button className='btn small' onClick={() => act('equip', c.kind, c.id)}>{k.seen === 'you' ? 'Use' : 'Wear'}</button>
-                    : c.badge
-                      ? <span className='locked-tag'>🏅 Comes with a badge</span>
-                      : c.price === null
-                      ? <span className='locked-tag'>🔒 Publish {c.edition === 1 ? 'once' : `${c.edition} times`}</span>
+                    : c.price === null
+                      ? <span className='locked-tag' title={lockText(c)}>{lockText(c)}</span>
                       : <button className='btn small primary' disabled={coins < c.price} onClick={(e) => act('buyCosmetic', c.kind, c.id, e.currentTarget)}><Coins n={c.price} /></button>}
                 {c.kind === 'confetti' && <button className='btn small ghost' onClick={(e) => { setConfettiStyle(c.id); const at = centerOf(e.currentTarget); burst(at.x, at.y, 'confetti'); setTimeout(() => setConfettiStyle(look.confetti), 50) }}>Try</button>}
               </div>
@@ -78,6 +77,18 @@ export default function Shop ({ econ, me }) {
     </div>
   )
 }
+
+// How to get something that can't be bought, from the rule itself (so the
+// words always match what's checked): a badge, a level, or publishing.
+const BADGE = Object.fromEntries(BADGES.map((b) => [b.id, b]))
+export function lockText (c) {
+  if (c.badge) { const b = BADGE[c.badge]; return b ? `🏅 ${b.name} badge: ${b.hint.replace(/\.$/, '')}` : '🏅 Comes with a badge' }
+  if (c.level) return `⭐ Reach level ${c.level}`
+  if (c.edition) return `📖 Publish ${c.edition === 1 ? 'once' : `${c.edition} times`}`
+  return '🔒 Not for sale'
+}
+// The description without the how-to-get-it part (the lock says that).
+const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.)\s*/, '').trim()
 
 // A small picture of each item, drawn with the same styles the real thing uses.
 export function Preview ({ c, me }) {

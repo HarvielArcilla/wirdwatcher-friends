@@ -31,7 +31,7 @@ The game is built for the keyboard:
 
 **After you rate:** you see where your rating landed on a line from 0 to 5, next to each friend’s rating of the same word, your friends’ average and your own average. A one-line verdict sums it up (“Hot take: 1.9 above your friends”, “Exactly what Pip said”, “Toughest of your friends on this one”), and each friend’s taste match is shown. For a word no friend has rated, you see how it ranks among your own ratings (“One of your highest ratings ever”). The Friends page shows your taste match with each friend.
 
-**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level and title, and there are 96 badges. Every level up pays a coin bonus that grows with your wirdhouse, and every fifth level (and 75 and 100) unlocks a cosmetic you can't buy. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level, with a new title every five levels (5, 10, 15…), and there are 97 badges. Every level up pays a coin bonus that grows with your wirdhouse, and every fifth level (and 75 and 100) unlocks a cosmetic you can't buy. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
 ## Sound and effects
 
@@ -89,10 +89,11 @@ Every word you rate for the first time pays coins, the same whatever you give it
 - **Upgrades** come in kinds, so there's more than one way to play:
   - *words* (more per new word, bonuses for long words and your first word of the day, a share of the wirdhouse's output with every word);
   - *streak* (bigger, longer, more forgiving, and eventually boosting the wirdhouse too);
-  - *muse* (each new word speeds the wirdhouse up for a while);
+  - *muse* (a stronger muse that fades slower; see below);
   - *offline* (how fast, and for how long, it earns while the app is closed);
   - *social* (lobby rounds, hosting, friends online);
   - *buildings*, *synergy* (buildings that help each other) and *global*.
+- **The muse** is the wirdhouse's inspiration, and what keeps rating words worth it however big the house gets. Each new word you rate fills it a quarter, and it fades to nothing over three minutes. A full muse runs the wirdhouse at full speed (up to 3× with muse upgrades); an empty one runs it at 40%. The meter is under your coins. Earnings while the app is closed are separate.
 - **Publishing your dictionary** (prestige) starts the wirdhouse over, coins, buildings and upgrades, for **ink**. Every ink you've ever earned makes everything earn 2% more, forever, and ink buys **perks** that last through every edition (head start, seed money, a higher streak, better time away, and more). Your first, third and fifth editions each bring a cosmetic you can't buy.
 - **The coinflip**: bet any amount, call heads or tails, double it or lose it. It means nothing, and flip winnings don't count toward ink.
 
@@ -132,9 +133,11 @@ The host opens **Lobby → Host a lobby**, then picks a mode, which words to use
 
 Only the first four modes save ratings to your collection.
 
+**Perfect plays** score 50 more and get celebrated at the table: both High/Low guesses right, a Hot seat prediction dead on, a Hive mind word that lands exactly on target, a Grand Jury that catches the defendant unanimously (or a defendant who draws no votes at all), and a Clues word solved within one clue with no misses. When a game ends, the podium rises, the winner gets a crown and confetti, and the sidebar shows a recap: the pot, the awards, and every round with what it meant for you.
+
 **Stakes.** In any mode with points, the host can set a stake (100 coins up to 1 million). Everyone who wants in presses **Buy in**; the highest score at the end takes the pot, and ties split it. Coins never change how anyone plays or scores, and nobody's coins move unless they bought in for that exact amount. There's no bank, so each app keeps its own stake in escrow and the pot follows one rule that every computer checks: **a pot pays out exactly what went in**. The host pays out only after every player's app has confirmed it saw the result, and a stake comes back whenever the game didn't finish: the host ended it early or closed the lobby, your connection dropped, or your app closed mid-game. Leaving on purpose mid-game leaves your stake in the pot (the Leave button asks first). The one case that can't be closed without a bank, a connection that dies in the second between confirming and being paid, loses that stake rather than ever paying it twice. The details are in `src/shared/stakes.js`. Pot winnings don't count toward ink.
 
-Typing a number always rates, wherever you clicked last; only the chat box keeps your keys (the table says so, and `Esc` hands them back). `Space` says the word. The sidebar has two tabs: **Game** (mode, scores, the word's details) and **Chat** (chat and reactions, with a count of unread messages); `T` opens the chat.
+Typing a number always rates, wherever you clicked last; only the chat box keeps your keys (the table says so, and `Esc` hands them back). `Space` says the word, in the voice chosen under Settings → Sound (the best English voice on your computer unless you pick one; the enhanced and natural voices you can add to macOS and Windows pronounce far better). The sidebar has two tabs: **Game** (mode, scores, the word's details) and **Chat** (chat and reactions, with a count of unread messages); `T` opens the chat.
 
 If a player’s connection drops, their seat, score and answers are held for 45 seconds while their computer reconnects, and a connection that goes silent is noticed within about 15 seconds instead of hanging. The host can always move on without anyone who isn’t ready.
 

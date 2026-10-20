@@ -12,6 +12,7 @@ import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { readJson, writeJson } from './files.js'
 import {
+  museNow, museFactor, museDrainSecs, MUSE_FILL, MUSE_FLOOR,
   BUILDINGS, UPGRADES, PERKS, buildingCost, maxAffordable, effects, baseCps, buildingCps, cpsNow,
   wordPay, nextStreak, streakNow, lobbyPay, offlinePay, upgradeList, inkGain, inkTotalFor, INK_BONUS, INK_PER
 } from '../shared/economy.js'
@@ -64,6 +65,7 @@ export class Economy extends EventEmitter {
     for (const k of ['stats', 'flips', 'stakes']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
     this.s.escrow = { ...(saved?.escrow || {}) }
     this.s.look = { ...DEFAULT_LOOK, ...(saved?.look || {}) }
+    if (!this.s.muse) this.s.muse = { v: 1, t: now() } // arrive inspired
     this.paid = new Set(this.s.paid)
     this.dirty = false
     this.away = null
@@ -157,11 +159,11 @@ export class Economy extends EventEmitter {
     this.s.lastWordDay = day
     this.s.streak = spam ? { n: 0, last: 0 } : { n: pay.streak.n, last: t }
     this.s.stats.bestStreak = Math.max(this.s.stats.bestStreak, pay.streak.n)
-    if (fx.museSecs) this.s.museUntil = t + fx.museSecs * 1000
+    this.s.muse = { v: Math.min(1, museNow(this.s, t, fx) + MUSE_FILL), t }
     this.s.stats.words++
     this._earn(pay.coins)
     this.emit('changed')
-    return { coins: pay.coins, streak: { n: pay.streak.n, mult: pay.streak.mult }, same: { r, n: same }, broke: spam, firstToday: pay.firstToday, muse: fx.museSecs ? { mult: fx.museMult, until: this.s.museUntil } : null }
+    return { coins: pay.coins, streak: { n: pay.streak.n, mult: pay.streak.mult }, same: { r, n: same }, broke: spam, firstToday: pay.firstToday, muse: { level: this.s.muse.v } }
   }
 
   onLobbyRound ({ hosting = false } = {}) {
@@ -222,7 +224,7 @@ export class Economy extends EventEmitter {
     s.buildings = { pencil: [0, 5, 15, 30, 50, 100][head], notebook: [0, 0, 5, 10, 25, 50][head] }
     s.upgrades = s.perks.momentum ? ['streak-1', 'streak-2'] : []
     s.streak = { n: 0, last: 0 }
-    s.museUntil = 0
+    s.muse = { v: 1, t: this.now() }
     // Each edition can bring something only editions bring.
     const earned = COSMETICS.filter((c) => c.edition && c.edition <= s.edition && !s.owned.includes(`${c.kind}:${c.id}`))
     for (const c of earned) s.owned.push(`${c.kind}:${c.id}`)
@@ -497,8 +499,7 @@ export class Economy extends EventEmitter {
       streak: { n: st.n, mult: st.mult, endsAt: st.endsAt, window: fx.streakWindow },
       same: this.s.same || { r: null, n: 0 },
       sameLimit: SAME_LIMIT,
-      museUntil: this.s.museUntil > t ? this.s.museUntil : 0,
-      museMult: fx.museMult,
+      muse: { level: museNow(this.s, t, fx), mult: fx.museMult, floor: MUSE_FLOOR, factor: museFactor(museNow(this.s, t, fx), fx), drainSecs: museDrainSecs(fx), fill: MUSE_FILL },
       edition: this.s.edition,
       staked: this.stakedNow(),
       look: { ...this.s.look }

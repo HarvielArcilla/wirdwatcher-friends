@@ -314,6 +314,8 @@ export class WirdApp extends EventEmitter {
         if (res.right?.includes(s.you)) { items.push({ amount: XP.hiveMind, why: 'Named them' }); counters.convictions = 1 }
         if (res.defendant === s.you && !res.convicted) { items.push({ amount: XP.hiveMind, why: 'Walked free' }); counters.acquittals = 1 }
       }
+      const perfect = res.perfect?.[s.you] || []
+      if (perfect.length) { items.push({ amount: XP.hiveMind * perfect.length, why: perfect.map((x) => x.label).join(', ') }); counters.perfects = perfect.length }
       const solved = res.style === 'clues' ? res.solved?.[s.you] : null
       if (solved) { items.push({ amount: XP.hiveMind, why: 'Solved it' }); if (solved.clue <= 2) counters.quickClues = 1 }
       const bonus = this._withLevelReward(this.game.award(items, counters))

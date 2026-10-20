@@ -6,7 +6,7 @@
 import path from 'node:path'
 import { readJson, writeJson } from './files.js'
 
-// kind: 'count' | 'bool' | 'choice'. group orders the settings screen; the
+// kind: 'count' | 'bool' | 'choice' | 'text'. group orders the settings screen; the
 // 'sound' group has its own section in Settings.
 export const SETTING_FIELDS = {
   // Playing
@@ -15,6 +15,7 @@ export const SETTING_FIELDS = {
   animations: { group: 'sound', kind: 'choice', default: 'all', options: ['all', 'ends', 'off'], label: 'Animations when you rate', hint: 'Every rating gets a small reaction; the ends get confetti or a crumble.' },
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
+  voice: { group: 'sound', kind: 'text', default: '', max: 120, label: 'Voice for saying words', hint: 'Empty picks the best English voice on this computer.' },
   speakOnReveal: { group: 'play', kind: 'bool', default: false, label: 'Say each new word out loud' },
   skipRated: { group: 'play', kind: 'bool', default: true, label: 'Don’t deal words I’ve already rated', hint: 'Turn off to see old words again in shuffles.' },
   autoAdvanceMs: { group: 'play', kind: 'count', default: 0, min: 0, max: 10000, label: 'Move to the next word by itself after (ms)', hint: '0 waits for a second Enter.' },
@@ -42,6 +43,7 @@ export function normalizeSettings (s = {}) {
     const v = s[k]
     if (f.kind === 'bool') out[k] = typeof v === 'boolean' ? v : f.default
     else if (f.kind === 'choice') out[k] = f.options.includes(v) ? v : f.default
+    else if (f.kind === 'text') out[k] = typeof v === 'string' ? v.slice(0, f.max) : f.default
     else {
       const n = Number(v)
       out[k] = Number.isFinite(n) ? Math.round(Math.max(f.min, Math.min(f.max, n))) : f.default

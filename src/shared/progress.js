@@ -27,7 +27,8 @@ export function levelFor (xp) {
 }
 
 const TITLES = ['Glancer', 'Skimmer', 'Reader', 'Watcher', 'Word Watcher', 'Wordsmith', 'Lexicographer', 'Etymologist', 'Oracle of Words', 'Wird Sage']
-export const titleFor = (level) => TITLES[Math.min(TITLES.length - 1, Math.floor((level - 1) / 5))]
+// A new title every fifth level: 5, 10, 15 and so on.
+export const titleFor = (level) => TITLES[Math.min(TITLES.length - 1, Math.floor(level / 5))]
 
 // stats: see Store.stats(). Each badge: id, name, hint, emoji, test(stats).
 export const BADGES = [
@@ -105,6 +106,7 @@ export const BADGES = [
   { id: 'bullseye', emoji: '🎯', name: 'Bullseye', hint: 'In Hive mind, land within 0.1 of your target.', test: (s) => s.bullseyes >= 1 },
   { id: 'getaway', emoji: '🎭', name: 'Got away with it', hint: 'In Grand Jury, be the defendant and walk free.', test: (s) => s.acquittals >= 1 },
   { id: 'detective', emoji: '🔎', name: 'Detective', hint: 'In Grand Jury, name the right person ten times.', test: (s) => s.convictions >= 10 },
+  { id: 'flawless', emoji: '💎', name: 'Flawless', hint: 'Make five perfect plays at a table.', test: (s) => s.perfects >= 5 },
   { id: 'sharpeye', emoji: '⚡', name: 'Sharp eye', hint: 'In Clues, get the word within two clues.', test: (s) => s.quickClues >= 1 },
   { id: 'allmodes', emoji: '🎲', name: 'Tried them all', hint: 'Finish a lobby game in every mode.', test: (s) => ['classic', 'highlow', 'hotseat', 'hive'].every((m) => s[`games_${m}`] >= 1) },
   { id: 'hottake5', emoji: '🔥', name: 'Contrarian', hint: 'Five hot takes at a table.', test: (s) => s.hotTakes >= 5 },

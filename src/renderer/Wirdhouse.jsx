@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatCoins, UPGRADE_KINDS } from '../shared/economy.js'
-import { api, Coins, CoinArt, useToast, useInterval } from './ui.jsx'
+import { api, Coins, CoinArt, SKINS, useToast, useInterval } from './ui.jsx'
 import { burst, centerOf } from './effects.js'
 
 // The wirdhouse: where coins are invested. Buildings make coins every
@@ -31,8 +31,8 @@ export default function Wirdhouse ({ econ }) {
             <span><b>{formatCoins(econ?.cps ?? v.cps)}</b> a second</span>
             <span><b>{formatCoins(v.perWord)}</b> a new word</span>
             {econ?.streak?.n > 1 && econ.streak.endsAt && <span className='hot'>🔥 streak ×{econ.streak.mult.toFixed(2)}</span>}
-            {econ?.museUntil > Date.now() && <span className='muse'>💡 muse ×{v.fx.museMult}</span>}
           </div>
+          <Muse m={econ?.muse || v.muse} />
         </div>
         <p className='lede'>Every new word you rate pays the same, whatever you give it. Rate new words within a minute of each other for a streak, but the same score five times running ends it. The wirdhouse turns coins into more coins; spend them here, or on looks in the shop.</p>
       </div>
@@ -259,7 +259,7 @@ function Stats ({ v }) {
     ['Lobby rounds that paid', v.stats.lobbyRounds.toLocaleString()],
     ['Best streak', `${v.stats.bestStreak} words`],
     ['Streak', `+${Math.round(fx.streakStep * 100)}% a word, up to ×${fx.streakCap}, ${fx.streakWindow}s between words${fx.streakKeep ? `, keeps ${Math.round(fx.streakKeep * 100)}% when it ends` : ''}${fx.streakToIdle ? ', boosts the wirdhouse' : ''}`],
-    ['Muse', fx.museSecs ? `×${fx.museMult} for ${fx.museSecs}s after each new word` : 'Not yet'],
+    ['Muse', `full: ×${fx.museMult} speed; empty: ×${v.muse.floor}; each new word fills ${Math.round(v.muse.fill * 100)}%, fades over ${Math.round(v.muse.drainSecs / 60 * 10) / 10} min`],
     ['While away', `${Math.round(fx.offlineRate * 100)}% speed, up to ${fx.offlineHours} hours`],
     ['Lobby rounds', `×${fx.lobbyMult}${fx.hostMult > 1 ? `, ×${fx.hostMult} more hosting` : ''}`],
     ['Friends online', fx.friendPct ? `+${Math.round(fx.friendPct * 100)}% each` : 'No bonus yet'],
@@ -307,12 +307,35 @@ function SpinningCoin ({ skin, land, spin }) {
   const halves = Math.floor(angle / Math.PI + 0.5) // which face is showing
   const other = land === 'heads' ? 'tails' : 'heads'
   const face = halves % 2 === 0 ? land : other
-  const squash = Math.max(0.04, Math.abs(Math.cos(angle)))
+  const squash = Math.max(0.02, Math.abs(Math.cos(angle)))
   const lift = calm ? 0 : Math.sin(Math.PI * t) * 60
+  // A real disc: as it turns, its back rim slides out to one side and the
+  // milled edge between the two shows, widest when the coin is edge-on.
+  const THICK = 14
+  const offset = THICK * Math.sin(angle) * (Math.cos(angle) < 0 ? -1 : 1)
+  const [hi, mid, lo, ink] = SKINS[skin] || SKINS.gold
+  const rim = { position: 'absolute', top: 0, height: 150, borderRadius: '50%', width: 150 * squash, left: 75 - (150 * squash) / 2 }
   return (
-    <div className='flipcoin flat' style={{ transform: `translateY(${-lift}px) scaleX(${squash})` }} aria-live='polite'>
-      <CoinArt skin={skin} side={face} size={150} />
-      {squash < 0.6 && <i className='coin-edge' style={{ opacity: 1 - squash }} />}
+    <div className='flipcoin flat' style={{ transform: `translateY(${-lift}px)` }} aria-live='polite'>
+      <i aria-hidden='true' style={{ ...rim, transform: `translateX(${offset}px)`, background: `radial-gradient(circle at 50% 50%, ${mid}, ${lo})` }} />
+      <i aria-hidden='true' style={{ position: 'absolute', top: 0, height: 150, left: 75 + Math.min(0, offset), width: Math.abs(offset), background: `repeating-linear-gradient(0deg, ${lo} 0 2px, ${mid} 2px 4px), ${lo}`, boxShadow: `inset 0 0 0 1px ${ink}33` }} />
+      <div style={{ position: 'absolute', inset: 0, transform: `scaleX(${squash})` }}><CoinArt skin={skin} side={face} size={150} thick={false} /></div>
+      <i aria-hidden='true' style={{ ...rim, background: `linear-gradient(90deg, transparent 40%, ${hi}22 50%, transparent 60%)`, pointerEvents: 'none' }} />
+    </div>
+  )
+}
+
+// The muse: how inspired the wirdhouse is, and what that's doing to it.
+function Muse ({ m }) {
+  if (!m) return null
+  const pct = Math.round(m.level * 100)
+  const mins = Math.round((m.drainSecs / 60) * 10) / 10
+  return (
+    <div className={`muse-meter ${pct < 25 ? 'low' : ''}`} title={`Your muse is the wirdhouse's inspiration. Each new word you rate fills it ${Math.round(m.fill * 100)}%; it fades to nothing over ${mins} minutes. Full, the wirdhouse runs at ×${m.mult}; empty, at ×${m.floor}.`}>
+      <span className='mm-label'>💡 Muse</span>
+      <span className='mm-bar'><i style={{ width: `${pct}%` }} /></span>
+      <span className='mm-now'>{pct}% · running at <b>×{m.factor.toFixed(2)}</b></span>
+      <small className='mm-help'>{pct < 25 ? 'Your muse is fading. Rate a new word to inspire the wirdhouse again.' : `Rate new words to keep it full. It fades over ${mins} min; empty, the wirdhouse slows to ${Math.round(m.floor * 100)}%.`}</small>
     </div>
   )
 }

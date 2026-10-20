@@ -34,7 +34,7 @@ export function Coins ({ n, className = '' }) {
 // The coin, drawn: a milled rim, a raised ring, and a face. Heads carries
 // the ww monogram, tails a five-point star (a 5.0). `skin` is a coin from the
 // shop.
-const SKINS = {
+export const SKINS = {
   gold: ['#fff4c2', '#f2c23e', '#b07a12', '#7a5208'],
   silver: ['#ffffff', '#cfd4dc', '#7c8591', '#3c434d'],
   bronze: ['#f6d2a6', '#c47f3d', '#7a4416', '#4a260a'],
@@ -50,7 +50,9 @@ const SKINS = {
   platinum: ['#ffffff', '#e4e7ec', '#9aa3b0', '#4a5260']
 }
 let coinIds = 0
-export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className = '' }) {
+// thick: draw the milled edge under the face, so a coin at rest looks like a
+// solid disc (off for the flipping coin, which draws its own edge in 3D).
+export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className = '', thick = true }) {
   const [hi, mid, lo, ink] = SKINS[skin] || SKINS.gold
   const id = useRef(null)
   if (!id.current) id.current = `cg${++coinIds}`
@@ -68,6 +70,11 @@ export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className =
           </linearGradient>
         )}
       </defs>
+      {thick && <>
+        <circle cx='50' cy='53.5' r='46' fill={lo} />
+        <circle cx='50' cy='53.5' r='45' fill='none' stroke={ink} strokeWidth='2.2' strokeDasharray='1.4 2' opacity='.35' />
+      </>}
+      <g transform={thick ? 'translate(2 0.5) scale(.96)' : undefined}>
       <circle cx='50' cy='50' r='48' fill={rainbow ? `url(#${g}r)` : `url(#${g}f)`} />
       <circle cx='50' cy='50' r='45' fill='none' stroke={lo} strokeWidth='4' strokeDasharray='2 2.2' opacity='.55' />
       <circle cx='50' cy='50' r='38' fill='none' stroke={rainbow ? '#fff' : hi} strokeWidth='2.5' opacity='.7' />
@@ -78,6 +85,7 @@ export function CoinArt ({ skin = 'gold', side = 'heads', size = 40, className =
         ? <text x='50' y='51' textAnchor='middle' dominantBaseline='central' fontFamily='Fredoka, system-ui, sans-serif' fontWeight='700' fontSize='34' fill={ink} opacity='.9' style={{ letterSpacing: '-1px' }}>ww</text>
         : <path d='M50 24 L57.6 41.2 L76 42.8 L62 55 L66.2 73 L50 63.4 L33.8 73 L38 55 L24 42.8 L42.4 41.2 Z' fill={ink} opacity='.85' />}
       <ellipse cx='36' cy='26' rx='16' ry='7' fill='#fff' opacity={skin === 'obsidian' || skin === 'ink' ? 0.12 : 0.28} transform='rotate(-25 36 26)' />
+      </g>
     </svg>
   )
 }
@@ -110,12 +118,37 @@ export const wordSize = (word, base = 128, min = 44) => {
 
 // Rating sounds live in sound.js.
 
+// Saying a word: with the voice chosen in Settings, or the best English
+// voice on this computer. Left to itself the system can pick a low-quality
+// or novelty voice, which mispronounces far more.
+let voiceName = ''
+export function setVoice (name) { voiceName = name || '' }
+const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|deranged|hysterical|pipe organ|fred|junior|ralph|kathy|princess|grandma|grandpa|rocko|shelley|eddy|flo|reed|sandy)\b/i
+export function englishVoices () {
+  try { return (window.speechSynthesis?.getVoices() || []).filter((v) => /^en([-_]|$)/i.test(v.lang)) } catch { return [] }
+}
+export function voiceScore (v) {
+  let s = 0
+  if (/(premium|enhanced|natural|neural)/i.test(v.name)) s += 6
+  if (/^(samantha|ava|allison|evan|zoe|nathan|alex|daniel|karen|moira|serena|aria|jenny|guy|zira|david|mark)\b/i.test(v.name.replace(/^microsoft /i, ''))) s += 3
+  if (/en[-_]us/i.test(v.lang)) s += 2
+  else if (/en[-_](gb|au|ca|ie|nz)/i.test(v.lang)) s += 1
+  if (v.localService) s += 1
+  if (NOVELTY.test(v.name)) s -= 20
+  return s
+}
+export function bestVoice () {
+  const all = englishVoices()
+  return all.find((v) => v.name === voiceName) || [...all].sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null
+}
 export function speak (word) {
   try {
     if (!window.speechSynthesis) return false
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(word)
-    u.lang = 'en-US'
+    const v = bestVoice()
+    if (v) u.voice = v
+    u.lang = v?.lang || 'en-US'
     u.rate = 0.9
     window.speechSynthesis.speak(u)
     return true
@@ -186,7 +219,7 @@ export const icons = {
 // up, and the rewards land one after another. Click anywhere (or wait) to go
 // on; it never takes the keyboard.
 let levelSettings = null
-export function setLevelUpSettings (s) { levelSettings = s }
+export function setLevelUpSettings (s) { levelSettings = s; setVoice(s?.voice) }
 function LevelUp ({ level, onDone }) {
   const [shown, setShown] = useState(Math.max(1, level.level - 1))
   useEffect(() => {
@@ -203,7 +236,7 @@ function LevelUp ({ level, onDone }) {
         <div className='lv-rays' aria-hidden='true' />
         <div className='lv-kicker'>Level up</div>
         <div className='lv-num' key={shown}>{shown}</div>
-        <div className='lv-title'>{(level.level - 1) % 5 === 0 ? <>New title: {level.title}</> : (5 - ((level.level - 1) % 5)) === 1 ? 'A new title next level' : `Next title in ${5 - ((level.level - 1) % 5)} levels`}</div>
+        <div className='lv-title'>{level.level % 5 === 0 ? <>New title: {level.title}</> : 5 - (level.level % 5) === 1 ? 'A new title next level' : `Next title in ${5 - (level.level % 5)} levels`}</div>
         {r && (
           <div className='lv-rewards'>
             {r.coins > 0 && <div className='lv-reward' style={{ animationDelay: '.9s' }}><Coins n={r.coins} /><small>coins</small></div>}

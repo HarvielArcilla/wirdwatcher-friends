@@ -57,7 +57,7 @@ export function maxAffordable (b, owned, coins) {
 //   synergy   - one building boosts another
 //   word      - coins for each new word you rate
 //   streak    - the pace streak: bigger, longer-lasting, more forgiving
-//   muse      - rating makes the wirdhouse work faster for a while
+//   muse      - the wirdhouse's inspiration: rating keeps it working
 //   offline   - what the wirdhouse earns while the app is closed
 //   social    - lobbies and friends
 //   global    - everything
@@ -155,14 +155,14 @@ const SPECIAL = [
   { id: 'streak-9', kind: 'streak', emoji: '🗿', name: 'Unshakeable', cost: 1e12, desc: 'The streak lasts 3 minutes between words, and keeps 90% when it runs out.', req: both(words(3000), owns('streak-7')), hint: 'Rate 3,000 words', apply: (fx) => { fx.streakWindow = Math.max(fx.streakWindow, 180); fx.streakKeep = Math.max(fx.streakKeep, 0.9) } },
 
   // The muse: rating speeds the wirdhouse up for a while.
-  { id: 'muse-1', kind: 'muse', emoji: '💡', name: 'A muse', cost: 1000, desc: 'After each new word, the wirdhouse works 20% faster for 20 seconds.', req: (s) => (s.buildings.pencil || 0) >= 5, hint: 'Own 5 pencils', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 1.2); fx.museSecs = Math.max(fx.museSecs, 20) } },
-  { id: 'muse-2', kind: 'muse', emoji: '🎨', name: 'Inspired', cost: 25000, desc: 'The muse makes it 40% faster.', req: owns('muse-1'), hint: 'Have A muse', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 1.4) } },
-  { id: 'muse-3', kind: 'muse', emoji: '🎭', name: 'Lingering muse', cost: 400000, desc: 'The muse stays a minute.', req: owns('muse-2'), hint: 'Have Inspired', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 60) } },
-  { id: 'muse-4', kind: 'muse', emoji: '🌠', name: 'Divine inspiration', cost: 2e7, desc: 'The muse makes it twice as fast.', req: owns('muse-3'), hint: 'Have Lingering muse', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 2) } },
-  { id: 'muse-5', kind: 'muse', emoji: '🪄', name: 'Muse in residence', cost: 1e9, desc: 'The muse stays 3 minutes.', req: owns('muse-4'), hint: 'Have Divine inspiration', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 180) } },
+  { id: 'muse-1', kind: 'muse', emoji: '💡', name: 'A muse', cost: 1000, desc: 'A full muse runs the wirdhouse 20% faster than normal, and fades 20 seconds slower.', req: (s) => (s.buildings.pencil || 0) >= 5, hint: 'Own 5 pencils', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 1.2); fx.museSecs = Math.max(fx.museSecs, 20) } },
+  { id: 'muse-2', kind: 'muse', emoji: '🎨', name: 'Inspired', cost: 25000, desc: 'A full muse runs it 40% faster.', req: owns('muse-1'), hint: 'Have A muse', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 1.4) } },
+  { id: 'muse-3', kind: 'muse', emoji: '🎭', name: 'Lingering muse', cost: 400000, desc: 'The muse fades a minute slower.', req: owns('muse-2'), hint: 'Have Inspired', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 60) } },
+  { id: 'muse-4', kind: 'muse', emoji: '🌠', name: 'Divine inspiration', cost: 2e7, desc: 'A full muse runs it twice as fast.', req: owns('muse-3'), hint: 'Have Lingering muse', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 2) } },
+  { id: 'muse-5', kind: 'muse', emoji: '🪄', name: 'Muse in residence', cost: 1e9, desc: 'The muse fades 3 minutes slower.', req: owns('muse-4'), hint: 'Have Divine inspiration', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 180) } },
 
-  { id: 'muse-6', kind: 'muse', emoji: '😇', name: 'Patron saint', cost: 5e10, desc: 'The muse makes it 3× as fast.', req: owns('muse-5'), hint: 'Have Muse in residence', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 3) } },
-  { id: 'muse-7', kind: 'muse', emoji: '♾️', name: 'Eternal muse', cost: 2e12, desc: 'The muse stays 10 minutes.', req: owns('muse-6'), hint: 'Have Patron saint', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 600) } },
+  { id: 'muse-6', kind: 'muse', emoji: '😇', name: 'Patron saint', cost: 5e10, desc: 'A full muse runs it 3× as fast.', req: owns('muse-5'), hint: 'Have Muse in residence', apply: (fx) => { fx.museMult = Math.max(fx.museMult, 3) } },
+  { id: 'muse-7', kind: 'muse', emoji: '♾️', name: 'Eternal muse', cost: 2e12, desc: 'The muse fades 10 minutes slower.', req: owns('muse-6'), hint: 'Have Patron saint', apply: (fx) => { fx.museSecs = Math.max(fx.museSecs, 600) } },
 
   // Offline: for people who come back later.
   { id: 'off-1', kind: 'offline', emoji: '🌙', name: 'Night shift', cost: 2000, desc: 'While you’re away the wirdhouse runs at 10% (from 5%).', req: (s) => (s.buildings.notebook || 0) >= 1, hint: 'Own a notebook', apply: (fx) => { fx.offlineRate = Math.max(fx.offlineRate, 0.1) } },
@@ -197,7 +197,7 @@ export const UPGRADES = [...buildingUpgrades(), ...synergyUpgrades(), ...SPECIAL
 export const UPGRADE_KINDS = [
   ['word', 'Words', 'Coins for each new word you rate'],
   ['streak', 'Streak', 'Rating words back to back'],
-  ['muse', 'Muse', 'Rating speeds the wirdhouse up'],
+  ['muse', 'Muse', 'Rating keeps the wirdhouse inspired'],
   ['building', 'Buildings', 'One building’s output'],
   ['synergy', 'Synergy', 'Buildings that help each other'],
   ['offline', 'Offline', 'Earnings while you’re away'],
@@ -281,10 +281,26 @@ export function streakNow (s, now, fx = effects(s)) {
 }
 export const streakMult = (n, fx) => Math.min(fx.streakCap, 1 + n * fx.streakStep)
 
+// The muse is the wirdhouse's inspiration, and what keeps rating words
+// worth it however big the house gets. Each new word you rate fills it a
+// quarter; it fades to nothing over a few minutes. A full muse runs the
+// house at full speed (more with muse upgrades); an empty one, at 40%.
+// Time away is separate (see offlinePay).
+export const MUSE_FLOOR = 0.4
+export const MUSE_FILL = 0.25
+export const MUSE_BASE_SECS = 180
+export const museDrainSecs = (fx) => MUSE_BASE_SECS + fx.museSecs
+export function museNow (s, now, fx = effects(s)) {
+  const m = s.muse
+  if (!m) return 0
+  return Math.max(0, Math.min(1, m.v - (now - m.t) / (museDrainSecs(fx) * 1000)))
+}
+export const museFactor = (level, fx) => MUSE_FLOOR + (fx.museMult - MUSE_FLOOR) * level
+
 // Everything the wirdhouse is making right now, per second.
 export function cpsNow (s, { now, friendsOnline = 0 }, fx = effects(s)) {
   let cps = baseCps(s, fx)
-  if (s.museUntil && now < s.museUntil) cps *= fx.museMult
+  cps *= museFactor(museNow(s, now, fx), fx)
   if (fx.friendPct) cps *= 1 + fx.friendPct * friendsOnline
   if (fx.streakToIdle) cps *= Math.sqrt(streakNow(s, now, fx).mult)
   return cps
