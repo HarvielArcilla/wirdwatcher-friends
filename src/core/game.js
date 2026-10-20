@@ -476,7 +476,7 @@ export class Game extends EventEmitter {
       disagree: [...shared].filter((x) => x.diff >= 1).sort((a, b) => b.diff - a.diff).slice(0, 8),
       shared: shared.length,
       unrated: ratings.filter((x) => x.mine === null).length,
-      top4: cleanWords(me.top4, 4),
+      top4: cleanWords(me.top4, 4).map((w) => ({ word: w, def: this.words.lookup(w)?.senses?.[0]?.def || null })),
       lexicon: cleanLexicon(me.lexicon),
       market: cleanNumbers(me.market, ['value', 'gain', 'returnPct', 'trades'], { best: me.market?.best && typeof me.market.best.word === 'string' ? { word: me.market.best.word.slice(0, 60), pct: num(me.market.best.pct) } : null }),
       casino: cleanNumbers(me.casino, ['flips', 'flipWins', 'flipNet', 'biggestFlip', 'flipStreak', 'spins', 'slotNet', 'biggestSpin', 'jackpots'], { bestSpin: typeof me.casino?.bestSpin === 'string' ? me.casino.bestSpin.slice(0, 12) : null })

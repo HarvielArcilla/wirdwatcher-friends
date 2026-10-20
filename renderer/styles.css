@@ -1466,15 +1466,15 @@ html.calm .reel.spinning span { filter: none; }
 .top4 h2, .diary h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); font-weight: 700; margin: 0 0 10px; border-bottom: 1px solid var(--panel-raise); padding-bottom: 6px; }
 .top4 h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); }
 .top4 { margin-bottom: 22px; }
-.top4-row { display: grid; grid-template-columns: repeat(4, minmax(0, 168px)); gap: 16px; }
-.poster { position: relative; aspect-ratio: 2 / 3; max-height: 240px; border-radius: 10px; padding: 14px; display: grid; align-content: space-between; overflow: hidden; background: linear-gradient(160deg, color-mix(in oklab, var(--rc) 30%, var(--panel)), var(--panel) 75%); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--rc) 40%, transparent), 0 8px 20px var(--shadow); }
-.poster.empty { background: none; border: 2px dashed var(--line); box-shadow: none; color: var(--dim); font-weight: 600; place-items: center; align-content: center; }
+.top4-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.poster { position: relative; min-height: 0; border-radius: 10px; padding: 9px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 1px 10px; align-items: baseline; overflow: hidden; background: linear-gradient(120deg, color-mix(in oklab, var(--rc) 22%, var(--panel)), var(--panel) 80%); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--rc) 35%, transparent); }
+.poster.empty { background: none; border: 1.5px dashed var(--line); box-shadow: none; color: var(--dim); font-weight: 600; font-size: 13px; display: grid; place-items: center; grid-template-columns: 1fr; min-height: 58px; }
 .poster.empty.none { opacity: .4; }
 button.poster.empty:hover { color: var(--accent); border-color: var(--accent); }
-.poster-word { all: unset; cursor: pointer; font-family: var(--font-word); font-weight: var(--word-weight); color: var(--word); line-height: 1.05; overflow-wrap: break-word; hyphens: auto; }
-.poster-r { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 26px; color: var(--rc); }
-.poster-def { color: var(--dim); font-family: var(--font-read); font-size: 12px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.poster-acts { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.poster-word { all: unset; cursor: pointer; font-family: var(--font-word); font-weight: var(--word-weight); color: var(--word); font-size: 18px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poster-r { font-family: var(--font-word); font-weight: var(--word-weight); font-size: 18px; color: var(--rc); }
+.poster-def { grid-column: 1 / -1; color: var(--dim); font-family: var(--font-read); font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poster-acts { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; background: color-mix(in oklab, var(--panel) 85%, transparent); }
 .poster:hover .poster-acts, .poster:focus-within .poster-acts { opacity: 1; }
 .poster-acts button { border: 0; border-radius: 999px; font-size: 11px; padding: 3px 8px; background: var(--panel-raise); color: var(--text); }
 .top4-pick { margin-top: 10px; display: grid; gap: 8px; max-width: 520px; }
@@ -1498,4 +1498,4 @@ button.poster.empty:hover { color: var(--accent); border-color: var(--accent); }
 .pf-casino .hero-stats strong { font-size: 26px; }
 .pf-casino .up { color: var(--good); } .pf-casino .down { color: var(--bad); }
 .pf-best { color: var(--dim); margin: 6px 0 0; }
-@media (max-width: 800px) { .top4-row { grid-template-columns: repeat(2, minmax(0, 168px)); } }
+@media (max-width: 800px) { .top4-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

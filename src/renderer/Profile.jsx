@@ -38,7 +38,7 @@ export function Top4 ({ items, editable, onSave, openWord, name }) {
         {slots.map((x, i) => (x
           ? (
             <div key={i} className='poster' style={{ '--rc': ratingColor(x.r ?? 2.5) }}>
-              <button className='poster-word' style={{ fontSize: x.word.length > 12 ? 17 : x.word.length > 9 ? 20 : x.word.length > 7 ? 25 : 30 }} onClick={() => openWord?.(x.word)}>{x.word}</button>
+              <button className='poster-word' onClick={() => openWord?.(x.word)}>{x.word}</button>
               <span className='poster-r'>{x.r === null || x.r === undefined ? '–' : formatRating(x.r)}</span>
               {x.def && <small className='poster-def'>{x.def}</small>}
               {editable && <span className='poster-acts'><button onClick={() => setEditing(i)}>Change</button><button onClick={() => save(items.filter((_, j) => j !== i).map((y) => y.word))}>Remove</button></span>}
@@ -46,7 +46,7 @@ export function Top4 ({ items, editable, onSave, openWord, name }) {
             )
           : editable
             ? <button key={i} className='poster empty' onClick={() => setEditing(i)}>+ Add a favorite</button>
-            : <div key={i} className='poster empty none' />))}
+            : null))}
       </div>
       {editing !== null && (
         <div className='top4-pick'>

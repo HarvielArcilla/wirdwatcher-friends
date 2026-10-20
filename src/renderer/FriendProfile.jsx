@@ -54,7 +54,7 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
         <div><strong style={{ color: m?.pct == null ? undefined : m.pct >= 80 ? 'var(--good)' : m.pct < 55 ? 'var(--bad)' : 'var(--mid)' }}>{m?.pct == null ? '–' : `${m.pct}%`}</strong><span>{m?.pct == null ? `taste match (${m?.shared || 0} of 5 shared)` : `taste match, ${plural(m.shared, 'word')}`}</span></div>
       </div>
 
-      <Top4 name={p.name} openWord={openWord} items={p.top4.map((w) => { const r = p.ratings.find((x) => x.word === w); return { word: w, r: r ? r.r : null } })} />
+      <Top4 name={p.name} openWord={openWord} items={p.top4.map((t) => { const r = p.ratings.find((x) => x.word === t.word); return { ...t, r: r ? r.r : null } })} />
       <Diary title={`${p.name}’s recent ratings`} items={p.ratings.slice(0, 10)} openWord={openWord} />
       {s.rated > 0 && (
         <>
