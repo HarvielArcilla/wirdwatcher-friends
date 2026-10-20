@@ -3,7 +3,7 @@ import { api, Avatar, Coins, useToast, useInterval } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { STANCES, power, rarityName, DUELS_PER_DAY, TRAIN_MAX_HOURS } from '../shared/lexicon.js'
 import { burst, centerOf } from './effects.js'
-import { playLevelUp } from './sound.js'
+import Battle from './Battle.jsx'
 
 // The Lexicon: words you've caught, your team of three, training and duels.
 // A word's rarity is how you feel about it; everything else is growth.
@@ -71,7 +71,7 @@ export function WildWord ({ e, onDone, toast, active = true }) {
   )
 }
 
-export default function Lexicon ({ econ, friends }) {
+export default function Lexicon ({ econ, friends, settings }) {
   const toast = useToast()
   const [v, setV] = useState(null)
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('lex-tab') || 'team' } catch { return 'team' } })
@@ -109,7 +109,7 @@ export default function Lexicon ({ econ, friends }) {
       {v.cards.length > 0 && tab === 'team' && <Team v={v} act={act} econ={econ} />}
       {v.cards.length > 0 && tab === 'dex' && <Dex v={v} act={act} />}
       {v.cards.length > 0 && tab === 'train' && <Training v={v} act={act} econ={econ} />}
-      {tab === 'duels' && <Duels v={v} friends={friends} reload={load} toast={toast} />}
+      {tab === 'duels' && <Duels v={v} friends={friends} reload={load} toast={toast} settings={settings} />}
     </div>
   )
 }
@@ -219,7 +219,7 @@ function Training ({ v, act, econ }) {
   )
 }
 
-function Duels ({ v, friends, reload, toast }) {
+function Duels ({ v, friends, reload, toast, settings }) {
   const [profiles, setProfiles] = useState({})
   const [fight, setFight] = useState(null)
   useEffect(() => {
@@ -255,42 +255,8 @@ function Duels ({ v, friends, reload, toast }) {
           {v.duels.history.map((h, i) => <div key={i}><b className={h.won ? 'up' : 'down'}>{h.won ? 'Won' : 'Lost'} {h.score}</b> against {h.name} · {h.mine.join(', ')} vs {h.theirs.join(', ')} <small>{new Date(h.at).toLocaleDateString()}</small></div>)}
         </div>
       )}
-      {fight && <Fight fight={fight} onClose={() => setFight(null)} />}
+      {fight && <Battle res={fight.res} foe={fight.name} settings={settings} onClose={() => setFight(null)} />}
     </>
   )
 }
 
-// The duel, a bout at a time.
-function Fight ({ fight, onClose }) {
-  const { res, name } = fight
-  const [step, setStep] = useState(0)
-  useEffect(() => {
-    if (step > res.bouts.length) return
-    const t = setTimeout(() => setStep((s) => s + 1), step === 0 ? 500 : 1300)
-    return () => clearTimeout(t)
-  }, [step, res.bouts.length])
-  useEffect(() => {
-    if (step === res.bouts.length + 1 && res.won) { const at = centerOf(document.querySelector('.fight-result')); burst(at.x, at.y, 'confetti'); playLevelUp() }
-  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
-  return (
-    <div className='fight' role='dialog' aria-label={`Duel with ${name}`} onClick={() => step > res.bouts.length && onClose()}>
-      <div className='fight-card' onClick={(e) => e.stopPropagation()}>
-        <h2>You vs {name}</h2>
-        {res.bouts.map((b, i) => (
-          <div key={i} className={`bout ${i < step ? 'shown' : ''} ${i < step ? (b.win ? 'win' : 'loss') : ''}`}>
-            <div className='bout-side'>{b.a ? <LexCard c={b.a} size='sm' /> : <span className='bout-empty'>empty</span>}</div>
-            <div className='bout-vs'>{i < step ? (b.win ? '◀ wins' : 'wins ▶') : 'vs'}{i < step && b.a && b.b && <small>{b.sa} – {b.sb}</small>}</div>
-            <div className='bout-side'>{b.b ? <LexCard c={b.b} size='sm' /> : <span className='bout-empty'>empty</span>}</div>
-          </div>
-        ))}
-        {step > res.bouts.length && (
-          <div className={`fight-result ${res.won ? 'win' : 'loss'}`}>
-            <b>{res.won ? 'You won' : 'You lost'} {res.wins}–{res.losses}</b>
-            <small>Your team learned from it{res.ups.length ? `: ${res.ups.map((u) => `${u.word} reached level ${u.level}`).join(', ')}` : ''}. {res.left} duel{res.left === 1 ? '' : 's'} left today.</small>
-            <button className='btn primary' onClick={onClose}>Done</button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}

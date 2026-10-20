@@ -173,7 +173,7 @@ function App () {
         {tab === 'shop' && <Shop econ={econ} me={me} />}
         {tab === 'today' && <Today settings={settings.values} goTo={setTab} onChange={setToday} />}
         {tab === 'casino' && <Casino econ={econ} settings={settings.values} />}
-        {tab === 'lexicon' && <Lexicon econ={econ} friends={friends} />}
+        {tab === 'lexicon' && <Lexicon econ={econ} friends={friends} settings={settings.values} />}
         {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
         {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}

@@ -127,7 +127,7 @@ Every 6 to 12 new words, one of the words you've rated turns up as a **wild word
 - **Coins help, a little.** *Training* teaches a word for coins while you do other things, but only up to 6 hours a word a day (a full day is worth about 20 ratings, however many coins you have). *Focus* speeds up what your team learns from ratings for an hour, never past ×1.5.
 - **Tiers.** Every 25 levels a word has to *ascend* (for coins) to keep levelling, and each tier doubles its power and changes how its card looks: plain, framed, foil, holo, and ever more extravagant. Levels never stop, and power scales into the quadrillions.
 - **Stances** you choose for each word: 💗 Charm beats 🗡️ Spite, 🗡️ Spite beats 🛡️ Guard, 🛡️ Guard beats 💗 Charm.
-- **Duels** with friends' teams, five a day, from the Lexicon's Duels tab: three bouts, word against word, decided by power, stance and a little luck. The battle is worked out from both teams and the day, so it comes out the same on either computer. Win or lose, your team learns from it.
+- **Duels** with friends' teams, five a day, from the Lexicon's Duels tab: three bouts, word against word, decided by power, stance and a little luck. The result is worked out from both teams and the day, so it comes out the same on either computer, and then played out like a classic monster battle: your word at the bottom, theirs at the top, HP bars, a text box ("Pip's PICKLE used Sweet Talk! It's super effective!"), and an animation for each stance's attacks (hearts for Charm, slashes for Spite, a shockwave for Guard). Click or press Space to hurry it, Escape to skip. Win or lose, your team learns from it.
 - Your equipped team also adds a small bonus to the wirdhouse.
 
 ## The Word Exchange

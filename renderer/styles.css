@@ -1280,7 +1280,7 @@ html.calm .mk-tape-run { animation: none; }
 
 /* --- Lexicon -------------------------------------------------------------------------------- */
 /* Rarity color: warm for words you love, cool for words you can't stand. */
-.lexcard, .wild { --rc: #9aa3b0; --rc2: #c9ced6; }
+.lexcard, .wild, .bt-mon, .bt-rar { --rc: #9aa3b0; --rc2: #c9ced6; }
 .side-love.rt-1 { --rc: #e8a07a; --rc2: #ffd0b0; } .side-love.rt-2 { --rc: #e86b8a; --rc2: #ffb3c6; } .side-love.rt-3 { --rc: #e84a9a; --rc2: #ffc2e4; } .side-love.rt-4 { --rc: #f2b84b; --rc2: #fff1b8; }
 .side-hate.rt-1 { --rc: #7a9ad8; --rc2: #c4d4f5; } .side-hate.rt-2 { --rc: #6b6bd8; --rc2: #c0c0ff; } .side-hate.rt-3 { --rc: #8a4ad8; --rc2: #d8b8ff; } .side-hate.rt-4 { --rc: #7353c9; --rc2: #a58cff; }
 .lexcard { position: relative; border-radius: 14px; padding: 2px; background: var(--panel-raise); color: var(--text); transition: transform .15s; }
@@ -1499,3 +1499,98 @@ button.poster.empty:hover { color: var(--accent); border-color: var(--accent); }
 .pf-casino .up { color: var(--good); } .pf-casino .down { color: var(--bad); }
 .pf-best { color: var(--dim); margin: 6px 0 0; }
 @media (max-width: 800px) { .top4-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* --- Battles: a classic monster battle, in wirdwatcher's clothes ---------------------------- */
+.battle-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: recap-in .3s; }
+.battle { position: relative; width: min(820px, 94vw); border-radius: 22px; overflow: hidden; background: var(--bg); box-shadow: 0 40px 90px var(--shadow), 0 0 0 1px var(--line); }
+.bt-field { position: relative; height: 410px; overflow: hidden; cursor: pointer; user-select: none; }
+.bt-sky { position: absolute; inset: 0; background:
+  radial-gradient(ellipse 60% 40% at 78% 34%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 70%),
+  radial-gradient(ellipse 70% 45% at 22% 88%, color-mix(in oklab, var(--good) 16%, transparent), transparent 70%),
+  linear-gradient(180deg, color-mix(in oklab, #8ab4e8 30%, var(--bg)) 0%, var(--bg) 52%, color-mix(in oklab, var(--good) 14%, var(--bg)) 100%); }
+.bt-pad { position: absolute; border-radius: 50%; background: radial-gradient(ellipse at 50% 45%, color-mix(in oklab, var(--good) 35%, var(--panel)) 0 55%, color-mix(in oklab, var(--good) 20%, var(--panel-raise)) 56% 100%); box-shadow: inset 0 -6px 0 color-mix(in oklab, var(--text) 10%, transparent); }
+.bt-pad.foe { right: 50px; top: 168px; width: 270px; height: 62px; }
+.bt-pad.me { left: 30px; bottom: 6px; width: 330px; height: 78px; }
+/* The words, as creatures. */
+.bt-mon { position: absolute; display: grid; justify-items: center; z-index: 2; }
+.bt-mon.foe { right: 92px; top: 62px; }
+.bt-mon.me { left: 70px; bottom: 34px; }
+.bt-body { position: relative; display: grid; place-items: center; padding: 0 22px; border-radius: 48% 52% 46% 54% / 58% 56% 44% 42%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rc2) 90%, #fff), var(--rc) 70%); box-shadow: inset -8px -10px 0 color-mix(in srgb, var(--rc) 70%, #000 20%), 0 6px 18px color-mix(in srgb, var(--rc) 40%, transparent); animation: bt-bob 2.4s ease-in-out infinite; }
+.bt-mon.foe .bt-body { min-width: 150px; height: 112px; }
+.bt-mon.me .bt-body { min-width: 190px; height: 132px; animation-delay: -1.2s; }
+.bt-word { font-family: var(--font-word); font-weight: var(--word-weight); color: #241a3a; font-size: 26px; letter-spacing: -.01em; text-shadow: 0 1px 0 rgba(255, 255, 255, .5); white-space: nowrap; }
+.bt-mon.me .bt-word { font-size: 30px; }
+.bt-eyes { position: absolute; top: 20px; display: flex; gap: 22px; }
+.bt-eyes i { width: 11px; height: 14px; border-radius: 50%; background: #241a3a; box-shadow: inset -2px -3px 0 rgba(255, 255, 255, .35); animation: bt-blink 4s infinite; }
+.bt-word { margin-top: 14px; }
+.bt-mon.me .bt-word { margin-top: 0; }
+.bt-shadow { width: 70%; height: 14px; margin-top: 6px; border-radius: 50%; background: rgba(0, 0, 0, .18); filter: blur(2px); animation: bt-shadow 2.4s ease-in-out infinite; }
+.bt-mon.me .bt-shadow { animation-delay: -1.2s; }
+.bt-mon.tier-3 .bt-body::after, .bt-mon.tier-4 .bt-body::after, .bt-mon.tier-5 .bt-body::after, .bt-mon.tier-6 .bt-body::after, .bt-mon.tier-7 .bt-body::after, .bt-mon.tier-8 .bt-body::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .45) 45%, transparent 60%); background-size: 300% 100%; animation: holo 3s linear infinite; pointer-events: none; }
+.bt-mon.tier-5 .bt-body, .bt-mon.tier-6 .bt-body, .bt-mon.tier-7 .bt-body, .bt-mon.tier-8 .bt-body { box-shadow: inset -8px -10px 0 color-mix(in srgb, var(--rc) 70%, #000 20%), 0 0 28px var(--rc2), 0 0 60px color-mix(in srgb, var(--rc) 50%, transparent); }
+@keyframes bt-bob { 50% { transform: translateY(-6px) } }
+@keyframes bt-shadow { 50% { transform: scaleX(.86); opacity: .7 } }
+@keyframes bt-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.1) } }
+/* Arriving, attacking, getting hit, fainting. */
+.bt-mon.sent { animation: bt-send .7s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes bt-send { 0% { transform: scale(.05); filter: brightness(4) } 60% { filter: brightness(2) } 100% { transform: none; filter: none } }
+.bt-mon.lunge-me { animation: bt-lunge-me .55s cubic-bezier(.3, 0, .3, 1); }
+.bt-mon.lunge-foe { animation: bt-lunge-foe .55s cubic-bezier(.3, 0, .3, 1); }
+@keyframes bt-lunge-me { 40% { transform: translate(46px, -26px) rotate(4deg) } }
+@keyframes bt-lunge-foe { 40% { transform: translate(-46px, 26px) rotate(-4deg) } }
+.bt-mon.hit .bt-body { animation: bt-hit .55s steps(2) .75s, bt-bob 2.4s ease-in-out infinite; }
+@keyframes bt-hit { 0%, 100% { transform: translateX(0); opacity: 1 } 20% { transform: translateX(-10px); opacity: .2 } 40% { transform: translateX(10px); opacity: 1 } 60% { transform: translateX(-8px); opacity: .2 } 80% { transform: translateX(6px); opacity: 1 } }
+.bt-mon.fainted { animation: bt-faint .8s ease-in forwards; }
+@keyframes bt-faint { 30% { transform: translateY(-6px) } to { transform: translateY(70px) scaleY(.4); opacity: 0 } }
+/* Info boxes and HP. */
+.bt-info { position: absolute; z-index: 3; width: 280px; padding: 10px 14px 12px; border-radius: 14px 14px 14px 4px; background: var(--panel); box-shadow: 0 6px 16px var(--shadow), inset 0 0 0 2px color-mix(in oklab, var(--text) 18%, transparent); display: grid; gap: 4px; }
+.bt-info.foe { left: 26px; top: 30px; }
+.bt-info.me { right: 26px; bottom: 34px; border-radius: 14px 14px 4px 14px; }
+.bt-name { display: flex; justify-content: space-between; align-items: baseline; }
+.bt-name b { font-family: var(--font-word); font-weight: 700; letter-spacing: .04em; font-size: 17px; }
+.bt-name span { font-weight: 700; font-size: 14px; color: var(--dim); }
+.bt-sub { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.bt-rar { color: var(--rc); }
+.bt-hp { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; }
+.bt-hp small { font-weight: 800; font-size: 11px; color: var(--accent); background: color-mix(in oklab, var(--text) 80%, transparent); color: var(--bg); padding: 0 5px; border-radius: 4px; }
+.bt-hpbar { height: 9px; border-radius: 999px; background: color-mix(in oklab, var(--text) 14%, transparent); overflow: hidden; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent); }
+.bt-hpbar i { display: block; height: 100%; border-radius: inherit; transition: width .7s ease-out, background .3s; }
+.bt-hpbar i.ok { background: linear-gradient(180deg, #74e0a8, #3fb37a); }
+.bt-hpbar i.mid { background: linear-gradient(180deg, #ffd66b, #e8a73a); }
+.bt-hpbar i.low { background: linear-gradient(180deg, #ff8a7a, #e0503a); }
+.bt-hpnum { justify-self: end; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--dim); }
+.bt-tally { position: absolute; z-index: 3; display: flex; gap: 5px; }
+.bt-tally.foe { left: 30px; top: 120px; }
+.bt-tally.me { right: 30px; bottom: 12px; }
+.bt-tally i { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, var(--accent) 60%); box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--text) 30%, transparent); }
+.bt-tally i.out { background: color-mix(in oklab, var(--text) 18%, transparent); }
+/* Attacks. */
+.bt-hearts { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+.bt-hearts i { position: absolute; font-style: normal; font-size: 26px; opacity: 0; animation: bt-heart-me .6s ease-in forwards; }
+.bt-hearts.from-me i { left: 230px; top: 250px; }
+.bt-hearts.from-foe i { left: 560px; top: 110px; animation-name: bt-heart-foe; }
+@keyframes bt-heart-me { 0% { opacity: 0; transform: translate(0, 0) scale(.6) } 20% { opacity: 1 } 100% { opacity: 1; transform: translate(330px, calc(-150px + var(--dy))) scale(1.2) } }
+@keyframes bt-heart-foe { 0% { opacity: 0; transform: translate(0, 0) scale(.6) } 20% { opacity: 1 } 100% { opacity: 1; transform: translate(-330px, calc(150px + var(--dy))) scale(1.2) } }
+.bt-slash { position: absolute; z-index: 4; width: 150px; height: 120px; pointer-events: none; }
+.bt-slash.at-foe { right: 100px; top: 60px; }
+.bt-slash.at-me { left: 90px; bottom: 50px; }
+.bt-slash i { position: absolute; left: 10%; width: 120%; height: 6px; border-radius: 6px; background: linear-gradient(90deg, transparent, #fff 30%, var(--bad) 70%, transparent); box-shadow: 0 0 12px var(--bad); transform-origin: left center; transform: rotate(-32deg) scaleX(0); animation: bt-slash .26s ease-out forwards; }
+.bt-slash i:nth-child(1) { top: 70%; animation-delay: .45s; } .bt-slash i:nth-child(2) { top: 85%; animation-delay: .6s; } .bt-slash i:nth-child(3) { top: 100%; animation-delay: .75s; }
+@keyframes bt-slash { 0% { transform: rotate(-32deg) scaleX(0); opacity: 1 } 70% { transform: rotate(-32deg) scaleX(1); opacity: 1 } 100% { transform: rotate(-32deg) scaleX(1); opacity: 0 } }
+.bt-wave { position: absolute; z-index: 4; width: 80px; height: 80px; border-radius: 50%; border: 6px solid color-mix(in srgb, #8ab4e8 80%, #fff); box-shadow: 0 0 20px #8ab4e8, inset 0 0 14px #8ab4e8; pointer-events: none; opacity: 0; }
+.bt-wave.from-me { left: 170px; top: 240px; animation: bt-wave-me .75s ease-out .3s forwards; }
+.bt-wave.from-foe { left: 560px; top: 90px; animation: bt-wave-foe .75s ease-out .3s forwards; }
+@keyframes bt-wave-me { 0% { opacity: 1; transform: translate(0, 0) scale(.4) } 100% { opacity: 0; transform: translate(360px, -170px) scale(2.2) } }
+@keyframes bt-wave-foe { 0% { opacity: 1; transform: translate(0, 0) scale(.4) } 100% { opacity: 0; transform: translate(-360px, 170px) scale(2.2) } }
+/* The text box. */
+.bt-text { position: relative; min-height: 112px; margin: 0; padding: 18px 24px; background: var(--panel); border-top: 4px solid color-mix(in oklab, var(--text) 80%, transparent); box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 5px color-mix(in oklab, var(--accent) 60%, transparent); cursor: pointer; }
+.bt-line { margin: 0; font-family: var(--font-word); font-size: 21px; font-weight: 600; line-height: 1.35; white-space: pre-wrap; }
+.bt-ghost { visibility: hidden; }
+.bt-more { position: absolute; right: 22px; bottom: 14px; color: var(--accent); animation: bt-more .8s steps(2) infinite; }
+@keyframes bt-more { 50% { transform: translateY(4px) } }
+.bt-end { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+.bt-end small { color: var(--dim); }
+.bt-skip { position: absolute; top: 12px; right: 14px; z-index: 5; border: 0; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; background: color-mix(in oklab, var(--panel) 80%, transparent); color: var(--dim); }
+.bt-skip:hover { color: var(--text); }
+html.calm .bt-body, html.calm .bt-shadow, html.calm .bt-eyes i { animation: none !important; }
+@media (max-width: 760px) { .bt-info { width: 210px; } .bt-mon.foe { right: 30px; } .bt-pad.foe { right: 0; width: 220px; } .bt-hearts.from-foe i, .bt-wave.from-foe { left: 70%; } }

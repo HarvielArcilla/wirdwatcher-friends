@@ -122,3 +122,19 @@ test('duel a friend’s team from their profile', async (t) => {
   for (let i = 1; i < 5; i++) a.duelFriend(b.identity.userId)
   assert.throws(() => a.duelFriend(b.identity.userId), /duels today/)
 })
+
+test('battles act out the duel faithfully, the same every time', async () => {
+  const { battleScript } = await import('../src/shared/battle.js')
+  const st = ['charm', 'spite', 'guard']
+  for (let s = 0; s < 400; s++) {
+    const mk = (w, lv, t, k) => ({ word: w, level: lv, tier: t, rarity: { tier: s % 5, side: s % 2 ? 'love' : 'hate' }, stance: st[k % 3] })
+    const mine = cleanTeam([mk(`a${s}`, 1 + (s * 7) % 25, 1, s), mk('b', 10, 1, s + 1), mk('c', 30, 2, s + 2)])
+    const theirs = cleanTeam([mk('x', 20, 1, s + 2), mk(`y${s}`, 1 + (s * 13) % 25, 1, s), mk('z', 5, 1, 2)].slice(0, 1 + (s % 3)))
+    const res = duel(mine, theirs, s * 977)
+    const beats = battleScript(res, 'Pip')
+    for (const b of beats) if (b.t === 'attack') for (const v of Object.values(b.hp)) assert.ok(v >= 0 && v <= 100)
+    const faints = beats.filter((b) => b.t === 'faint')
+    res.bouts.filter((b) => b.a && b.b).forEach((b, k) => assert.equal(faints[k].side, b.win ? 'foe' : 'me', 'the bout’s loser is the one who faints'))
+    assert.deepEqual(battleScript(res, 'Pip'), beats)
+  }
+})
