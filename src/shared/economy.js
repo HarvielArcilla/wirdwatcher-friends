@@ -351,8 +351,8 @@ export function upgradeList (s) {
 export const formatCoins = (n) => {
   if (n === null || n === undefined || !Number.isFinite(n)) return '0'
   const a = Math.abs(n)
-  if (a < 1000) return a < 10 && a % 1 ? n.toFixed(1) : Math.floor(n).toLocaleString('en-US')
-  if (a < 1e6) return Math.floor(n).toLocaleString('en-US')
+  if (a < 1000) return a < 10 && a % 1 ? n.toFixed(1) : Math.trunc(n).toLocaleString('en-US')
+  if (a < 1e6) return Math.trunc(n).toLocaleString('en-US')
   const units = [[1e18, 'quintillion'], [1e15, 'quadrillion'], [1e12, 'trillion'], [1e9, 'billion'], [1e6, 'million']]
   for (const [v, name] of units) if (a >= v) return `${(n / v).toFixed(n / v >= 100 ? 1 : 2)} ${name}`
   return String(Math.floor(n))

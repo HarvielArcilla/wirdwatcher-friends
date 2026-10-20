@@ -167,3 +167,107 @@ export function sectorIndex (sectorId, t) {
   SECTOR_WAVES.forEach(([period, w], k) => { s += w * wave(mix(sh, 200 + k), hours / period) })
   return Math.round(100 * Math.exp(0.72 * ((t - MARKET_OPEN) / YEAR_MS) + 0.45 * 0.7 * s) * 100) / 100
 }
+
+// --- splits ---------------------------------------------------------------------
+//
+// Prices keep rising, so like real companies, words split their shares, and
+// it's each word's own call. Every word has a price range its board is
+// comfortable with and a price it likes to split back to (both from its
+// hash). Outside the range, each midnight UTC there's a chance the board
+// announces a split, more likely the further out it is, and it takes effect
+// some days later. Nothing forces it: a word can sit at 5,000 for weeks.
+// Below the range, the same goes for a reverse split ("merging" shares).
+//
+// This sits on top of market v1 without changing it: the v1 price divided by
+// the split factor is the price you see, and shares multiply by the same
+// factor, so nobody's holding changes value. Splits began on SPLITS_FROM.
+
+export const SPLITS_FROM = Date.UTC(2026, 9, 21)
+const SPLIT_RATIOS = [2, 3, 4, 5, 10, 20, 50, 100]
+const MERGE_RATIOS = [2, 4, 5, 10, 20, 50]
+const DAY_MS = 24 * HOUR
+const splitCache = new Map()
+
+// What a word's board is comfortable with: a ceiling (400 to 4,000), a floor
+// (0.5 to 5), and the price a split aims for (40 to 400).
+export function splitTaste (p) {
+  const h = hash32(`split|${p.word}`)
+  return {
+    high: 400 * 10 ** unit(mix(h, 1)),
+    low: 0.5 * 10 ** unit(mix(h, 2)),
+    aim: 40 * 10 ** unit(mix(h, 3)),
+    eager: 0.5 + unit(mix(h, 4)) // some boards act sooner than others
+  }
+}
+
+// The chance a board announces today, given how far outside its range the price is.
+function announceChance (shown, taste) {
+  const over = shown > taste.high ? Math.log(shown / taste.high) : shown < taste.low ? Math.log(taste.low / shown) : 0
+  if (!over) return 0
+  return Math.min(0.6, taste.eager * (0.02 + 0.12 * over))
+}
+
+// The ratio that brings the price nearest the aim.
+function pickRatio (shown, taste, up) {
+  const list = up ? SPLIT_RATIOS : MERGE_RATIOS
+  let best = list[0]
+  for (const r of list) {
+    const after = up ? shown / r : shown * r
+    const now = up ? shown / best : shown * best
+    if (Math.abs(Math.log(after / taste.aim)) < Math.abs(Math.log(now / taste.aim))) best = r
+  }
+  return up ? best : 1 / best
+}
+
+function splitHistory (p, t) {
+  const key = `${p.word}|${p.sector}|${p.h}`
+  let c = splitCache.get(key)
+  if (!c) { c = { f: [], events: [], ann: [], pending: null, taste: splitTaste(p) }; splitCache.set(key, c) }
+  const upTo = Math.floor((t - SPLITS_FROM) / DAY_MS)
+  // c.f[i]: the factor through day i (from that midnight).
+  while (c.f.length <= upTo) {
+    const i = c.f.length
+    const at = SPLITS_FROM + i * DAY_MS
+    let f = i ? c.f[i - 1] : 1
+    if (c.pending && c.pending.at === at) {
+      f *= c.pending.ratio
+      c.events.push(c.pending)
+      c.pending = null
+    } else if (!c.pending) {
+      const shown = priceAt(p, at) / f
+      const r = unit(mix(hash32(`board|${p.word}`), i))
+      if (r < announceChance(shown, c.taste)) {
+        const wait = 3 + Math.floor(unit(mix(hash32(`wait|${p.word}`), i)) * 12) // 3 to 14 days' notice
+        c.pending = { announced: at, at: at + wait * DAY_MS, ratio: pickRatio(shown, c.taste, shown > c.taste.high) }
+        c.ann.push(c.pending)
+      }
+    }
+    c.f.push(f)
+  }
+  if (splitCache.size > 50000) splitCache.clear()
+  return c
+}
+
+// A split announced but not yet in effect at time t, if any.
+export function pendingSplit (p, t) {
+  if (t < SPLITS_FROM) return null
+  const pd = splitHistory(p, t).ann.find((a) => a.announced <= t && a.at > t)
+  return pd ? { ...pd } : null
+}
+
+// What v1 prices are divided by at time t (1 before any split).
+export function splitFactor (p, t) {
+  if (t < SPLITS_FROM) return 1
+  const c = splitHistory(p, t)
+  const i = Math.floor((t - SPLITS_FROM) / DAY_MS)
+  return c.f[i]
+}
+
+// Splits so far, newest first: { announced, at, ratio } (ratio 0.1 is a 1-for-10 reverse split).
+export function splitsUpTo (p, t) {
+  if (t < SPLITS_FROM) return []
+  return splitHistory(p, t).events.filter((e) => e.at <= t).slice().reverse()
+}
+
+// The price as shown: v1, split-adjusted.
+export const shownPrice = (p, t) => priceAt(p, t) / splitFactor(p, t)

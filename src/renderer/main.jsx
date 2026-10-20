@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, icons, ToastHost, useToast, celebrate, Coins, setLevelUpSettings } from './ui.jsx'
 import Play from './Play.jsx'
 import Lobby from './Lobby.jsx'
@@ -64,6 +64,14 @@ function App () {
   useEffect(() => { const get = () => api('today').then(setToday).catch(() => {}); get(); const id = setInterval(get, 30000); return () => clearInterval(id) }, [])
   const todayDot = today && (today.quests.some((q) => !q.claimed && q.have >= q.n) || (today.weekly.have >= today.weekly.n && !today.weekly.claimed) || !(today.clues.solved || today.clues.gaveUp) || today.freeSpin.ready)
   useEffect(() => { setConfettiStyle(econ?.look?.confetti || 'classic') }, [econ?.look?.confetti])
+  // Discharged from bankruptcy: say so, once.
+  const wasBankrupt = useRef(null)
+  useEffect(() => {
+    if (!econ) return
+    const now = Boolean(econ.bankrupt)
+    if (wasBankrupt.current === true && !now) toast({ emoji: '🕊️', title: 'Discharged from bankruptcy', text: 'The casino, card packs, stakes, risky trades and your looks are all back.', ms: 7000 })
+    wasBankrupt.current = now
+  }, [Boolean(econ?.bankrupt)]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (settings) setLevelUpSettings(settings.values) }, [settings])
 
   // A button clicked with the mouse gives the keyboard back to the game, so
@@ -154,7 +162,8 @@ function App () {
           <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' aria-hidden='true'><circle cx='11' cy='11' r='7' /><path d='m20 20-3.5-3.5' /></svg>
           <span>Search words</span><kbd>/</kbd>
         </button>
-        {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''}`} onClick={() => setTab('wirdhouse')} title={`${formatCoins(econ.cps)} coins a second`}><strong><Coins n={econ.coins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
+        {econ?.bankrupt && <button className='stat bankchip' onClick={() => setTab('market')} title='Bankrupt: see what’s left to be discharged'>⚖️ Bankrupt</button>}
+        {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''} ${econ.coins < 0 ? 'debt' : ''}`} onClick={() => setTab('wirdhouse')} title={econ.coins < 0 ? `In debt: ${formatCoins(-econ.coins)} coins owed` : `${formatCoins(econ.cps)} coins a second`}><strong><Coins n={econ.coins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
         <span className='stat flame' title='Days in a row'><strong>{me.streak || 0}</strong>day streak 🔥</span>
         <span className='stat'><strong>{profile.stats.rated.toLocaleString()}</strong>rated</span>
         <span className='stat'><strong>{onlineFriends}</strong>friends online</span>

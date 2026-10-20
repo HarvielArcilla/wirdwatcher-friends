@@ -11,8 +11,15 @@
 //             and are margined like SPAN: initial margin covers a three-
 //             sigma day, maintenance is three quarters of that.
 //   Leverage  Borrow coins to buy (long) or borrow shares to sell (short).
-//             Interest accrues continuously; under maintenance margin the
-//             position is liquidated at the first minute it crossed.
+//             Interest accrues continuously. Margin is checked at the
+//             closing bell each day: under maintenance, the position is
+//             closed then, at that minute's price. A position can lose more
+//             than was put up (a gap, a jump, a day away), and the
+//             shortfall is debt: your coins go negative.
+//
+// Prices here are in a position's own units (pos.f, the split factor when
+// they were last written down), so a split never moves anything; the book
+// rewrites quantities and strikes at each split, as real exchanges do.
 //   ETFs      Sector funds and a whole-market fund track the sector indices;
 //             the 3× and inverse funds rebalance daily, so they decay in
 //             choppy markets exactly like the real ones.
@@ -20,6 +27,7 @@
 // Everything is a pure function of the word, the time and the position.
 
 import { priceAt, sectorIndex, SECTORS, MARKET_OPEN, quoteTime, QUOTE_MS } from './market.js'
+export { shownPrice, splitFactor } from './market.js'
 
 export const RATE = 0.05 // the exchange's risk-free rate, a year, compounded continuously
 export const BORROW_SPREAD = 0.02 // what borrowing coins costs over RATE
@@ -218,8 +226,8 @@ export function strikes (S, T, sigma, n = 11) {
 
 const years = (t, at) => Math.max(0, (at - t) / YEAR_MS)
 
-export function optionQuote (p, t, at, K, type) {
-  const S = priceAt(p, t)
+export function optionQuote (p, t, at, K, type, f = 1) {
+  const S = priceAt(p, t) / f
   const T = years(t, at)
   const atm = atmVol(p, t, T)
   const sigma = smileVol(atm, S, K, T)
@@ -243,8 +251,8 @@ export function optionQuote (p, t, at, K, type) {
 }
 
 export function futurePrice (S, t, at) { return S * Math.exp(RATE * years(t, at)) }
-export function futureQuote (p, t, at) {
-  const S = priceAt(p, t)
+export function futureQuote (p, t, at, f = 1) {
+  const S = priceAt(p, t) / f
   const F = futurePrice(S, t, at)
   return { S, F, bid: F * (1 - FUTURE_SPREAD), ask: F * (1 + FUTURE_SPREAD), basis: F - S, im: initialMargin(p, t) }
 }
@@ -273,13 +281,16 @@ export function shortOptionRequirement (S, K, type) {
 //
 // pos.kind: 'margin' | 'future' | 'option'. `mark(pos, t, p)` returns
 // { equity, maint, value }: what the position is worth to you at mid
-// (equity), the line it's liquidated under (maint), and what closing it now
-// would pay after the spread (value). Positions with nothing at risk beyond
-// what was paid (long options) have maint = -Infinity.
+// (equity), the line under which the closing bell closes it (maint), and
+// what closing it now would pay after the spread (value). Both can be
+// negative: that's debt. Bought options can't lose more than their premium,
+// so they have maint = -Infinity.
 
 export function mark (pos, t, p) {
+  const f = pos.f || 1
+  const spot = (x) => priceAt(p, x) / f
   if (pos.kind === 'margin') {
-    const S = priceAt(p, t)
+    const S = spot(t)
     const dt = Math.max(0, t - pos.opened) / YEAR_MS
     const interest = pos.base * (Math.exp(pos.rate * dt) - 1)
     const pnl = (S0) => pos.side * pos.qty * (S0 - pos.entry)
@@ -288,44 +299,45 @@ export function mark (pos, t, p) {
     return { equity, maint: maintenanceRatio(pos.lev) * pos.qty * S, value: pos.margin + pnl(exit) - interest, S, interest }
   }
   if (pos.kind === 'future') {
-    const S = priceAt(p, Math.min(t, pos.expiry))
+    const S = spot(Math.min(t, pos.expiry))
     const F = t >= pos.expiry ? S : futurePrice(S, t, pos.expiry)
     const exit = t >= pos.expiry ? F : F * (1 - pos.side * FUTURE_SPREAD)
     return { equity: pos.margin + pos.side * pos.qty * (F - pos.entry), maint: 0.75 * pos.im * pos.qty * F, value: pos.margin + pos.side * pos.qty * (exit - pos.entry), S, F }
   }
   // Options
-  const tt = Math.min(t, pos.expiry)
-  const S = priceAt(p, tt)
+  const S = spot(Math.min(t, pos.expiry))
   if (t >= pos.expiry) {
     const pay = Math.max(0, pos.type === 'call' ? S - pos.K : pos.K - S) * pos.qty
     return pos.side > 0
       ? { equity: pay, maint: -Infinity, value: pay, S }
       : { equity: pos.margin - pay, maint: -Infinity, value: pos.margin - pay, S }
   }
-  const q = optionQuote(p, t, pos.expiry, pos.K, pos.type)
+  const q = optionQuote(p, t, pos.expiry, pos.K, pos.type, f)
   if (pos.side > 0) return { equity: q.theo * pos.qty, maint: -Infinity, value: q.bid * pos.qty, S, q }
   const req = shortOptionRequirement(S, pos.K, pos.type) * pos.qty
-  return { equity: pos.margin - q.theo * pos.qty, maint: 0.5 * req, req, value: pos.margin - q.ask * pos.qty, S, q }
+  return { equity: pos.margin - q.theo * pos.qty, maint: req, req, value: pos.margin - q.ask * pos.qty, S, q }
 }
 
-// The first minute in (from, to] at which a position fell under its
+// The closing bells (20:00 UTC, every day) in (from, to].
+export function bellsBetween (from, to) {
+  const out = []
+  let b = Math.floor(from / DAY) * DAY + EXPIRY_HOUR * HOUR
+  if (b <= from) b += DAY
+  for (; b <= to; b += DAY) out.push(b)
+  return out
+}
+export const nextBell = (t) => bellsBetween(t, t + DAY + 1)[0]
+
+// The first closing bell in (from, to] at which a position was under its
 // maintenance line, or null. Prices are known for every minute, so this is
-// exact: no lucky gaps between checks. Long gaps are scanned every five
-// minutes past the first fortnight.
-export function firstBreach (pos, from, to, p) {
+// exact however long you were away. An expiry at the same bell settles
+// instead.
+export function marginCallAt (pos, from, to, p) {
   if (pos.kind === 'option' && pos.side > 0) return null
-  const end = Math.min(to, pos.expiry || Infinity)
-  const under = (t) => { const m = mark(pos, t, p); return m.equity <= m.maint }
-  let t = quoteTime(from) + MIN
-  let last = quoteTime(from)
-  while (t <= end) {
-    if (under(t)) {
-      // A coarse step can overshoot: walk back to the first minute.
-      for (let s = last + MIN; s < t; s += MIN) if (under(s)) return s
-      return t
-    }
-    last = t
-    t += t - from > 14 * DAY ? 5 * MIN : MIN
+  const end = Math.min(to, pos.expiry ? pos.expiry - 1 : Infinity)
+  for (const b of bellsBetween(from, end)) {
+    const m = mark(pos, b, p)
+    if (m.equity < m.maint) return b
   }
   return null
 }

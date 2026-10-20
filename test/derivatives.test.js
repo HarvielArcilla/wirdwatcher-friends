@@ -4,8 +4,11 @@ import { WirdApp } from '../src/core/app.js'
 import { profile, priceAt } from '../src/shared/market.js'
 import {
   blackScholes, impliedVol, normCdf, RATE, YEAR_MS, expiries, futureExpiries, strikes, optionQuote, futureQuote,
-  mark, firstBreach, ETFS, etfById, etfNav, realizedVol
+  mark, marginCallAt, bellsBetween, ETFS, etfById, etfNav, realizedVol
 } from '../src/shared/derivatives.js'
+import { splitFactor, splitsUpTo, pendingSplit, splitTaste } from '../src/shared/market.js'
+import { DEBT_RATE } from '../src/core/economy.js'
+import { drawPack, PITY, packPool } from '../src/shared/packs.js'
 import { tmp } from './helpers.js'
 
 const DAY = 864e5
@@ -86,40 +89,156 @@ function app (t0 = Date.UTC(2026, 9, 20, 12)) {
   return a
 }
 
-test('a leveraged long: interest accrues, and you can’t lose more than you put up', () => {
+test('a leveraged long: interest accrues and the position marks to market', () => {
   const a = app()
   const before = a.economy.s.coins
   const v = a.derivs.openMargin({ word: 'gravy', side: 'long', lev: 2, coins: 1000 })
   assert.equal(Math.round(before - a.economy.s.coins), 1000)
   assert.ok(v.value < 1000 && v.value > 975, 'closing straight away loses the spreads')
   assert.ok(v.liqPrice > 0 && v.liqPrice < v.S)
-  a.clock.t += 30 * DAY
-  const book = a.derivs.book()
-  const pos = book.open[0] || null
-  if (pos) assert.ok(pos.interest > 0)
-  const { pay } = pos ? a.derivs.close(pos.id) : { pay: book.log[0].pay }
-  assert.ok(pay >= 0)
+  a.clock.t += 3 * DAY
+  const pos = a.derivs.book().open[0]
+  if (pos) { assert.ok(pos.interest > 0); a.derivs.close(pos.id) }
   assert.equal(a.derivs.d.open.length, 0)
 })
 
-test('liquidation happens at the exact minute the line was crossed, even after a week away', () => {
+test('margin calls land on the closing bell, and losses past the margin become debt', () => {
   const a = app()
-  // Short the wildest word at max leverage and wait: it trends up.
+  // Short a wild word at full leverage and wait: it trends up, so sooner or
+  // later a bell catches it under water.
   const max = a.derivs.chain('zymurgy').maxMarginLev
   a.derivs.openMargin({ word: 'zymurgy', side: 'short', lev: max, coins: 5000 })
   const pos = { ...a.derivs.d.open[0] }
-  const opened = a.clock.t
-  a.clock.t += 60 * DAY
-  a.derivs.sync()
-  const done = a.derivs.d.log.find((x) => x.id === pos.id)
+  let done = null
+  for (let k = 0; k < 24 && !done; k++) {
+    a.clock.t += 30 * DAY
+    a.derivs.sync()
+    done = a.derivs.d.log.find((x) => x.id === pos.id)
+  }
   assert.equal(done.how, 'liquidated')
+  assert.equal(new Date(done.at).getUTCHours(), 20, 'at the bell')
   const p = a.market.profile('zymurgy')
-  const exact = firstBreach(pos, pos.checked, a.clock.t, p)
-  assert.equal(done.at, exact)
-  const mk = mark(pos, done.at - 60000, p)
-  assert.ok(mk.equity > mk.maint || done.at - 60000 <= opened, 'still fine the minute before')
-  assert.ok(done.pay >= 0 && done.pay < 5000)
-  assert.equal(a.derivs.d.liquidations, 1)
+  assert.equal(done.at, marginCallAt(pos, pos.checked, a.clock.t, p))
+  for (const b of bellsBetween(pos.checked, done.at - 1)) { const m = mark(pos, b, p); assert.ok(m.equity >= m.maint, 'fine at every bell before') }
+  // A loss beyond the margin is debt, not forgiven.
+  const m = mark(pos, done.at, p)
+  assert.ok(Math.abs(done.pay - (m.equity - 0.005 * pos.qty * m.S)) < 0.02)
+})
+
+test('debt charges interest, earning pays it down, and publishing waits until it’s paid', () => {
+  const a = app()
+  a.economy.s.coins = -10000
+  a.economy.s.lastTick = a.clock.t
+  a.economy.s.buildings = {}
+  a.clock.t += 365.25 * DAY
+  a.economy.s.lastTick = a.clock.t - 1000 // a second of ticking, then the rest by hand
+  a.economy.tick()
+  const owed = -a.economy.s.coins
+  assert.ok(owed > 10000, 'it grew')
+  assert.ok(Math.abs(Math.log(owed / 10000) - DEBT_RATE * (1000 / (365.25 * DAY))) < 1e-9, 'continuously, at the debt rate')
+  a.economy.s.inkTotal = 0
+  a.economy.s.allCoins = 1e15
+  assert.throws(() => a.economy.prestige(), /debt/)
+  assert.throws(() => a.derivs.openMargin({ word: 'gravy', side: 'long', lev: 2, coins: 10 }), /debt|coins/)
+})
+
+test('bankruptcy: everything is sold first, the rest cancelled, and the fun waits for steady income', () => {
+  const a = app()
+  a.market.buy('gravy', 1000)
+  a.economy.s.coins = 500
+  assert.throws(() => a.declareBankruptcy(), /not in debt/)
+  a.economy.s.coins = -200 // the shares cover this
+  assert.throws(() => a.declareBankruptcy(), /cover/)
+  a.economy.s.coins = -1e6
+  const b = a.declareBankruptcy()
+  assert.equal(a.economy.s.coins, 0)
+  assert.deepEqual(a.economy.s.market.holdings, {}, 'the shares went to the creditors')
+  assert.ok(b.discharged > 990000 && b.discharged < 1e6)
+  assert.throws(() => a.economy.flip(1), /bankrupt/)
+  assert.throws(() => a.economy.spin(1), /bankrupt/)
+  assert.throws(() => a.economy.openPack({ free: true }), /bankrupt/)
+  assert.throws(() => a.derivs.openMargin({ word: 'gravy', side: 'long', lev: 2, coins: 10 }), /bankrupt/)
+  assert.throws(() => a.economy.buyCosmetic('frame', 'silver'), /bankrupt/)
+  a.economy.s.owned.push('frame:gold')
+  a.economy.s.look.frame = 'gold'
+  assert.equal(a.economy.look().frame, 'none', 'looks are locked away')
+  assert.throws(() => a.economy.equip('frame', 'gold'), /bankrupt/)
+  assert.equal(a.economy.holdStake('k', 10, 'h'), false, 'no lobby stakes')
+  // Rebuild: time passes and steady income comes in.
+  a.clock.t += 3 * DAY
+  a.economy.tick()
+  assert.ok(a.economy.s.bankrupt, 'time alone isn’t enough')
+  a.economy._earn(b.need)
+  a.economy.tick()
+  assert.equal(a.economy.s.bankrupt, null)
+  assert.equal(a.economy.look().frame, 'gold', 'and your looks come back')
+  assert.equal(a.economy.s.credit.filings, 1)
+})
+
+test('splits change the price you see, never what you hold', () => {
+  const a = app()
+  // Find a rated word that splits in the next few months.
+  const words = a.words.sorted.filter((w) => /^[a-z]{5,7}$/.test(w)).slice(2000, 3000)
+  let word = null
+  let when = null
+  for (const w of words) {
+    const p = a.market.profile(w)
+    const e = splitsUpTo(p, a.clock.t + 120 * DAY).filter((x) => x.at > a.clock.t + DAY && x.ratio > 1).pop()
+    if (e) { word = w; when = e; break }
+  }
+  assert.ok(word, 'some word splits')
+  a.rate(word, 3)
+  a.market.buy(word, 10000)
+  const ch = a.derivs.chain(word)
+  const ex = ch.expiries[ch.expiries.length - 1]
+  a.derivs.openOption({ word, expiry: ex.at, K: ex.rows[5].K, type: 'call', side: 'long', qty: 5 })
+  a.clock.t = when.at - 60000
+  const before = a.market.portfolio()
+  const optBefore = a.derivs.book().open[0]
+  a.clock.t = when.at
+  const after = a.market.portfolio()
+  const optAfter = a.derivs.book().open[0]
+  assert.ok(Math.abs(after.rows[0].shares / before.rows[0].shares - when.ratio) < 1e-9, 'more shares')
+  assert.ok(Math.abs(Math.log(a.market.quote(word).price / splitTaste(a.market.profile(word)).aim)) < Math.log(4), 'back near the price its board likes')
+  // It was announced days ahead.
+  assert.ok(when.at - when.announced >= 3 * DAY)
+  assert.deepEqual(pendingSplit(a.market.profile(word), when.at - DAY), when)
+  assert.equal(pendingSplit(a.market.profile(word), when.at), null)
+  assert.ok(Math.abs(after.rows[0].value / before.rows[0].value - 1) < 0.05, 'worth the same (but for a minute’s move)')
+  assert.ok(Math.abs(optAfter.qty / optBefore.qty - when.ratio) < 1e-9 && Math.abs(optAfter.K * when.ratio - optBefore.K) < 1e-9, 'contracts and strike adjusted')
+  assert.ok(Math.abs(a.market.quote(word).day) < 0.5, 'a split isn’t a crash')
+  assert.equal(splitFactor(a.market.profile(word), when.at), splitFactor(a.market.profile(word), when.at - 60000) * when.ratio)
+})
+
+test('card packs: one free every five levels, three cards, pity, scraps and crafting', () => {
+  const a = app()
+  a.economy.s.packs.granted = 0
+  a.economy.s.packs.free = 0
+  assert.equal(a.economy.grantLevelPacks(12), 2)
+  assert.equal(a.economy.grantLevelPacks(12), 0, 'only once')
+  const r = a.economy.openPack({ free: true })
+  assert.equal(r.cards.length, 3)
+  assert.ok(['rare', 'epic', 'legendary'].includes(r.cards[2].rarity), 'the last card is rare or better')
+  for (const c of r.cards) assert.ok(c.dup || a.economy.owns(c.kind, c.id))
+  // Bought packs cost coins; pity guarantees an epic within PITY packs.
+  let seed = 1
+  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+  let since = 0
+  let worst = 0
+  for (let i = 0; i < 5000; i++) { const d = drawPack(rand, since); since = d.sinceEpic; worst = Math.max(worst, since) }
+  assert.ok(worst < PITY)
+  assert.ok(packPool().some((c) => c.pack) && !packPool().some((c) => c.level || c.badge || c.edition))
+  // Scraps make what you choose.
+  a.economy.s.packs.scraps = 500
+  const target = packPool().find((c) => c.rarity === 'legendary' && !a.economy.owns(c.kind, c.id))
+  a.economy.craft(target.kind, target.id)
+  assert.ok(a.economy.owns(target.kind, target.id))
+  assert.equal(a.economy.s.packs.scraps, 100)
+  const coins = a.economy.s.coins
+  a.economy.openPack()
+  assert.ok(a.economy.s.coins < coins)
+  const packOnly = packPool().find((c) => c.pack && !a.economy.owns(c.kind, c.id))
+  if (packOnly) assert.throws(() => a.economy.buyCosmetic(packOnly.kind, packOnly.id), /packs/)
 })
 
 test('options pay their intrinsic value at expiry, written ones keep the rest of the margin', () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, Coins, useToast, useInterval } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { sectorOf } from '../shared/market.js'
+import { Credit } from './Credit.jsx'
 import { LeverageTicket, FuturesTicket, OptionsTicket, Positions, Funds } from './Derivs.jsx'
 
 // The Word Exchange. Every word has a price that's the same on every
@@ -50,6 +51,7 @@ export default function Market ({ econ, openWord }) {
         </div>
       </div>
 
+      <Credit econ={econ} />
       <div className='mk-sectors' role='tablist' aria-label='Sectors'>
         <button className={!sector ? 'on' : ''} onClick={() => setSector(null)} role='tab' aria-selected={!sector}>All</button>
         {board.sectors.map((s) => (
@@ -83,7 +85,9 @@ export default function Market ({ econ, openWord }) {
           {board.news.length > 0 && (
             <div className='mk-news'>
               <h3>In the news</h3>
-              {board.news.map((r) => <button key={r.word} onClick={() => setPick(r.word)}><b className={r.news.up ? 'up' : 'down'}>{r.news.up ? '▲' : '▼'}</b> {headlineText(r)}</button>)}
+              {board.news.map((r) => (r.split || r.announced
+                ? <button key={r.word} onClick={() => setPick(r.word)}><b>✂️</b> {splitText(r)}</button>
+                : <button key={r.word} onClick={() => setPick(r.word)}><b className={r.news.up ? 'up' : 'down'}>{r.news.up ? '▲' : '▼'}</b> {headlineText(r)}</button>))}
             </div>
           )}
         </section>
@@ -110,6 +114,14 @@ export default function Market ({ econ, openWord }) {
       <Funds coins={econ?.coins ?? 0} toast={toast} onChange={load} />
     </div>
   )
+}
+
+const ratioText = (ratio) => (ratio >= 1 ? `${ratio}-for-1 split` : `1-for-${Math.round(1 / ratio)} reverse split`)
+const dayText = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' })
+const splitText = (r) => {
+  const W = r.word.toUpperCase()
+  if (r.split) return `${W} completes a ${ratioText(r.split.ratio)}`
+  return `${W} announces a ${ratioText(r.announced.ratio)}, effective ${dayText(r.announced.at)}`
 }
 
 const headlineText = (r) => {
@@ -206,6 +218,8 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
         )}
       </div>
       <div className='seg mk-ranges'>{RANGES.map(([id, label]) => <button key={id} className={range === id ? 'on' : ''} onClick={() => setRange(id)}>{label}</button>)}</div>
+      {q.announced && <div className='mk-headline'>✂️ {word}’s board announced a {ratioText(q.announced.ratio)} on {dayText(q.announced.announced)}. It takes effect at midnight UTC on {dayText(q.announced.at)}: shares, contracts and strikes all adjust, so nothing changes value.</div>}
+      {q.split && <div className='mk-headline'>✂️ Completed a {ratioText(q.split.ratio)} on {dayText(q.split.at)}. Shares and positions were adjusted, so nothing changed value.</div>}
       {q.news && <div className={`mk-headline ${q.news.up ? 'up' : 'down'}`}>{q.news.up ? '▲' : '▼'} {headlineText(q)}</div>}
 
       {q.tradable && (
@@ -237,7 +251,7 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
             )}
           </div>
           )}
-      {tab === 'shares' && <small className='mk-note'>Buying costs 0.5% over the price and selling gets 0.5% under it. Prices change every minute.</small>}
+      {tab === 'shares' && <small className='mk-note'>Buying costs 0.5% over the price and selling gets 0.5% under it. Prices change every minute. Each word’s board decides when to split: when the price climbs well past what it likes (or sinks far below), it announces one, a few days ahead.</small>}
     </section>
   )
 }

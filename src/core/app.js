@@ -63,6 +63,8 @@ export class WirdApp extends EventEmitter {
     this.economy.beforePrestige = () => { this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
     // Levels from before coins existed don't pay out; from here on, each does.
     if (this.economy.s.levelPaid == null) this.economy.s.levelPaid = this.game.profile().level.level
+    // A free card pack for every fifth level, including ones reached before packs existed.
+    this.economy.grantLevelPacks(this.game.profile().level.level)
     // Friends see what you wear and which edition you're on.
     this.game.extraProfile = () => this._publicProfile()
     this.game.extraStats = () => this.economy.badgeStats()
@@ -108,6 +110,27 @@ export class WirdApp extends EventEmitter {
       out.casino = { flips: f.count, flipWins: f.wins, flipNet: Math.round(f.net), biggestFlip: Math.round(f.biggestWin), flipStreak: f.bestStreak, spins: sl.spins || 0, slotNet: Math.round(sl.net || 0), biggestSpin: Math.round(sl.biggest || 0), jackpots: sl.jackpots || 0, bestSpin: sl.bestWord || null }
     }
     return out
+  }
+
+  // Everything you have, less everything you owe: coins (negative in debt)
+  // plus what your shares, funds and positions would sell for now.
+  netWorth () {
+    const m = this.market.stats()
+    return { coins: this.economy.s.coins, holdings: m.value, total: this.economy.s.coins + m.value, debt: Math.max(0, -this.economy.s.coins), canFile: this.economy.s.coins + m.value < 0 && !this.economy.s.bankrupt }
+  }
+
+  // Bankruptcy, the way courts do it: everything on the Exchange is sold to
+  // pay what it can, and only then is the rest cancelled. The wirdhouse
+  // stays, so there's income to rebuild on.
+  declareBankruptcy () {
+    const nw = this.netWorth()
+    if (this.economy.s.bankrupt) throw new Error('You’re already bankrupt.')
+    if (nw.total >= 0) throw new Error(nw.debt > 0 ? 'Selling what you hold would cover your debt: no need for bankruptcy.' : 'You’re not in debt.')
+    this.derivs.sync()
+    this.derivs.closeAll()
+    for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all')
+    if (this.economy.s.coins >= 0) return { covered: true, coins: this.economy.s.coins }
+    return this.economy.fileBankruptcy()
   }
 
   // Changes to coins, words and trades reach friends, but not on every tick.

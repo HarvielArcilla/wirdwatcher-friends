@@ -230,7 +230,7 @@ function LevelUp ({ level, onDone }) {
     playLevelUp(levelSettings)
     const t1 = setTimeout(() => setShown(level.level), 450)
     const t2 = setTimeout(() => burst(window.innerWidth / 2, window.innerHeight / 2 - 40, 'confetti'), 500)
-    const t3 = setTimeout(onDone, level.reward?.items?.length ? 6500 : 4800)
+    const t3 = setTimeout(onDone, level.reward?.items?.length || level.reward?.packs ? 6500 : 4800)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const r = level.reward
@@ -244,6 +244,7 @@ function LevelUp ({ level, onDone }) {
         {r && (
           <div className='lv-rewards'>
             {r.coins > 0 && <div className='lv-reward' style={{ animationDelay: '.9s' }}><Coins n={r.coins} /><small>coins</small></div>}
+            {r.packs > 0 && <div className='lv-reward item' style={{ animationDelay: '1.05s' }}><b>🃏 {r.packs === 1 ? 'A free card pack' : `${r.packs} free card packs`}</b><small>waiting in the casino</small></div>}
             {r.items.map((it, i) => <div key={it.id} className='lv-reward item' style={{ animationDelay: `${1.2 + i * 0.25}s` }}><b>🎁 {it.name}</b><small>new {String(it.kindName || it.kind).toLowerCase().replace(/s$/, '')}, in the shop</small></div>)}
           </div>
         )}

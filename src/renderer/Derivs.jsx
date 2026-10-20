@@ -70,6 +70,7 @@ export function LeverageTicket ({ word, coins, trade }) {
   const [lev, setLev] = useState(2)
   const [amt, setAmt] = useState('')
   if (!chain) return <div className='dv-wait'>Loading…</div>
+  if (chain.bankrupt) return <div className='dv-wait'>No margin, futures or options while you’re bankrupt. Shares and funds are still open.</div>
   const max = chain.maxMarginLev
   const min = side === 'long' ? 2 : 1
   const L = Math.max(min, Math.min(max, lev))
@@ -98,7 +99,7 @@ export function LeverageTicket ({ word, coins, trade }) {
         {side === 'long' ? 'Go long' : 'Go short'} {L}×
       </button>
       <small className='mk-note'>
-        {side === 'long' ? `You put up the coins, borrow ${L - 1}× more and buy.` : `You borrow shares, sell them, and buy them back later.`} Under {Math.round(mmr * 100)}% maintenance margin it’s closed at the first minute it crosses, and you keep what’s left less a 0.5% fee. You can’t lose more than you put up.
+        {side === 'long' ? `You put up the coins, borrow ${L - 1}× more and buy.` : 'You borrow shares, sell them, and buy them back later.'} Margin is checked at the closing bell (20:00 UTC) each day: under {Math.round(mmr * 100)}% maintenance, it’s closed then, at that price, less a 0.5% fee. Losses can run past what you put up, and the rest becomes debt.
       </small>
     </div>
   )
@@ -113,6 +114,7 @@ export function FuturesTicket ({ word, coins, trade }) {
   const [lev, setLev] = useState(2)
   const [amt, setAmt] = useState('')
   if (!chain) return <div className='dv-wait'>Loading…</div>
+  if (chain.bankrupt) return <div className='dv-wait'>No margin, futures or options while you’re bankrupt. Shares and funds are still open.</div>
   const f = chain.futures.find((x) => x.at === pick) || chain.futures[0]
   const max = chain.maxFutureLev
   const L = Math.max(1, Math.min(max, lev))
@@ -150,7 +152,7 @@ export function FuturesTicket ({ word, coins, trade }) {
       <button className={`btn primary ${side}`} disabled={!(m >= 1) || m > coins} onClick={() => trade('future', { word, expiry: f.at, side, lev: L, coins: m }).then((ok) => ok && setAmt(''))}>
         {side === 'long' ? 'Buy' : 'Sell'} the {expiryText(f.at).split(',').slice(-1)[0].trim()} future
       </button>
-      <small className='mk-note'>Priced at cost of carry, spot × e^({(RATE * 100).toFixed(0)}% × time left), so it drifts to spot by expiry. No interest to pay: it’s in the price. Below three-quarters of initial margin it’s liquidated.</small>
+      <small className='mk-note'>Priced at cost of carry, spot × e^({(RATE * 100).toFixed(0)}% × time left), so it drifts to spot by expiry. No interest to pay: it’s in the price. If it’s below three-quarters of initial margin at a closing bell, it’s closed then, and a loss past your margin is debt.</small>
     </div>
   )
 }
@@ -163,6 +165,7 @@ export function OptionsTicket ({ word, coins, trade }) {
   const [sel, setSel] = useState(null) // { K, type, side }
   const [qty, setQty] = useState('10')
   if (!chain) return <div className='dv-wait'>Loading…</div>
+  if (chain.bankrupt) return <div className='dv-wait'>No margin, futures or options while you’re bankrupt. Shares and funds are still open.</div>
   const ex = chain.expiries.find((e) => e.at === exp) || chain.expiries[0]
   const row = sel && ex.rows.find((r) => r.K === sel.K)
   const q = row && row[sel.type]
@@ -187,7 +190,7 @@ export function OptionsTicket ({ word, coins, trade }) {
       [long ? 'Premium' : 'You receive', `${money(price)} × ${n || 0} = ${money(price * n)}`],
       !long && ['Margin to post', money(req)],
       ['Breakeven', `${money(be)} (${pct(be / S - 1)})`],
-      ['Max loss', long ? money(price * n) : `${money(req)}, your margin`],
+      ['Max loss', long ? money(price * n) : call ? 'unlimited' : money(Math.max(0, (sel.K - price) * n))],
       ['Max gain', long ? (call ? 'unlimited' : money((sel.K - price) * n)) : money(price * n)],
       ['Chance it ends in the money', `${(itm * 100).toFixed(0)}%`],
       ['Implied vol', `${(q.iv * 100).toFixed(0)}%`],
@@ -248,7 +251,7 @@ export function OptionsTicket ({ word, coins, trade }) {
           </button>
         </div>
       )}
-      <small className='mk-note'>European, settled in coins at the closing bell on the spot price. Black–Scholes at {(RATE * 100).toFixed(0)}%, with volatility from how {word} has actually moved at that horizon. Written options use CBOE margin and are bought back if it falls below half.</small>
+      <small className='mk-note'>European, settled in coins at the closing bell on the spot price. Black–Scholes at {(RATE * 100).toFixed(0)}%, with volatility from how {word} has actually moved at that horizon. Written options use CBOE margin, checked at each closing bell, and can lose more than it.</small>
     </div>
   )
 }
@@ -291,9 +294,9 @@ export function Positions ({ book, coins, onChange, toast, onPick }) {
                 </div>
                 {p.liqPrice === undefined && <div className='dv-health none'><small>{p.kind === 'option' ? 'Can’t be liquidated: the premium is all you can lose' : ''}</small></div>}
                 {p.liqPrice !== undefined && (
-                  <div className='dv-health' title={p.liqPrice ? `Liquidated if ${p.word} reaches ${money(p.liqPrice)}` : 'Can’t be liquidated'}>
+                  <div className='dv-health' title={p.liqPrice ? `Closed at the next closing bell if ${p.word} is past ${money(p.liqPrice)} then` : 'Can’t be closed by a margin call'}>
                     <span className='bar'><i style={{ width: `${Math.round((p.health || 0) * 100)}%` }} className={p.health > 0.5 ? 'ok' : p.health > 0.2 ? 'mid' : 'low'} /></span>
-                    <small>{p.marginCall ? '⚠ Margin call · ' : ''}{p.liqPrice ? `liq ${money(p.liqPrice)} (${pct(p.liqPrice / p.S - 1)})` : 'safe'}</small>
+                    <small>{p.marginCall ? '⚠ Under margin: add some or it closes at the bell · ' : ''}{p.liqPrice ? `closes at the bell past ${money(p.liqPrice)} (${pct(p.liqPrice / p.S - 1)})` : 'safe'}</small>
                   </div>
                 )}
                 {p.greeks && <small className='dv-greeks'>Δ {p.greeks.delta.toFixed(2)} · Θ {signed(p.greeks.theta)}/day · implied vol {(p.iv * 100).toFixed(0)}%</small>}
@@ -301,7 +304,7 @@ export function Positions ({ book, coins, onChange, toast, onPick }) {
                   {p.liqPrice !== undefined && (adding === p.id
                     ? <><input className='field' autoFocus inputMode='decimal' placeholder='Coins' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') act('derivAddMargin', p.id, num(amt)); if (e.key === 'Escape') setAdding(null) }} /><button className='btn small' disabled={!(num(amt) > 0) || num(amt) > coins} onClick={() => act('derivAddMargin', p.id, num(amt))}>Add</button></>
                     : <button className='btn small ghost' onClick={() => setAdding(p.id)}>Add margin</button>)}
-                  <button className='btn small' onClick={() => act('derivClose', p.id)}>Close for {money(p.value)}</button>
+                  <button className='btn small' onClick={() => act('derivClose', p.id)}>{p.value >= 0 ? `Close for ${money(p.value)}` : `Close, paying ${money(-p.value)}`}</button>
                 </div>
               </div>
             ))}

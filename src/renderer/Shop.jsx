@@ -43,6 +43,7 @@ export default function Shop ({ econ, me }) {
           <div className='wh-coins'><Coins n={coins} /></div>
         </div>
         <p className='lede'>Looks only. Nothing here helps you win or changes what anything pays, and everything you buy is yours for good, even after publishing an edition.</p>
+        {econ?.bankrupt && <p className='shop-locked'>⚖️ While you’re bankrupt your looks are locked away and the shop is closed. Everything you own is still yours: it all comes back when you’re discharged.</p>}
       </div>
       <div className='tabs' role='tablist'>
         {KINDS.map((x) => <button key={x.id} role='tab' aria-selected={kind === x.id} className={kind === x.id ? 'on' : ''} onClick={() => setKind(x.id)}>{x.name}</button>)}
@@ -85,10 +86,11 @@ export function lockText (c) {
   if (c.badge) { const b = BADGE[c.badge]; return b ? `🏅 ${b.name} badge: ${b.hint.replace(/\.$/, '')}` : '🏅 Comes with a badge' }
   if (c.level) return `⭐ Reach level ${c.level}`
   if (c.edition) return `📖 Publish ${c.edition === 1 ? 'once' : `${c.edition} times`}`
+  if (c.pack) return '🃏 Only in card packs'
   return '🔒 Not for sale'
 }
 // The description without the how-to-get-it part (the lock says that).
-const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.)\s*/, '').trim()
+const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.|Only in card packs\.)\s*/, '').trim()
 
 // A small picture of each item, drawn with the same styles the real thing uses.
 export function Preview ({ c, me }) {

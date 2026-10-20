@@ -19,11 +19,17 @@ import {
 import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../shared/cosmetics.js'
 import { balanced, validStake } from '../shared/stakes.js'
 import { letterAt, WEIGHT_TOTAL, evaluate } from '../shared/slots.js'
+import { drawPack, packPool, packPrice, PACK_ODDS, LAST_CARD_ODDS, PITY, SCRAP_FOR, CRAFT_COST } from '../shared/packs.js'
 
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
 const ASLEEP_MS = 30000 // a gap this long between ticks means the computer slept: count it as time away
 export const SAME_LIMIT = 5 // this many of the same score in a row ends the pace streak
+export const DEBT_RATE = 0.24 // a year, compounded continuously, on coins below zero
+const YEAR_MS = 365.25 * 864e5
+const DAY_MS = 864e5
+// Bankruptcy lasts at least this many days, longer each time.
+export const BANKRUPT_DAYS = (n) => Math.min(14, 3 * n)
 
 const blank = (now) => ({
   v: 1,
@@ -48,7 +54,10 @@ const blank = (now) => ({
   slots: { spins: 0, wins: 0, net: 0, biggest: 0, jackpots: 0, bestWord: null, bestMult: 0, freeDay: null, last: [] },
   market: { holdings: {}, spent: 0, proceeds: 0, trades: 0, best: null, worst: null, lastTradeAt: 0 },
   escrow: {}, // lobby stakes in play: key -> { amount, host, state: 'held' | 'committed', at }
-  stakes: { games: 0, won: 0, lost: 0, net: 0, biggestPot: 0 }
+  stakes: { games: 0, won: 0, lost: 0, net: 0, biggestPot: 0 },
+  bankrupt: null, // { at, discharged, need, earned, until, n } while it lasts
+  credit: { filings: 0, discharged: 0, lastFiled: null, debtInterest: 0, deepest: 0 },
+  packs: { free: 0, granted: 0, opened: 0, bought: 0, sinceEpic: 0, scraps: 0, last: [] }
 })
 
 const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` }
@@ -65,7 +74,7 @@ export class Economy extends EventEmitter {
     this.dev = dev
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
-    for (const k of ['stats', 'flips', 'stakes', 'market', 'slots']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
+    for (const k of ['stats', 'flips', 'stakes', 'market', 'slots', 'credit', 'packs']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
     this.s.escrow = { ...(saved?.escrow || {}) }
     this.s.look = { ...DEFAULT_LOOK, ...(saved?.look || {}) }
     if (!this.s.muse) this.s.muse = { v: 1, t: now() } // arrive inspired
@@ -109,6 +118,10 @@ export class Economy extends EventEmitter {
     this.s.runCoins += coins
     this.s.allCoins += coins
     this.dirty = true
+    if (this.s.bankrupt) {
+      this.s.bankrupt.earned += coins // steady income, toward the discharge
+      if (this._dischargeReady()) this._discharge(this.now())
+    }
     return coins
   }
 
@@ -131,6 +144,16 @@ export class Economy extends EventEmitter {
       if (friends > 0 && !this.s.stats.friendsSeen) this.s.stats.friendsSeen = 1
       this._earn(cpsNow(this.s, { now: t, friendsOnline: friends }) * dt / 1000)
     }
+    // Debt grows: interest on whatever's below zero, for however long it's been.
+    if (this.s.coins < 0) {
+      const owed = -this.s.coins
+      const grown = owed * Math.exp(DEBT_RATE * dt / YEAR_MS)
+      this.s.coins = -grown
+      this.s.credit.debtInterest += grown - owed
+      this.s.credit.deepest = Math.max(this.s.credit.deepest, grown)
+      this.dirty = true
+    }
+    if (this.s.bankrupt && this._dischargeReady(t)) this._discharge(t)
     this.s.lastTick = t
     this.emit('tick', this.compact(t))
   }
@@ -214,6 +237,8 @@ export class Economy extends EventEmitter {
   // Publishing your dictionary: the wirdhouse starts over, and you keep ink.
   prestige () {
     const gain = inkGain(this.s)
+    if (this.s.coins < 0) throw new Error('Pay off your debt before publishing.')
+    if (this.s.bankrupt) throw new Error('No publishing while you’re bankrupt.')
     if (gain < 1) throw new Error('Not enough to publish yet. Keep earning.')
     this.tick()
     // Shares are sold at today's prices first: they're part of the edition
@@ -257,8 +282,11 @@ export class Economy extends EventEmitter {
 
   // Heads or tails, for no reason at all. Winnings aren't "earned", so they
   // don't count toward ink.
+  _casinoOpen () { if (this.s.bankrupt) throw new Error('The casino doesn’t take bankrupt players. Build some steady income first.') }
+
   flip (stake, call = 'heads') {
     this.tick()
+    this._casinoOpen()
     const amount = Math.floor(Number(stake))
     if (!(amount >= 1)) throw new Error('Bet at least 1 coin.')
     if (amount > Math.floor(this.s.coins)) throw new Error('You don’t have that many coins.')
@@ -294,6 +322,7 @@ export class Economy extends EventEmitter {
 
   spin (stake, { free = false } = {}) {
     this.tick()
+    this._casinoOpen()
     const sl = this.s.slots
     let amount
     if (free) {
@@ -395,7 +424,7 @@ export class Economy extends EventEmitter {
     key = String(key)
     const rec = this.s.escrow[key]
     if (rec) return rec.amount === amount // already held (a repeated ask)
-    if (!validStake(amount) || amount > Math.floor(this.s.coins)) return false
+    if (this.s.bankrupt || !validStake(amount) || amount > Math.floor(this.s.coins)) return false
     this.tick()
     if (amount > Math.floor(this.s.coins)) return false
     this.s.coins -= amount
@@ -504,10 +533,11 @@ export class Economy extends EventEmitter {
     }
     this.s.levelPaid = level
     this.s.coins += coins // a gift, not earned: doesn't count toward ink
+    const packs = this.grantLevelPacks(level)
     this.dirty = true
     this.emit('changed')
     if (items.length) this.emit('look')
-    return { coins, items, level }
+    return { coins, items, level, packs }
   }
 
   // --- the shop ---------------------------------------------------------------------
@@ -523,6 +553,8 @@ export class Economy extends EventEmitter {
     if (this.owns(kind, id)) throw new Error('You already have it.')
     if (c.badge) throw new Error('That one comes with a badge.')
     if (c.level) throw new Error(`That one comes at level ${c.level}.`)
+    if (this.s.bankrupt) throw new Error('No new looks while you’re bankrupt.')
+    if (c.pack) throw new Error('That one only comes in card packs.')
     if (c.price === null) throw new Error(`That one comes from publishing ${c.edition === 1 ? 'once' : `${c.edition} times`}.`)
     this._spend(c.price)
     this.s.owned.push(`${kind}:${id}`)
@@ -535,6 +567,7 @@ export class Economy extends EventEmitter {
   equip (kind, id) {
     if (!KINDS.some((k) => k.id === kind)) throw new Error('No such slot.')
     if (!this.owns(kind, id)) throw new Error('You don’t have that yet.')
+    if (this.s.bankrupt && !cosmetic(kind, id)?.free) throw new Error('Your looks are locked away while you’re bankrupt.')
     this.s.look[kind] = id
     this.dirty = true
     this.emit('changed')
@@ -563,7 +596,138 @@ export class Economy extends EventEmitter {
 
   // What others see.
   look () {
-    return { ...Object.fromEntries(PUBLIC_KINDS.map((k) => [k, this.s.look[k] || DEFAULT_LOOK[k]])), edition: this.s.edition }
+    const worn = this.worn()
+    return { ...Object.fromEntries(PUBLIC_KINDS.map((k) => [k, worn[k] || DEFAULT_LOOK[k]])), edition: this.s.edition }
+  }
+
+  // What you actually wear: while bankrupt, only the free looks.
+  worn () { return this.s.bankrupt ? { ...DEFAULT_LOOK } : { ...this.s.look } }
+
+  // --- debt and bankruptcy ----------------------------------------------------------
+  //
+  // Coins can go below zero (big losses on the Word Exchange). Debt charges
+  // DEBT_RATE, and anything you earn pays it down. If what you own can't
+  // cover it, you can declare bankruptcy: the app sells everything on the
+  // Exchange first (see WirdApp.declareBankruptcy), then the rest of the
+  // debt is cancelled and coins start again from zero. Until you've built
+  // some steady income (earned at least a day of your wirdhouse, or a tenth
+  // of what was cancelled, whichever is more) and some days have passed, the
+  // casino, cosmetics, stakes, risky trades and publishing are locked.
+
+  fileBankruptcy () {
+    this.tick()
+    if (this.s.bankrupt) throw new Error('You’re already bankrupt.')
+    if (this.s.coins >= 0) throw new Error('You’re not in debt.')
+    const t = this.now()
+    const discharged = -this.s.coins
+    const c = this.s.credit
+    c.filings++
+    c.discharged += discharged
+    c.lastFiled = t
+    const need = Math.max(10000, baseCps(this.s) * 86400, discharged * 0.1)
+    this.s.coins = 0
+    this.s.bankrupt = { at: t, discharged, need, earned: 0, until: t + BANKRUPT_DAYS(c.filings) * DAY_MS, n: c.filings }
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    this.emit('look')
+    return this.bankruptView()
+  }
+
+  _dischargeReady (t = this.now()) {
+    const b = this.s.bankrupt
+    return b && t >= b.until && b.earned >= b.need
+  }
+
+  _discharge (t) {
+    const b = this.s.bankrupt
+    this.s.bankrupt = null
+    this.s.credit.lastDischarged = t
+    this.dirty = true
+    this.discharged = { ...b, at: t }
+    this.emit('changed')
+    this.emit('look')
+  }
+
+  // Taking the news of a discharge, once, for the window to show.
+  takeDischarge () { const d = this.discharged; this.discharged = null; return d }
+
+  bankruptView () {
+    const b = this.s.bankrupt
+    if (!b) return null
+    return { ...b, progress: Math.min(1, b.earned / b.need), daysLeft: Math.max(0, (b.until - this.now()) / DAY_MS) }
+  }
+
+  // --- card packs (in the casino) -----------------------------------------------------
+  //
+  // See src/shared/packs.js for the odds. A free pack comes with every fifth
+  // level; more can be bought. Each pack is three cards; a card you already
+  // have becomes scraps, and scraps make any card of your choosing.
+
+  grantLevelPacks (level = this.level()) {
+    const pk = this.s.packs
+    const want = Math.floor(level / 5)
+    if (want <= pk.granted) return 0
+    const n = want - pk.granted
+    pk.free += n
+    pk.granted = want
+    this.dirty = true
+    this.emit('changed')
+    return n
+  }
+
+  packPrice () { return packPrice(baseCps(this.s)) }
+
+  openPack ({ free = false } = {}) {
+    this.tick()
+    this._casinoOpen()
+    const pk = this.s.packs
+    let price = 0
+    if (free) {
+      if (pk.free < 1) throw new Error('No free packs left. One comes every five levels.')
+      pk.free--
+    } else {
+      price = this.packPrice()
+      this._spend(price)
+      pk.bought++
+    }
+    const owned = new Set([...this.s.owned, ...COSMETICS.filter((c) => c.free).map((c) => `${c.kind}:${c.id}`)])
+    const { cards, sinceEpic } = drawPack(() => crypto.randomInt(2 ** 32) / 2 ** 32, pk.sinceEpic)
+    pk.sinceEpic = sinceEpic
+    const out = cards.map((c) => {
+      const key = `${c.kind}:${c.id}`
+      const dup = owned.has(key)
+      if (dup) pk.scraps += SCRAP_FOR[c.rarity]
+      else { this.s.owned.push(key); owned.add(key) }
+      return { kind: c.kind, id: c.id, name: c.name, rarity: c.rarity, dup, scraps: dup ? SCRAP_FOR[c.rarity] : 0, kindName: KINDS.find((k) => k.id === c.kind)?.name }
+    })
+    pk.opened++
+    pk.last = [{ at: this.now(), cards: out.map((c) => `${c.kind}:${c.id}`), free }, ...pk.last].slice(0, 10)
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    this.emit('played', 'pack')
+    return { cards: out, price, free, packs: this.packsView() }
+  }
+
+  craft (kind, id) {
+    this._casinoOpen()
+    const c = cosmetic(kind, id)
+    if (!c || !packPool().includes(c)) throw new Error('That can’t be crafted.')
+    if (this.owns(kind, id)) throw new Error('You already have it.')
+    const cost = CRAFT_COST[c.rarity]
+    if (this.s.packs.scraps < cost) throw new Error(`That takes ${cost} scraps.`)
+    this.s.packs.scraps -= cost
+    this.s.owned.push(`${kind}:${id}`)
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    return this.packsView()
+  }
+
+  packsView () {
+    const pk = this.s.packs
+    return { ...pk, price: this.packPrice(), odds: PACK_ODDS, lastOdds: LAST_CARD_ODDS, pity: PITY, scrapFor: SCRAP_FOR, craftCost: CRAFT_COST, toPity: Math.max(1, PITY - pk.sinceEpic), nextFreeAt: (pk.granted + 1) * 5 }
   }
 
   // --- for testing (the dev account) -------------------------------------------------
@@ -575,6 +739,7 @@ export class Economy extends EventEmitter {
   }
 
   devAddCoins (n) { this._earn(Math.max(0, Number(n) || 0)); this.emit('changed') }
+  devDebt (n) { this.tick(); this.s.coins -= Math.max(0, Number(n) || 0); this.dirty = true; this.emit('changed') }
 
   devWarp (secs) {
     // As if the app had been open (no muse or streak) for that long.
@@ -607,7 +772,9 @@ export class Economy extends EventEmitter {
       muse: { level: museNow(this.s, t, fx), mult: fx.museMult, floor: MUSE_FLOOR, factor: museFactor(museNow(this.s, t, fx), fx), drainSecs: museDrainSecs(fx), fill: MUSE_FILL },
       edition: this.s.edition,
       staked: this.stakedNow(),
-      look: { ...this.s.look }
+      look: this.worn(),
+      debt: this.s.coins < 0 ? -this.s.coins : 0,
+      bankrupt: this.bankruptView()
     }
   }
 
@@ -631,6 +798,8 @@ export class Economy extends EventEmitter {
       prestige: { edition: s.edition, ink: s.ink, inkTotal: s.inkTotal, gain: inkGain(s), nextAt: ((inkTotalFor(s.allCoins) + 1) ** 3) * INK_PER, bonus: INK_BONUS, perks: PERKS.map((p) => { const level = s.perks[p.id] || 0; return { id: p.id, emoji: p.emoji, name: p.name, max: p.max, level, cost: level < p.max ? p.cost(level) : null, desc: p.desc(level), nextDesc: level < p.max ? p.desc(level + 1) : null } }) },
       flips: { ...s.flips },
       slots: { ...s.slots },
+      packs: this.packsView(),
+      credit: { ...s.credit },
       freeSpin: { ready: this.freeSpinReady(), amount: this.freeSpinAmount() },
       stats: { ...s.stats },
       owned: [...COSMETICS.filter((c) => c.free || (c.badge && this.hasBadge(c.badge)) || (c.level && this.level() >= c.level)).map((c) => `${c.kind}:${c.id}`), ...s.owned],

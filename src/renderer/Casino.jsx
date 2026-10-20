@@ -5,8 +5,10 @@ import { PAYS, LETTERS } from '../shared/slots.js'
 import { burst, centerOf } from './effects.js'
 import { playRating } from './sound.js'
 import { Coinflip, useLiveCoins } from './Wirdhouse.jsx'
+import Packs from './Packs.jsx'
+import { Credit } from './Credit.jsx'
 
-// The Casino: Wird Slots and the coinflip. Luck, for coins that only buy
+// The Casino: Wird Slots, the coinflip and card packs. Luck, for coins that only buy
 // looks. Nothing here counts toward ink.
 export default function Casino ({ econ, settings }) {
   const toast = useToast()
@@ -37,10 +39,17 @@ export default function Casino ({ econ, settings }) {
         </div>
       </div>
       <div className='tabs' role='tablist'>
-        {[['slots', 'Wird Slots'], ['flip', 'Coinflip']].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
-      {tab === 'slots' && <Slots v={v} coins={coins} act={act} settings={settings} />}
-      {tab === 'flip' && <Coinflip v={v} coins={coins} act={act} look={econ?.look} />}
+      {econ?.bankrupt
+        ? <div className='casino-closed'><h2>The casino’s closed to you for now</h2><p className='lede'>It doesn’t take bankrupt players. Build some steady income and the doors open again{v.packs.free > 0 ? `, and your ${v.packs.free} free pack${v.packs.free === 1 ? ' is' : 's are'} waiting` : ''}.</p><Credit econ={econ} compact /></div>
+        : (
+          <>
+            {tab === 'slots' && <Slots v={v} coins={coins} act={act} settings={settings} />}
+            {tab === 'flip' && <Coinflip v={v} coins={coins} act={act} look={econ?.look} />}
+            {tab === 'packs' && <Packs v={v} coins={coins} act={act} />}
+          </>
+          )}
     </div>
   )
 }

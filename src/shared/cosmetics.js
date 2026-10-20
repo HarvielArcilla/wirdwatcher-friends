@@ -49,8 +49,24 @@ export const LEVEL_REWARDS = [
   atLevel(100, 'title', 'centenarian', 'Centenarian', '', { text: 'Centenarian' })
 ]
 
+// Only in card packs (see packs.js): titles and confetti with a card-table air.
+const inPack = (kind, id, name, rarity, desc, extra = {}) => item(kind, id, name, null, rarity, `Only in card packs. ${desc}`, { pack: true, ...extra })
+export const PACK_ONLY = [
+  inPack('title', 'shuffler', 'Card shuffler', 'common', '', { text: 'Card shuffler' }),
+  inPack('title', 'mint', 'Mint condition', 'common', '', { text: 'Mint condition' }),
+  inPack('title', 'pulls', 'Lucky pulls', 'rare', '', { text: 'Lucky pulls' }),
+  inPack('title', 'holo', 'Holo hunter', 'rare', '', { text: 'Holo hunter' }),
+  inPack('title', 'sealed', 'Still sealed', 'epic', '', { text: 'Still sealed' }),
+  inPack('title', 'shark', 'Card shark', 'epic', '', { text: 'Card shark' }),
+  inPack('title', 'grail', 'Pulled the grail', 'legendary', '', { text: 'Pulled the grail' }),
+  inPack('confetti', 'cards', 'Fifty-two pickup', 'rare', 'Playing cards everywhere.', { emoji: ['🃏', '♠️', '♥️', '♦️', '♣️'] }),
+  inPack('confetti', 'foil', 'Foil shards', 'epic', 'Glittering scraps of foil.', { emoji: ['✨', '💠', '🔷'] }),
+  inPack('confetti', 'gems', 'Gem rain', 'legendary', 'Precious stones, falling.', { emoji: ['💎', '💍', '👑'] })
+]
+
 export const COSMETICS = [
   ...LEVEL_REWARDS,
+  ...PACK_ONLY,
   // Rooms
   item('room', 'plain', 'Plain', 0, 'common', 'Just your theme.', { free: true }),
   item('room', 'study', 'Cozy study', 8000, 'common', 'Warm wood and a reading lamp.'),
