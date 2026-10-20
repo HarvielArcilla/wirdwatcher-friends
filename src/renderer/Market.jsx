@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, Coins, useToast, useInterval } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { sectorOf } from '../shared/market.js'
+import { LeverageTicket, FuturesTicket, OptionsTicket, Positions, Funds } from './Derivs.jsx'
 
 // The Word Exchange. Every word has a price that's the same on every
 // computer, minute by minute; you can trade the words you've rated.
@@ -9,6 +10,7 @@ const pct = (x, digits = 1) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFix
 const money = (n) => (n >= 1000 ? formatCoins(n) : n.toFixed(2))
 const SORTS = [['movers', 'Movers'], ['gainers', 'Gainers'], ['losers', 'Losers'], ['price', 'Price'], ['volatile', 'Volatile'], ['name', 'A–Z']]
 const RANGES = [['day', '1D'], ['week', '1W'], ['month', '1M'], ['year', '1Y']]
+const TABS = [['shares', 'Shares'], ['leverage', 'Leverage'], ['futures', 'Futures'], ['options', 'Options']]
 
 export default function Market ({ econ, openWord }) {
   const toast = useToast()
@@ -18,10 +20,16 @@ export default function Market ({ econ, openWord }) {
   const [sort, setSort] = useState('movers')
   const [query, setQuery] = useState('')
   const [pick, setPick] = useState(null)
+  const [book, setBook] = useState(null)
   const load = useCallback(() => {
     api('market', { sector, sort, query, limit: 80 }).then(setBoard).catch(() => {})
     api('portfolio').then(setPort).catch(() => {})
-  }, [sector, sort, query])
+    api('derivBook').then((b) => {
+      setBook(b)
+      // Liquidations and expiries that happened while you weren't looking.
+      for (const x of b.fresh || []) toast({ emoji: x.how === 'liquidated' ? '💥' : '⌛', error: x.how === 'liquidated' && x.pay === 0, title: x.how === 'liquidated' ? `${x.label} was liquidated` : `${x.label} expired`, text: `${x.pay > 0 ? `${formatCoins(x.pay)} came back` : 'Nothing came back'}, ${x.gain >= 0 ? '+' : '−'}${formatCoins(Math.abs(x.gain))}.` })
+    }).catch(() => {})
+  }, [sector, sort, query]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   useInterval(load, 20000) // prices change by the minute
   useEffect(() => { if (!pick && board?.rows?.[0]) setPick(port?.rows?.[0]?.word || board.rows[0].word) }, [board, port]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,6 +106,8 @@ export default function Market ({ econ, openWord }) {
           </table>
         </section>
       )}
+      <Positions book={book} coins={econ?.coins ?? 0} toast={toast} onChange={load} onPick={setPick} />
+      <Funds coins={econ?.coins ?? 0} toast={toast} onChange={load} />
     </div>
   )
 }
@@ -141,8 +151,17 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
   }, [word, range])
   useEffect(() => { load(); setHover(null) }, [load])
   useInterval(load, 30000)
+  const [tab, setTab] = useState('shares')
   const pos = port.rows.find((r) => r.word === word)
   const coins = econ?.coins ?? 0
+  const open = async (kind, spec) => {
+    try {
+      const v = await api('derivOpen', kind, spec)
+      toast({ emoji: v.side > 0 ? '📈' : '📉', title: `Opened ${v.label}`, text: `${formatCoins(v.paid)} coins in.` })
+      onTraded()
+      return true
+    } catch (err) { toast({ error: true, title: 'Couldn’t open that', text: err.message }); return false }
+  }
   const trade = async (kind, n) => {
     try {
       await api('marketTrade', kind, word, n)
@@ -167,7 +186,7 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
   const shown = hover !== null && pts[hover] ? pts[hover] : null
   const sec = sectorOf(q.sector)
   return (
-    <section className='mk-detail'>
+    <section className={`mk-detail ${tab !== 'shares' ? 'tall' : ''}`}>
       <div className='mk-title'>
         <button className='mk-word-big' onClick={() => openWord?.(word)} title='Open the word'>{word}</button>
         <span className='mk-tags'><span>{sec.emoji} {sec.name}</span><span>{q.vol > 0.6 ? '🎢 Wild' : q.vol > 0.35 ? '〰️ Lively' : '🧱 Blue chip'}</span></span>
@@ -189,9 +208,17 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
       <div className='seg mk-ranges'>{RANGES.map(([id, label]) => <button key={id} className={range === id ? 'on' : ''} onClick={() => setRange(id)}>{label}</button>)}</div>
       {q.news && <div className={`mk-headline ${q.news.up ? 'up' : 'down'}`}>{q.news.up ? '▲' : '▼'} {headlineText(q)}</div>}
 
+      {q.tradable && (
+        <div className='seg mk-tabs' role='tablist'>
+          {TABS.map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        </div>
+      )}
+      {q.tradable && tab === 'leverage' && <div className='mk-trade'><LeverageTicket word={word} coins={coins} trade={open} /></div>}
+      {q.tradable && tab === 'futures' && <div className='mk-trade'><FuturesTicket word={word} coins={coins} trade={open} /></div>}
+      {q.tradable && tab === 'options' && <div className='mk-trade'><OptionsTicket word={word} coins={coins} trade={open} /></div>}
       {!q.tradable
         ? <div className='empty small'>Rate “{word}” to trade it.</div>
-        : (
+        : tab === 'shares' && (
           <div className='mk-trade'>
             <div className='mk-buy'>
               <small>Buy at {money(q.buy)}</small>
@@ -210,7 +237,7 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
             )}
           </div>
           )}
-      <small className='mk-note'>Buying costs 0.5% over the price and selling gets 0.5% under it. Prices change every minute.</small>
+      {tab === 'shares' && <small className='mk-note'>Buying costs 0.5% over the price and selling gets 0.5% under it. Prices change every minute.</small>}
     </section>
   )
 }

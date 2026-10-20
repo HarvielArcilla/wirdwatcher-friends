@@ -143,6 +143,17 @@ function handlers () {
       else throw new Error('Unknown trade.')
       return ww.market.portfolio()
     },
+    derivChain: (word) => ww.derivs.chain(word),
+    derivBook: () => ww.derivs.book(),
+    derivOpen: (kind, spec) => {
+      const open = { margin: 'openMargin', future: 'openFuture', option: 'openOption' }[kind]
+      if (!open) throw new Error('Unknown position.')
+      return ww.derivs[open](spec || {})
+    },
+    derivClose: (id) => ww.derivs.close(id),
+    derivAddMargin: (id, coins) => ww.derivs.addMargin(id, coins),
+    etfs: () => ww.derivs.etfs(),
+    etfTrade: (kind, id, amount) => (kind === 'buy' ? ww.derivs.buyEtf(id, amount) : ww.derivs.sellEtf(id, amount)),
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },
     customSound: () => ww.customSound(),

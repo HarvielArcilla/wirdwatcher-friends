@@ -88,6 +88,7 @@ export class Market {
   }
 
   portfolio () {
+    this.derivs?.sync()
     const m = this.economy.s.market
     const t = this.now()
     const rows = Object.entries(m.holdings).filter(([, h]) => h.shares > 0).map(([word, h]) => {
@@ -103,8 +104,11 @@ export class Market {
   stats (value = null) {
     const m = this.economy.s.market
     if (value === null) value = Object.entries(m.holdings).reduce((a, [w, h]) => { const q = this.quote(w); return a + (q ? h.shares * q.sell : 0) }, 0)
+    const shares = value
+    const derivs = this.derivs ? this.derivs.value() : 0
+    value += derivs
     const gain = value + m.proceeds - m.spent
-    return { spent: m.spent, proceeds: m.proceeds, value, gain, returnPct: m.spent ? gain / m.spent : 0, trades: m.trades, best: m.best, worst: m.worst }
+    return { spent: m.spent, proceeds: m.proceeds, value, shares, derivs, gain, returnPct: m.spent ? gain / m.spent : 0, trades: m.trades, best: m.best, worst: m.worst }
   }
 
   // coins: how much to spend (fractional shares are fine).

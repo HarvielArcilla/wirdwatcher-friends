@@ -20,6 +20,7 @@ import { readJson, writeJson } from './files.js'
 import { migrate } from './migrate.js'
 import { Economy } from './economy.js'
 import { Market } from './market.js'
+import { Derivatives } from './derivatives.js'
 import { Lexicon } from './lexicon.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
@@ -53,11 +54,13 @@ export class WirdApp extends EventEmitter {
     this.friends = new Friends({ identity: this.identity, store: this.store, settings: this.settings, swarm, lan })
     this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, hasBadge: (id) => Boolean(this.store.progress.badges[id]), level: () => this.game.profile().level.level, dev })
     this.market = new Market({ words: this.words, store: this.store, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
+    this.derivs = new Derivatives({ market: this.market, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
+    this.market.derivs = this.derivs
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
     this.lexicon = new Lexicon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('lexiconEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.on('played', (kind) => this.daily.note(kind))
-    this.economy.beforePrestige = () => { for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
+    this.economy.beforePrestige = () => { this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
     // Levels from before coins existed don't pay out; from here on, each does.
     if (this.economy.s.levelPaid == null) this.economy.s.levelPaid = this.game.profile().level.level
     // Friends see what you wear and which edition you're on.
