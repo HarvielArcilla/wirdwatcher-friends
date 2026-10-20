@@ -21,7 +21,7 @@ import { migrate } from './migrate.js'
 import { Economy } from './economy.js'
 import { Market } from './market.js'
 import { Derivatives } from './derivatives.js'
-import { Lexicon } from './lexicon.js'
+import { Leximon } from './leximon.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
 
@@ -57,7 +57,7 @@ export class WirdApp extends EventEmitter {
     this.derivs = new Derivatives({ market: this.market, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.market.derivs = this.derivs
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
-    this.lexicon = new Lexicon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('lexiconEncounters') })
+    this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.on('played', (kind) => this.daily.note(kind))
     this.economy.beforePrestige = () => { this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
@@ -90,18 +90,18 @@ export class WirdApp extends EventEmitter {
   rate (word, r, opts) {
     const res = this._withLevelReward(this.game.rate(word, r, opts))
     res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
-    // Only new words teach your Lexicon (and bring wild words), whatever you gave them.
+    // Only new words teach your Leximon (and bring wild words), whatever you gave them.
     if (res.coins) {
-      res.lexicon = this.lexicon.onNewWord(word)
+      res.leximon = this.leximon.onNewWord(word)
       this.daily.note('words', { topic: this.words.marketFacts(word)?.sector, streak: res.coins.streak?.n })
     }
     return res
   }
 
-  // What friends see beyond ratings: your look, Top 4, your Lexicon, and
+  // What friends see beyond ratings: your look, Top 4, your Leximon, and
   // (unless you hide it) how you do at the market and in the casino.
   _publicProfile (always = false) {
-    const out = { look: this.economy.look(), top4: this.top4(), lexicon: this.lexicon.public(), daily: this.daily.public() }
+    const out = { look: this.economy.look(), top4: this.top4(), leximon: this.leximon.public(), daily: this.daily.public() }
     if (always || this.settings.get('showCasinoStats')) {
       const m = this.market.stats()
       const f = this.economy.s.flips
@@ -175,11 +175,11 @@ export class WirdApp extends EventEmitter {
     })
   }
 
-  // A duel against a friend's Lexicon team, from their profile.
+  // A duel against a friend's Leximon team, from their profile.
   duelFriend (userId) {
     const data = this.store.friend(userId)
     if (!data) throw new Error('That isn’t a friend.')
-    const res = this.lexicon.duel(userId, data.info.name, data.records.me?.v?.lexicon?.team, this.identity.userId)
+    const res = this.leximon.duel(userId, data.info.name, data.records.me?.v?.leximon?.team, this.identity.userId)
     this.game._refreshProfile()
     return res
   }
@@ -427,7 +427,7 @@ export class WirdApp extends EventEmitter {
       if (solved) { items.push({ amount: XP.hiveMind, why: 'Solved it' }); if (solved.clue <= 2) counters.quickClues = 1 }
       const bonus = this._withLevelReward(this.game.award(items, counters))
       coins += this.economy.onLobbyRound({ hosting: Boolean(this.lobby?.isHost) })
-      this.lexicon.onLobbyRound()
+      this.leximon.onLobbyRound()
       this.daily.note('lobby')
       this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, reward: bonus.reward || reward, coins, source: 'lobby' })
     }

@@ -1,21 +1,21 @@
-// Your Lexicon on this computer: the words you've caught, your team of three,
-// training, ascending, and duels. Kept inside economy.json (as s.lexicon) so
-// coins and words are saved together. The rules are in src/shared/lexicon.js.
+// Your Leximon on this computer: the words you've caught, your team of three,
+// training, ascending, and duels. Kept inside economy.json (as s.leximon) so
+// coins and words are saved together. The rules are in src/shared/leximon.js.
 
 import crypto from 'node:crypto'
 import {
   rarityFor, rarityName, stanceFor, STANCES, RATING_XP, LOBBY_XP, xpToNext, levelCap, ascendCost, power,
   TRAIN_XP_PER_HOUR, TRAIN_MAX_HOURS, TRAIN_SLOTS, trainCostPerHour, FOCUS, nextEncounterIn,
-  DUELS_PER_DAY, DUEL_XP, duel, cleanTeam, lexiconBonus
-} from '../shared/lexicon.js'
+  DUELS_PER_DAY, DUEL_XP, duel, cleanTeam, leximonBonus
+} from '../shared/leximon.js'
 import { hash32 } from '../shared/market.js'
 
 const HOUR = 3600e3
 export const utcDay = (t) => new Date(t).toISOString().slice(0, 10)
-export const blankLexicon = () => ({ cards: {}, team: [], encounter: null, since: 0, nextAt: 8, focus: null, duels: { day: null, today: 0, wins: 0, losses: 0, history: [] }, caught: 0 })
+export const blankLeximon = () => ({ cards: {}, team: [], encounter: null, since: 0, nextAt: 8, focus: null, duels: { day: null, today: 0, wins: 0, losses: 0, history: [] }, caught: 0 })
 
-export class Lexicon {
-  // economy: the Economy (its s.lexicon is ours). store: for your ratings.
+export class Leximon {
+  // economy: the Economy (its s.leximon is ours). store: for your ratings.
   // encounters(): whether wild words appear (a setting).
   constructor ({ economy, store, now = () => Date.now(), encounters = () => true }) {
     this.economy = economy
@@ -23,11 +23,13 @@ export class Lexicon {
     this.now = now
     this.encounters = encounters
     const s = economy.s
-    s.lexicon = { ...blankLexicon(), ...(s.lexicon || {}) }
-    s.lexicon.duels = { ...blankLexicon().duels, ...(s.lexicon.duels || {}) }
+    // Builds before the rename kept it as s.lexicon.
+    if (!s.leximon && s.lexicon) { s.leximon = s.lexicon; delete s.lexicon }
+    s.leximon = { ...blankLeximon(), ...(s.leximon || {}) }
+    s.leximon.duels = { ...blankLeximon().duels, ...(s.leximon.duels || {}) }
   }
 
-  get s () { return this.economy.s.lexicon }
+  get s () { return this.economy.s.leximon }
   _save () { this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
   card (word) {
     const c = this.s.cards[word]
@@ -36,7 +38,7 @@ export class Lexicon {
   }
 
   team () { return this.s.team.map((w) => this.s.cards[w]).filter(Boolean) }
-  bonus () { return lexiconBonus(this.team()) }
+  bonus () { return leximonBonus(this.team()) }
 
   // XP to a word: levels while under its tier's cap; past it, banked.
   _gain (c, xp, ups) {

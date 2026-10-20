@@ -114,7 +114,7 @@ export const BADGES = [
   { id: 'longword', emoji: '📏', name: 'Sesquipedalian', hint: 'Rate a word of 15 letters or more.', test: (s) => s.longest >= 15 },
   { id: 'chatterbox', emoji: '💬', name: 'Chatterbox', hint: 'Leave 50 comments.', test: (s) => s.comments >= 50 },
   { id: 'hoarder', emoji: '🗃️', name: 'Hoarder', hint: 'Keep 100 favorites.', test: (s) => s.favorites >= 100 },
-  { id: 'fiftyk', emoji: '🌍', name: 'Lexicon', hint: 'Rate 50,000 words.', test: (s) => s.rated >= 50000 },
+  { id: 'fiftyk', emoji: '🌍', name: 'Leximon', hint: 'Rate 50,000 words.', test: (s) => s.rated >= 50000 },
   // Coins and the wirdhouse.
   { id: 'coin1k', emoji: '🪙', name: 'Pocket change', hint: 'Earn 1,000 coins.', test: (s) => s.ecoEver >= 1e3 },
   { id: 'coin1m', emoji: '💰', name: 'Millionaire', hint: 'Earn a million coins.', test: (s) => s.ecoEver >= 1e6 },

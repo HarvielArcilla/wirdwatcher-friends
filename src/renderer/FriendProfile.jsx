@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { api, Avatar, Bar, ratingColor, timeAgo, plural, useToast } from './ui.jsx'
 import { titleText } from '../shared/cosmetics.js'
-import { Top4, Diary, LexiconPanel, CasinoPanel, thisYear } from './Profile.jsx'
+import { Top4, Diary, LeximonPanel, CasinoPanel, thisYear } from './Profile.jsx'
 
 // A friend's profile, laid out like your own Collection: their numbers, how
 // they rate (with yours drawn behind for comparison), how the two of you line
@@ -50,7 +50,7 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
         <div><strong style={{ color: ratingColor(s.average) }}>{s.average === null ? '–' : formatRating(s.average)}</strong><span>average</span></div>
         <div><strong>{p.bestStreak ?? '–'}</strong><span>best streak</span></div>
         <div><strong>{p.badgeCount}</strong><span>badges</span></div>
-        {p.lexicon && <div><strong>{p.lexicon.caught}</strong><span>caught</span></div>}
+        {p.leximon && <div><strong>{p.leximon.caught}</strong><span>caught</span></div>}
         <div><strong style={{ color: m?.pct == null ? undefined : m.pct >= 80 ? 'var(--good)' : m.pct < 55 ? 'var(--bad)' : 'var(--mid)' }}>{m?.pct == null ? '–' : `${m.pct}%`}</strong><span>{m?.pct == null ? `taste match (${m?.shared || 0} of 5 shared)` : `taste match, ${plural(m.shared, 'word')}`}</span></div>
       </div>
 
@@ -86,11 +86,11 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
       )}
 
       <div className='tabs' role='tablist'>
-        {[['words', 'Rated words'], ['favorites', `Favorites (${p.favorites.length})`], ['comments', `Comments (${p.comments.length})`], ['playlists', `Playlists (${p.playlists.length})`], ['badges', 'Badges'], ['lexicon', 'Lexicon'], ['casino', 'Casino & Market']].map(([id, label]) => (
+        {[['words', 'Rated words'], ['favorites', `Favorites (${p.favorites.length})`], ['comments', `Comments (${p.comments.length})`], ['playlists', `Playlists (${p.playlists.length})`], ['badges', 'Badges'], ['leximon', 'Leximon'], ['casino', 'Casino & Market']].map(([id, label]) => (
           <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
-      {tab === 'lexicon' && <LexiconPanel lex={p.lexicon} name={p.name} />}
+      {tab === 'leximon' && <LeximonPanel lex={p.leximon} name={p.name} />}
       {tab === 'casino' && <CasinoPanel market={p.market} casino={p.casino} name={p.name} />}
       {tab === 'words' && <TheirRated list={p.ratings} name={p.name} openWord={openWord} />}
       {tab === 'favorites' && (p.favorites.length

@@ -16,7 +16,7 @@ export const SETTING_FIELDS = {
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
   voice: { group: 'sound', kind: 'text', default: '', max: 120, label: 'Voice for saying words', hint: 'Empty picks the best English voice on this computer.' },
-  lexiconEncounters: { group: 'play', kind: 'bool', default: true, label: 'Wild words to catch for your Lexicon', hint: 'Every few new words, one of the words you’ve rated shows up for you to catch. Off keeps the Lexicon to its own tab.' },
+  leximonEncounters: { group: 'play', kind: 'bool', default: true, label: 'Wild Leximon to catch', hint: 'Every few new words, one of the words you’ve rated shows up for you to catch. Off keeps them to the Leximon tab.' },
   speakOnReveal: { group: 'play', kind: 'bool', default: false, label: 'Say each new word out loud' },
   skipRated: { group: 'play', kind: 'bool', default: true, label: 'Don’t deal words I’ve already rated', hint: 'Turn off to see old words again in shuffles.' },
   autoAdvanceMs: { group: 'play', kind: 'count', default: 0, min: 0, max: 10000, label: 'Move to the next word by itself after (ms)', hint: '0 waits for a second Enter.' },
@@ -61,6 +61,7 @@ export class Settings {
     // you in updates while your own choices stay.
     this.defaults = normalizeSettings({ ...DEFAULT_SETTINGS, ...overrides })
     this.chosen = readJson(this.file, {}) || {}
+    if ('lexiconEncounters' in this.chosen) { this.chosen.leximonEncounters ??= this.chosen.lexiconEncounters; delete this.chosen.lexiconEncounters } // renamed
     this.values = normalizeSettings({ ...this.defaults, ...this.chosen })
   }
 

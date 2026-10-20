@@ -6,7 +6,7 @@ import crypto from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { TOPICS, MODES } from './words.js'
 import { XP, BADGES, levelFor, titleFor } from '../shared/progress.js'
-import { cleanTeam, cleanCard } from '../shared/lexicon.js'
+import { cleanTeam, cleanCard } from '../shared/leximon.js'
 import { cleanLook } from '../shared/cosmetics.js'
 
 const localDay = (d = new Date()) => d.toLocaleDateString('en-CA') // YYYY-MM-DD, local time
@@ -477,7 +477,7 @@ export class Game extends EventEmitter {
       shared: shared.length,
       unrated: ratings.filter((x) => x.mine === null).length,
       top4: cleanWords(me.top4, 4).map((w) => ({ word: w, def: this.words.lookup(w)?.senses?.[0]?.def || null })),
-      lexicon: cleanLexicon(me.lexicon),
+      leximon: cleanLeximon(me.leximon),
       market: cleanNumbers(me.market, ['value', 'gain', 'returnPct', 'trades'], { best: me.market?.best && typeof me.market.best.word === 'string' ? { word: me.market.best.word.slice(0, 60), pct: num(me.market.best.pct) } : null }),
       casino: cleanNumbers(me.casino, ['flips', 'flipWins', 'flipNet', 'biggestFlip', 'flipStreak', 'spins', 'slotNet', 'biggestSpin', 'jackpots'], { bestSpin: typeof me.casino?.bestSpin === 'string' ? me.casino.bestSpin.slice(0, 12) : null })
     }
@@ -492,7 +492,7 @@ function cleanNumbers (o, keys, extra = {}) {
   if (!o || typeof o !== 'object') return null
   return { ...Object.fromEntries(keys.map((k) => [k, num(o[k])])), ...extra }
 }
-function cleanLexicon (l) {
+function cleanLeximon (l) {
   if (!l || typeof l !== 'object') return null
   const one = (c) => cleanCard(c)
   return {

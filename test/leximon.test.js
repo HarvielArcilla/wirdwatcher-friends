@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
-import { rarityFor, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/lexicon.js'
+import { rarityFor, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/leximon.js'
 import { effects } from '../src/shared/economy.js'
 import { tmp, network, until } from './helpers.js'
 
@@ -44,47 +44,47 @@ test('wild words appear every few new ratings, are caught, and the team grows by
   for (const [i, w] of words.entries()) {
     a.clock.t += 5000
     const res = a.rate(w, (i % 11) / 2)
-    if (res.lexicon?.encounter && !encounter) encounter = res.lexicon.encounter
-    if (encounter && !a.lexicon.s.encounter) break
+    if (res.leximon?.encounter && !encounter) encounter = res.leximon.encounter
+    if (encounter && !a.leximon.s.encounter) break
     if (encounter) break
   }
   assert.ok(encounter, 'a wild word showed up')
   assert.ok(a.store.rating(encounter.word) !== null, 'it’s one you rated')
-  const card = a.lexicon.catch()
+  const card = a.leximon.catch()
   assert.equal(card.word, encounter.word)
-  assert.deepEqual(a.lexicon.view().team.map((c) => c.word), [card.word], 'the first catches join the team')
+  assert.deepEqual(a.leximon.view().team.map((c) => c.word), [card.word], 'the first catches join the team')
   // Ratings teach it, whatever the score.
   const before = card.xpTotal
   a.clock.t += 5000
   a.rate('zebra', 0)
-  assert.equal(a.lexicon.s.cards[card.word].xpTotal, before + RATING_XP)
+  assert.equal(a.leximon.s.cards[card.word].xpTotal, before + RATING_XP)
   // Re-rating an old word teaches nothing.
   a.rate('zebra', 5)
-  assert.equal(a.lexicon.s.cards[card.word].xpTotal, before + RATING_XP)
+  assert.equal(a.leximon.s.cards[card.word].xpTotal, before + RATING_XP)
   // The team helps the wirdhouse a little.
-  assert.ok(effects(a.economy.s).lexicon > 0)
+  assert.ok(effects(a.economy.s).leximon > 0)
 })
 
 test('coins help only a little: training is capped per day, and tiers gate levels', () => {
   const a = app()
   a.rate('gravy', 4)
-  a.lexicon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: a.clock.t }
-  const c = a.lexicon.catch()
+  a.leximon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: a.clock.t }
+  const c = a.leximon.catch()
   a.economy.devAddCoins(1e12)
-  a.lexicon.train('gravy', TRAIN_MAX_HOURS)
-  assert.throws(() => a.lexicon.train('gravy', 1), /Already training/)
+  a.leximon.train('gravy', TRAIN_MAX_HOURS)
+  assert.throws(() => a.leximon.train('gravy', 1), /Already training/)
   a.clock.t += TRAIN_MAX_HOURS * 3600e3
-  a.lexicon.view()
+  a.leximon.view()
   assert.ok(c.xpTotal >= 200 && c.xpTotal <= 220, `a full day of training ≈ 20 ratings (${c.xpTotal} XP)`)
-  assert.throws(() => a.lexicon.train('gravy', 1), /trained all it can today/, 'however many coins you have')
+  assert.throws(() => a.leximon.train('gravy', 1), /trained all it can today/, 'however many coins you have')
   // The next UTC day it can train again.
   a.clock.t += 24 * 3600e3
-  a.lexicon.train('gravy', 1)
+  a.leximon.train('gravy', 1)
   // Level cap at a tier: XP banks until it ascends.
-  for (let i = 0; i < 400; i++) a.lexicon._gain(c, 50)
+  for (let i = 0; i < 400; i++) a.leximon._gain(c, 50)
   assert.equal(c.level, levelCap(1))
   assert.ok(c.xp > xpToNext(c.level), 'banked')
-  a.lexicon.ascend('gravy')
+  a.leximon.ascend('gravy')
   assert.equal(c.tier, 2)
   assert.ok(c.level > levelCap(1), 'the banked XP becomes levels')
 })
@@ -107,18 +107,18 @@ test('duel a friend’s team from their profile', async (t) => {
   b.setProfile({ name: 'Pip' })
   for (const x of [a, b]) {
     x.rate('gravy', 4)
-    x.lexicon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: 0 }
-    x.lexicon.catch()
+    x.leximon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: 0 }
+    x.leximon.catch()
     x.game._refreshProfile()
   }
   const { code } = await a.friends.makeCode()
   await b.friends.redeem(code)
-  await until(() => a.game.friendProfile(b.identity.userId)?.lexicon?.team?.length === 1)
+  await until(() => a.game.friendProfile(b.identity.userId)?.leximon?.team?.length === 1)
   const prof = a.game.friendProfile(b.identity.userId)
-  assert.equal(prof.lexicon.team[0].word, 'gravy')
+  assert.equal(prof.leximon.team[0].word, 'gravy')
   const res = a.duelFriend(b.identity.userId)
   assert.equal(res.bouts.length, 1)
-  assert.equal(a.lexicon.s.duels.history[0].vs, b.identity.userId)
+  assert.equal(a.leximon.s.duels.history[0].vs, b.identity.userId)
   for (let i = 1; i < 5; i++) a.duelFriend(b.identity.userId)
   assert.throws(() => a.duelFriend(b.identity.userId), /duels today/)
 })

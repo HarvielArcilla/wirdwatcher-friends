@@ -6,7 +6,7 @@
 
 import { buildClues, plain } from './lobby.js'
 import { hash32 } from '../shared/market.js'
-import { seededRandom } from '../shared/lexicon.js'
+import { seededRandom } from '../shared/leximon.js'
 import { TOPICS } from './words.js'
 
 const DAY = 864e5
@@ -19,15 +19,15 @@ const dayNumber = (t) => Math.floor((t - Date.UTC(2026, 0, 1)) / DAY) + 1 // Dai
 const QUESTS = [
   { kind: 'words', n: [10, 20, 30], text: (n) => `Rate ${n} new words`, emoji: '📝' },
   { kind: 'topic', n: [5, 8], text: (n, q) => `Rate ${n} new words about ${q.topicName.toLowerCase()}`, emoji: '🗂️' },
-  { kind: 'catch', n: [1], text: () => 'Catch a wild word for your Lexicon', emoji: '🃏' },
+  { kind: 'catch', n: [1], text: () => 'Catch a wild Leximon', emoji: '🃏' },
   { kind: 'trade', n: [1, 3], text: (n) => (n === 1 ? 'Make a trade on the Word Exchange' : `Make ${n} trades on the Word Exchange`), emoji: '📈' },
   { kind: 'spin', n: [3, 5], text: (n) => `Spin Wird Slots ${n} times`, emoji: '🎰' },
   { kind: 'flip', n: [1, 3], text: (n) => (n === 1 ? 'Flip a coin' : `Flip a coin ${n} times`), emoji: '🪙' },
   { kind: 'lobby', n: [3, 5], text: (n) => `Play ${n} lobby rounds`, emoji: '🎲' },
   { kind: 'clues', n: [1], text: () => 'Solve today’s Daily Clues', emoji: '🧩' },
-  { kind: 'duel', n: [1, 2], text: (n) => (n === 1 ? 'Duel a friend’s Lexicon' : `Duel friends’ Lexicons ${n} times`), emoji: '⚔️' },
+  { kind: 'duel', n: [1, 2], text: (n) => (n === 1 ? 'Duel a friend’s Leximon' : `Duel friends’ Leximon ${n} times`), emoji: '⚔️' },
   { kind: 'streak', n: [10, 15], text: (n) => `Reach a pace streak of ${n}`, emoji: '🔥' },
-  { kind: 'train', n: [1], text: () => 'Train a Lexicon word', emoji: '🏋️' }
+  { kind: 'train', n: [1], text: () => 'Train a Leximon', emoji: '🏋️' }
 ]
 export const WEEKLY = { kind: 'words', n: 150, text: 'Rate 150 new words this week', emoji: '🏆' }
 

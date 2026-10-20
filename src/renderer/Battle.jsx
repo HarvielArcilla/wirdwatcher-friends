@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { rarityName } from '../shared/lexicon.js'
+import { rarityName } from '../shared/leximon.js'
 import { battleScript } from '../shared/battle.js'
 import { burst, centerOf } from './effects.js'
 import { playLevelUp } from './sound.js'
-import { roman, LexCard } from './Lexicon.jsx'
+import { roman, LexCard } from './Leximon.jsx'
 
 const up = (w) => String(w || '').toUpperCase()
 
@@ -135,7 +135,7 @@ function Info ({ card, hp, side }) {
   )
 }
 
-// A fighter is its Lexicon card, tier frame, foil and all, standing on its
+// A fighter is its Leximon card, tier frame, foil and all, standing on its
 // mat. The other side's faces you; yours is nearer and bigger.
 function Mon ({ card, className, front }) {
   return (

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, Avatar, Coins, useToast, useInterval } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
-import { STANCES, power, rarityName, DUELS_PER_DAY, TRAIN_MAX_HOURS } from '../shared/lexicon.js'
+import { STANCES, power, rarityName, DUELS_PER_DAY, TRAIN_MAX_HOURS } from '../shared/leximon.js'
 import { burst, centerOf } from './effects.js'
 import Battle from './Battle.jsx'
 
-// The Lexicon: words you've caught, your team of three, training and duels.
+// The Leximon: words you've caught, your team of three, training and duels.
 // A word's rarity is how you feel about it; everything else is growth.
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
@@ -42,9 +42,9 @@ export function WildWord ({ e, onDone, toast, active = true }) {
   const grab = async (ev) => {
     try {
       const at = centerOf(ev?.currentTarget || document.querySelector('.wild'))
-      const c = await api('lexiconAction', 'catch')
+      const c = await api('leximonAction', 'catch')
       burst(at.x, at.y, 'confetti')
-      toast({ emoji: '🃏', title: `You caught ${e.word}!`, text: `${e.rarityName || 'Common'}. ${c.team.some((x) => x.word === e.word) ? 'It’s on your team, learning from every new word you rate.' : 'It’s in your Lexicon.'}` })
+      toast({ emoji: '🃏', title: `You caught ${e.word}!`, text: `${e.rarityName || 'Common'}. ${c.team.some((x) => x.word === e.word) ? 'It’s on your team, learning from every new word you rate.' : 'It’s in your collection.'}` })
       onDone(true)
     } catch (err) { toast({ error: true, title: 'Couldn’t catch it', text: err.message }); onDone(false) }
   }
@@ -64,30 +64,30 @@ export function WildWord ({ e, onDone, toast, active = true }) {
       <span className='wild-rar'>{e.rarityName || rarityName(r)}{r.side === 'love' ? ' · one you love' : r.side === 'hate' ? ' · one you can’t stand' : ''}</span>
       <div className='wild-actions'>
         <button className='btn small primary' onClick={grab}>Catch <kbd>L</kbd></button>
-        <button className='btn small ghost' onClick={() => { api('lexiconAction', 'dismiss'); onDone(false) }}>Let it go</button>
+        <button className='btn small ghost' onClick={() => { api('leximonAction', 'dismiss'); onDone(false) }}>Let it go</button>
       </div>
       <small className='wild-hint'>It leaves after your next new word.</small>
     </div>
   )
 }
 
-export default function Lexicon ({ econ, friends, settings }) {
+export default function Leximon ({ econ, friends, settings }) {
   const toast = useToast()
   const [v, setV] = useState(null)
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('lex-tab') || 'team' } catch { return 'team' } })
-  const load = useCallback(() => api('lexicon').then(setV).catch(() => {}), [])
+  const load = useCallback(() => api('leximon').then(setV).catch(() => {}), [])
   useEffect(() => { load() }, [load])
   useEffect(() => { try { localStorage.setItem('lex-tab', tab) } catch {} }, [tab])
   useInterval(load, 15000) // training ticks along
   const act = async (...args) => {
-    try { setV(await api('lexiconAction', ...args)); return true } catch (err) { toast({ error: true, title: 'Can’t do that', text: err.message }); return false }
+    try { setV(await api('leximonAction', ...args)); return true } catch (err) { toast({ error: true, title: 'Can’t do that', text: err.message }); return false }
   }
   if (!v) return null
   return (
-    <div className='page lexicon'>
+    <div className='page leximon'>
       <div className='lx-head'>
         <div>
-          <h1>Lexicon</h1>
+          <h1>Leximon</h1>
           <p className='lede'>Every few new words, one of the words you’ve rated shows up to be caught. How rare it is depends on how you feel about it, among all your ratings: your most-loved are <b>Beloved</b>, your most-hated are <b>Nemesis</b>. Your team of three learns from every new word you rate.</p>
         </div>
         <div className='mk-summary'>
@@ -232,17 +232,17 @@ function Duels ({ v, friends, reload, toast, settings }) {
       reload()
     } catch (err) { toast({ error: true, title: 'Couldn’t duel', text: err.message }) }
   }
-  if (!friends.length) return <div className='lx-empty'><b>Duels are with friends.</b><p>Add a friend, and when their Lexicon has a team you can duel it here, up to {DUELS_PER_DAY} times a day. Win or lose, your team learns from it.</p></div>
+  if (!friends.length) return <div className='lx-empty'><b>Duels are with friends.</b><p>Add a friend, and when their Leximon has a team you can duel it here, up to {DUELS_PER_DAY} times a day. Win or lose, your team learns from it.</p></div>
   return (
     <>
       <p className='lede'>Pick a friend’s team to duel. Three bouts, word against word: power counts, and so does stance (💗 Charm beats 🗡️ Spite, 🗡️ Spite beats 🛡️ Guard, 🛡️ Guard beats 💗 Charm). {v.duels.perDay - v.duels.today} duels left today.</p>
       <div className='lx-foes'>
         {friends.map((f) => {
           const p = profiles[f.userId]
-          const team = p?.lexicon?.team || []
+          const team = p?.leximon?.team || []
           return (
             <div key={f.userId} className='lx-foe'>
-              <div className='lx-foe-head'><Avatar name={f.name} color={f.color} frame={p?.look?.frame} /><b>{f.name}</b>{p?.lexicon && <small>{p.lexicon.wins}–{p.lexicon.losses}</small>}</div>
+              <div className='lx-foe-head'><Avatar name={f.name} color={f.color} frame={p?.look?.frame} /><b>{f.name}</b>{p?.leximon && <small>{p.leximon.wins}–{p.leximon.losses}</small>}</div>
               <div className='lx-foe-team'>{team.length ? team.map((c) => <LexCard key={c.word} c={c} size='sm' />) : <small>No team yet{p ? '' : ' (they’ll show up after you’ve been online together)'}.</small>}</div>
               <button className='btn small primary' disabled={!team.length || !v.team.length || v.duels.today >= v.duels.perDay} onClick={() => go(f)}>{!v.team.length ? 'Build a team first' : 'Duel'}</button>
             </div>

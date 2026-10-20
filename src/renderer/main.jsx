@@ -13,7 +13,7 @@ import { setConfettiStyle } from './effects.js'
 import Wirdhouse from './Wirdhouse.jsx'
 import Shop from './Shop.jsx'
 import Market from './Market.jsx'
-import Lexicon from './Lexicon.jsx'
+import Leximon from './Leximon.jsx'
 import Casino from './Casino.jsx'
 import Today from './Today.jsx'
 import { formatCoins } from '../shared/economy.js'
@@ -25,7 +25,7 @@ const TABS = [
   { id: 'friends', label: 'Friends', icon: icons.friends },
   { id: 'lobby', label: 'Lobby', icon: icons.lobby },
   { id: 'wirdhouse', label: 'Wirdhouse', icon: icons.house },
-  { id: 'lexicon', label: 'Lexicon', icon: icons.lexicon },
+  { id: 'leximon', label: 'Leximon', icon: icons.leximon },
   { id: 'market', label: 'Market', icon: icons.market },
   { id: 'casino', label: 'Casino', icon: icons.casino },
   { id: 'shop', label: 'Shop', icon: icons.shop }
@@ -182,7 +182,7 @@ function App () {
         {tab === 'shop' && <Shop econ={econ} me={me} />}
         {tab === 'today' && <Today settings={settings.values} goTo={setTab} onChange={setToday} />}
         {tab === 'casino' && <Casino econ={econ} settings={settings.values} />}
-        {tab === 'lexicon' && <Lexicon econ={econ} friends={friends} settings={settings.values} />}
+        {tab === 'leximon' && <Leximon econ={econ} friends={friends} settings={settings.values} />}
         {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
         {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}

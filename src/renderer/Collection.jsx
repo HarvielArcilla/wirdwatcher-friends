@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { api, Avatar, Bar, ratingColor, timeAgo, plural, useToast, useInterval } from './ui.jsx'
-import { Top4, Diary, LexiconPanel, CasinoPanel } from './Profile.jsx'
+import { Top4, Diary, LeximonPanel, CasinoPanel } from './Profile.jsx'
 import { titleText } from '../shared/cosmetics.js'
 
 // Your profile, the way friends see it (after Letterboxd): who you are, your
 // top 4 words, what you've rated lately, how you rate, and tabs for every
-// word, favorites, playlists, badges, your Lexicon and your casino record.
+// word, favorites, playlists, badges, your Leximon and your casino record.
 // Clicking a word opens it on the Play screen.
 export default function Collection ({ profile, modes, openWord, refreshTop, playMode, me, econ }) {
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('profile-tab') || 'words' } catch { return 'words' } })
@@ -35,7 +35,7 @@ export default function Collection ({ profile, modes, openWord, refreshTop, play
         <div><strong>{x ? x.friends : '–'}</strong><span>friends</span></div>
         <div><strong>{s.bestStreak}</strong><span>best streak</span></div>
         <div><strong>{earned}/{profile.badges.length}</strong><span>badges</span></div>
-        {x?.lexicon && <div><strong>{x.lexicon.caught}</strong><span>caught</span></div>}
+        {x?.leximon && <div><strong>{x.leximon.caught}</strong><span>caught</span></div>}
       </div>
       {x && <Top4 items={x.top4} editable openWord={openWord} onSave={async (words) => { await api('setTop4', words); load() }} />}
       {x && <Diary items={x.recent} openWord={openWord} />}
@@ -53,7 +53,7 @@ export default function Collection ({ profile, modes, openWord, refreshTop, play
       )}
 
       <div className='tabs' role='tablist'>
-        {[['words', 'Rated words'], ['favorites', 'Favorites'], ['playlists', 'Playlists'], ['badges', 'Badges'], ['lexicon', 'Lexicon'], ['casino', 'Casino & Market']].map(([id, label]) => (
+        {[['words', 'Rated words'], ['favorites', 'Favorites'], ['playlists', 'Playlists'], ['badges', 'Badges'], ['leximon', 'Leximon'], ['casino', 'Casino & Market']].map(([id, label]) => (
           <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -63,7 +63,7 @@ export default function Collection ({ profile, modes, openWord, refreshTop, play
           ? <div className='wordcloud'>{profile.favorites.map((f) => <button key={f.word} className='chip' onClick={() => openWord(f.word)}>💛 {f.word}</button>)}</div>
           : <p className='lede'>Press <kbd>F</kbd> on any word to keep it here.</p>
       )}
-      {tab === 'lexicon' && <LexiconPanel lex={x?.lexicon} />}
+      {tab === 'leximon' && <LeximonPanel lex={x?.leximon} />}
       {tab === 'casino' && <><CasinoPanel market={x?.market} casino={x?.casino} /><p className='opt-hint' style={{ marginTop: 12 }}>Friends see this on your profile. You can hide it in Settings → Friends &amp; lobbies.</p></>}
       {tab === 'playlists' && <Playlists modes={modes} refreshTop={refreshTop} playMode={playMode} openWord={openWord} />}
       {tab === 'badges' && (

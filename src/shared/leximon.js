@@ -1,4 +1,4 @@
-// The Lexicon: words you catch, raise and duel with. The rules, shared by the
+// The Leximon: words you catch, raise and duel with. The rules, shared by the
 // app and (for friends' teams and duels) every other copy.
 //
 // What a word is never matters: "the" can become as mighty as "serendipity".
@@ -79,7 +79,7 @@ export const FOCUS = [
 
 // The team's help to the wirdhouse: a little for every order of magnitude
 // of each equipped word's power.
-export const lexiconBonus = (team) => team.reduce((a, c) => a + Math.max(0, Math.log10(power(c))) * 0.005, 0)
+export const leximonBonus = (team) => team.reduce((a, c) => a + Math.max(0, Math.log10(power(c))) * 0.005, 0)
 
 // Encounters: a wild word every 6 to 12 new ratings.
 export const nextEncounterIn = (rand) => 6 + Math.floor(rand * 7)

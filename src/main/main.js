@@ -116,11 +116,11 @@ function handlers () {
       const out = ww.economy[action](...args)
       return out === undefined ? ww.economy.view() : out
     },
-    lexicon: () => ww.lexicon.view(),
-    lexiconAction: (action, ...args) => {
+    leximon: () => ww.leximon.view(),
+    leximonAction: (action, ...args) => {
       if (!['catch', 'dismiss', 'release', 'equip', 'unequip', 'stance', 'train', 'ascend', 'focus'].includes(action)) throw new Error('Unknown action.')
-      ww.lexicon[action](...args)
-      return ww.lexicon.view()
+      ww.leximon[action](...args)
+      return ww.leximon.view()
     },
     duel: (userId) => ww.duelFriend(userId),
     today: () => ww.daily.view(),

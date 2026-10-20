@@ -151,7 +151,7 @@ export const COSMETICS = [
   item('title', 'sommelier', 'Synonym sommelier', 300000, 'rare', '', { text: 'Synonym sommelier' }),
   item('title', 'wordsmith', 'Certified wordsmith', 1.5e6, 'epic', '', { text: 'Certified wordsmith' }),
   item('title', 'menace', 'Coinflip menace', 8e6, 'epic', '', { text: 'Coinflip menace' }),
-  item('title', 'baron', 'Lexicon baron', 6e7, 'epic', '', { text: 'Lexicon baron' }),
+  item('title', 'baron', 'Leximon baron', 6e7, 'epic', '', { text: 'Leximon baron' }),
   item('title', 'oracle', 'The Oracle', 5e8, 'legendary', '', { text: 'The Oracle' }),
   item('title', 'babel', 'Resident of Babel', 1e10, 'legendary', '', { text: 'Resident of Babel' }),
   item('title', 'author', 'Published author', null, 'edition', 'Earned the first time you publish.', { edition: 1, text: 'Published author' }),

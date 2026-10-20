@@ -1369,7 +1369,7 @@ html.calm .mk-tape-run { animation: none; }
 @media (max-width: 1100px) { .dv-pos { grid-template-columns: 1fr 1fr; grid-template-areas: 'name nums' 'health acts' 'greeks greeks'; } .dv-pos-acts { justify-content: flex-start; } }
 @media (max-width: 1000px) { .mk-grid { grid-template-columns: 1fr; } .mk-head { grid-template-columns: 1fr; } .mk-detail { position: static; } }
 
-/* --- Lexicon -------------------------------------------------------------------------------- */
+/* --- Leximon -------------------------------------------------------------------------------- */
 /* Rarity color: warm for words you love, cool for words you can't stand. */
 .lexcard, .wild, .bt-mon, .bt-rar { --rc: #9aa3b0; --rc2: #c9ced6; }
 .side-love.rt-1 { --rc: #e8a07a; --rc2: #ffd0b0; } .side-love.rt-2 { --rc: #e86b8a; --rc2: #ffb3c6; } .side-love.rt-3 { --rc: #e84a9a; --rc2: #ffc2e4; } .side-love.rt-4 { --rc: #f2b84b; --rc2: #fff1b8; }
@@ -1404,9 +1404,9 @@ html.calm .mk-tape-run { animation: none; }
 @property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @keyframes spin-border { to { --spin: 360deg } }
 html.calm .lexcard * , html.calm .lexcard { animation: none !important; }
-.lexicon .lx-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; margin-bottom: 12px; }
-.lexicon .lx-head h1 { margin: 0 0 6px; }
-.lexicon .lx-head .lede { margin: 0; }
+.leximon .lx-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; margin-bottom: 12px; }
+.leximon .lx-head h1 { margin: 0 0 6px; }
+.leximon .lx-head .lede { margin: 0; }
 .lx-empty { text-align: center; padding: 40px 20px; color: var(--dim); display: grid; justify-items: center; gap: 6px; }
 .lx-empty b { color: var(--text); font-size: 17px; }
 .lx-empty-cards { display: flex; margin-bottom: 10px; }
@@ -1446,7 +1446,7 @@ html.calm .lexcard * , html.calm .lexcard { animation: none !important; }
 .lx-history { margin-top: 18px; display: grid; gap: 6px; font-size: 14px; }
 .lx-history h3 { margin: 0 0 4px; }
 .lx-history small { color: var(--faint); margin-left: 6px; }
-.lexicon .up { color: var(--good); } .lexicon .down { color: var(--bad); }
+.leximon .up { color: var(--good); } .leximon .down { color: var(--bad); }
 .fight { position: fixed; inset: 0; z-index: 50; background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: grid; place-items: center; }
 .fight-card { background: var(--bg); border-radius: var(--r-lg); padding: 24px; box-shadow: 0 30px 80px var(--shadow); display: grid; gap: 12px; min-width: 460px; }
 .fight-card h2 { margin: 0 0 4px; text-align: center; }
@@ -1474,7 +1474,7 @@ html.calm .lexcard * , html.calm .lexcard { animation: none !important; }
 .wild .wild-hint { font-size: 11px; color: var(--faint); }
 @keyframes wild-in { from { opacity: 0; transform: translateY(-12px) scale(.85) rotate(4deg) } to { opacity: 1; transform: none } }
 html.calm .wild { animation: none; }
-@media (max-width: 900px) { .lexicon .lx-head { grid-template-columns: 1fr; } .lx-foe { grid-template-columns: 1fr; } .fight-card { min-width: 0; width: 92vw; } }
+@media (max-width: 900px) { .leximon .lx-head { grid-template-columns: 1fr; } .lx-foe { grid-template-columns: 1fr; } .fight-card { min-width: 0; width: 92vw; } }
 
 /* --- Casino ------------------------------------------------------------------------------------ */
 .casino .up { color: var(--good); } .casino .down { color: var(--bad); }

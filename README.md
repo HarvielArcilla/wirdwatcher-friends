@@ -95,7 +95,7 @@ Every word you rate for the first time pays coins, the same whatever you give it
   - *buildings*, *synergy* (buildings that help each other) and *global*.
 - **The muse** is the wirdhouse's inspiration, and what keeps rating words worth it however big the house gets. Each new word you rate fills it a quarter, and it fades to nothing over three minutes. A full muse runs the wirdhouse at full speed (up to 3× with muse upgrades); an empty one runs it at 40%. The meter is under your coins. Earnings while the app is closed are separate.
 - **Publishing your dictionary** (prestige) starts the wirdhouse over, coins, buildings and upgrades, for **ink**. Every ink you've ever earned makes everything earn 2% more, forever, and ink buys **perks** that last through every edition (head start, seed money, a higher streak, better time away, and more). Your first, third and fifth editions each bring a cosmetic you can't buy.
-- **Your Lexicon team** adds a little to everything the wirdhouse makes (see below).
+- **Your Leximon team** adds a little to everything the wirdhouse makes (see below).
 
 **The shop** sells looks, never advantages:
 
@@ -107,7 +107,7 @@ The shop lists each kind cheapest first, with the items that come from badges, l
 
 Frames never hide gameplay: the rings for your guesses, the hot seat and pickable seats are drawn outside any frame, and the frame fades back while they show. Everything you buy is kept through every edition. There are badges for coins, building, publishing, flipping and shopping too.
 
-Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see what you're wearing, your edition, your Lexicon team and (unless you turn it off) your market and casino record.
+Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see what you're wearing, your edition, your Leximon team and (unless you turn it off) your market and casino record.
 
 ## Today
 
@@ -117,7 +117,7 @@ One tab for the daily things, all the same for everyone and all reset at midnigh
 - **Three quests**, like "rate 20 new words", "catch a wild word" or "make a trade". Each pays coins, and doing all three pays a bonus and adds a day to your quest streak. No quest ever asks for a particular score.
 - **A weekly challenge** (rate 150 new words) and **a free spin** of Wird Slots each day.
 
-## The Lexicon
+## The Leximon
 
 Every 6 to 12 new words, one of the words you've rated turns up as a **wild word** in the corner of Play. Press `L` to catch it (or let it go; it leaves after your next new word). Turn wild words off under Settings → Playing.
 
@@ -127,7 +127,7 @@ Every 6 to 12 new words, one of the words you've rated turns up as a **wild word
 - **Coins help, a little.** *Training* teaches a word for coins while you do other things, but only up to 6 hours a word a day (a full day is worth about 20 ratings, however many coins you have). *Focus* speeds up what your team learns from ratings for an hour, never past ×1.5.
 - **Tiers.** Every 25 levels a word has to *ascend* (for coins) to keep levelling, and each tier doubles its power and changes how its card looks: plain, framed, foil, holo, and ever more extravagant. Levels never stop, and power scales into the quadrillions.
 - **Stances** you choose for each word: 💗 Charm beats 🗡️ Spite, 🗡️ Spite beats 🛡️ Guard, 🛡️ Guard beats 💗 Charm.
-- **Duels** with friends' teams, five a day, from the Lexicon's Duels tab: three bouts, word against word, decided by power, stance and a little luck. The result is worked out from both teams and the day, so it comes out the same on either computer, and then played out like a classic monster battle: your word at the bottom, theirs at the top, HP bars, a text box ("Pip's PICKLE used Sweet Talk! It's super effective!"), and an animation for each stance's attacks (hearts for Charm, slashes for Spite, a shockwave for Guard). Click or press Space to hurry it, Escape to skip. Win or lose, your team learns from it.
+- **Duels** with friends' teams, five a day, from the Leximon's Duels tab: three bouts, word against word, decided by power, stance and a little luck. The result is worked out from both teams and the day, so it comes out the same on either computer, and then played out like a classic monster battle: your word at the bottom, theirs at the top, HP bars, a text box ("Pip's PICKLE used Sweet Talk! It's super effective!"), and an animation for each stance's attacks (hearts for Charm, slashes for Spite, a shockwave for Guard). Click or press Space to hurry it, Escape to skip. Win or lose, your team learns from it.
 - Your equipped team also adds a small bonus to the wirdhouse.
 
 ## The Word Exchange
@@ -147,7 +147,7 @@ A stock market of words under **Market**. Every word has a price, and the price 
 
 ## Your profile
 
-**Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Lexicon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.
+**Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Leximon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.
 
 ## Friends
 
@@ -158,7 +158,7 @@ There are two ways to add a friend:
 
 From then on, whenever you’re both online, your ratings, comments, favorites and playlists sync both ways. Your friends’ ratings stay hidden on each word until you’ve rated it, so they don’t sway you. Removing a friend removes their data from both computers.
 
-Click a friend to open their profile, laid out like yours: their top 4, recent ratings, numbers, Lexicon and casino record, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
+Click a friend to open their profile, laid out like yours: their top 4, recent ratings, numbers, Leximon and casino record, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
 
 ## Lobbies
 

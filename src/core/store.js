@@ -14,7 +14,7 @@
 //   r/<word>   rating, 0.0–5.0       c/<word>  comment
 //   f/<word>   favorite (true)       p/<id>    playlist { name, emoji, words }
 //   me         { name, color, level, xp, title, rated, badges, badgeIds, bestStreak,
-//                look, top4, lexicon, market, casino }
+//                look, top4, leximon, market, casino }
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -62,7 +62,7 @@ export function cleanRecord (key, rec, { maxCommentChars = 2000 } = {}) {
         // Shaped further where they're shown (see Game.friendProfile).
         look: small(v.look, 2000),
         top4: Array.isArray(v.top4) ? v.top4.filter((w) => typeof w === 'string' && w.length <= 64).slice(0, 4) : [],
-        lexicon: small(v.lexicon, 6000),
+        leximon: small(v.leximon || v.lexicon, 6000), // friends on a build from before the rename send lexicon
         market: small(v.market, 1000),
         casino: small(v.casino, 1000),
         daily: small(v.daily, 300)

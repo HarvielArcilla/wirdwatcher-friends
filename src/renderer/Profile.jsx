@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { api, Coins, ratingColor, timeAgo, useToast } from './ui.jsx'
-import { LexCard, roman } from './Lexicon.jsx'
-import { rarityName } from '../shared/lexicon.js'
+import { LexCard, roman } from './Leximon.jsx'
+import { rarityName } from '../shared/leximon.js'
 import { formatCoins } from '../shared/economy.js'
 
 // Pieces of a profile, the same on yours and a friend's (after Letterboxd):
 // four favorite words up top, a diary of recent ratings, and tabs for the
-// Lexicon and the casino and market.
+// Leximon and the casino and market.
 
 // Four favorite words, big, like film posters. Yours can be changed.
 export function Top4 ({ items, editable, onSave, openWord, name }) {
@@ -79,9 +79,9 @@ export function Diary ({ items, openWord, title = 'Recently rated' }) {
   )
 }
 
-// A Lexicon as anyone sees it.
-export function LexiconPanel ({ lex, name }) {
-  if (!lex) return <p className='lede'>{name ? `${name} hasn’t shared a Lexicon yet. It shows up once they’re on the latest wirdwatcher.` : 'No Lexicon yet.'}</p>
+// A Leximon as anyone sees it.
+export function LeximonPanel ({ lex, name }) {
+  if (!lex) return <p className='lede'>{name ? `${name} hasn’t shared their Leximon yet. It shows up once they’re on the latest wirdwatcher.` : 'No Leximon yet.'}</p>
   const who = name || 'You'
   return (
     <div className='pf-lex'>

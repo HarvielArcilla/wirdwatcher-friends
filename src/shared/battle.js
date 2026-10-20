@@ -1,9 +1,9 @@
 // A duel acted out as a battle, beat by beat: who's sent out, who attacks
 // with what, the HP after each blow, who faints. Built from the duel's
-// result (src/shared/lexicon.js), so the bout winner always wins, and from
+// result (src/shared/leximon.js), so the bout winner always wins, and from
 // a seed of the bout itself, so it plays the same every time.
 
-import { stanceEdge, seededRandom } from './lexicon.js'
+import { stanceEdge, seededRandom } from './leximon.js'
 import { hash32 } from './market.js'
 
 const MOVES = {

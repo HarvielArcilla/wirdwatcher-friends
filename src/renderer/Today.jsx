@@ -5,7 +5,7 @@ import { playRating } from './sound.js'
 
 // Today: Daily Clues (one word, the same for everyone), three quests, a
 // weekly challenge and the free spin. Everything resets at midnight UTC.
-const KIND_TAB = { words: 'play', topic: 'play', streak: 'play', catch: 'play', trade: 'market', spin: 'casino', flip: 'casino', lobby: 'lobby', clues: null, duel: 'lexicon', train: 'lexicon' }
+const KIND_TAB = { words: 'play', topic: 'play', streak: 'play', catch: 'play', trade: 'market', spin: 'casino', flip: 'casino', lobby: 'lobby', clues: null, duel: 'leximon', train: 'leximon' }
 
 export default function Today ({ settings, goTo, onChange }) {
   const toast = useToast()
