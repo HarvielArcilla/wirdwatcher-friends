@@ -3,7 +3,7 @@ import { rarityName } from '../shared/lexicon.js'
 import { battleScript } from '../shared/battle.js'
 import { burst, centerOf } from './effects.js'
 import { playLevelUp } from './sound.js'
-import { roman } from './Lexicon.jsx'
+import { roman, LexCard } from './Lexicon.jsx'
 
 const up = (w) => String(w || '').toUpperCase()
 
@@ -84,9 +84,7 @@ export default function Battle ({ res, foe, settings, onClose }) {
     <div className='battle-wrap' role='dialog' aria-label={`Duel with ${foe}`}>
       <div className='battle'>
         <div className='bt-field' ref={field} onClick={() => (done ? null : setI((n) => Math.min(beats.length - 1, n + 1)))}>
-          <div className='bt-sky' aria-hidden='true' />
-          <div className='bt-pad foe' aria-hidden='true' />
-          <div className='bt-pad me' aria-hidden='true' />
+          <div className='bt-arena' aria-hidden='true'><i className='bt-felt' /></div>
           {state.foe && <Info card={state.foe} hp={state.hp.foe} side='foe' />}
           {state.me && <Info card={state.me} hp={state.hp.me} side='me' />}
           {state.foe && <Mon card={state.foe} className={cls('foe')} key={`f${state.foe.word}`} front />}
@@ -130,23 +128,19 @@ function Info ({ card, hp, side }) {
   return (
     <div className={`bt-info ${side}`}>
       <div className='bt-name'><b>{up(card.word)}</b><span>Lv{card.level}</span></div>
-      <div className='bt-sub'><span className={`side-${card.rarity?.side || 'none'} rt-${card.rarity?.tier || 0} bt-rar`}>{rarityName(card.rarity || { tier: 0 })}</span><span>Tier {roman(card.tier || 1)}</span></div>
+      <div className='bt-sub'><span className={`side-${card.rarity?.side || 'none'} rt-${card.rarity?.tier || 0} bt-rar`}>{rarityName(card.rarity || { tier: 0 })}</span><span>{side === 'me' ? 'Yours' : 'Theirs'} · tier {roman(card.tier || 1)}</span></div>
       <div className='bt-hp'><small>HP</small><span className='bt-hpbar'><i className={color} style={{ width: `${hp}%` }} /></span></div>
       {side === 'me' && <div className='bt-hpnum'>{hp}/100</div>}
     </div>
   )
 }
 
-// The word itself, as a creature: a glowing body in its rarity's colors
-// with the word across it. The other side's faces you; yours is seen from
-// behind.
+// A fighter is its Lexicon card, tier frame, foil and all, standing on its
+// mat. The other side's faces you; yours is nearer and bigger.
 function Mon ({ card, className, front }) {
   return (
-    <div className={`${className} side-${card.rarity?.side || 'none'} rt-${card.rarity?.tier || 0} tier-${Math.min(card.tier || 1, 8)}`}>
-      <div className='bt-body'>
-        {front && <span className='bt-eyes' aria-hidden='true'><i /><i /></span>}
-        <span className='bt-word'>{card.word}</span>
-      </div>
+    <div className={className}>
+      <div className='bt-card'><LexCard c={card} size={front ? 'md' : 'lg'} /></div>
       <div className='bt-shadow' aria-hidden='true' />
     </div>
   )
