@@ -6,6 +6,7 @@ import crypto from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { TOPICS, MODES } from './words.js'
 import { XP, BADGES, levelFor, titleFor } from '../shared/progress.js'
+import { cleanTeam, cleanCard } from '../shared/lexicon.js'
 import { cleanLook } from '../shared/cosmetics.js'
 
 const localDay = (d = new Date()) => d.toLocaleDateString('en-CA') // YYYY-MM-DD, local time
@@ -474,7 +475,33 @@ export class Game extends EventEmitter {
       agree: shared.filter((x) => x.diff <= 0.5).sort((a, b) => a.diff - b.diff || b.t - a.t).slice(0, 8),
       disagree: [...shared].filter((x) => x.diff >= 1).sort((a, b) => b.diff - a.diff).slice(0, 8),
       shared: shared.length,
-      unrated: ratings.filter((x) => x.mine === null).length
+      unrated: ratings.filter((x) => x.mine === null).length,
+      top4: cleanWords(me.top4, 4),
+      lexicon: cleanLexicon(me.lexicon),
+      market: cleanNumbers(me.market, ['value', 'gain', 'returnPct', 'trades'], { best: me.market?.best && typeof me.market.best.word === 'string' ? { word: me.market.best.word.slice(0, 60), pct: num(me.market.best.pct) } : null }),
+      casino: cleanNumbers(me.casino, ['flips', 'flipWins', 'flipNet', 'biggestFlip', 'flipStreak', 'spins', 'slotNet', 'biggestSpin', 'jackpots'], { bestSpin: typeof me.casino?.bestSpin === 'string' ? me.casino.bestSpin.slice(0, 12) : null })
     }
+  }
+}
+
+// What a friend sent about themselves, made safe to show: only the shapes we
+// expect, only finite numbers, nothing too long.
+const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0)
+const cleanWords = (list, n) => (Array.isArray(list) ? list.filter((w) => typeof w === 'string' && w.length <= 60).slice(0, n) : [])
+function cleanNumbers (o, keys, extra = {}) {
+  if (!o || typeof o !== 'object') return null
+  return { ...Object.fromEntries(keys.map((k) => [k, num(o[k])])), ...extra }
+}
+function cleanLexicon (l) {
+  if (!l || typeof l !== 'object') return null
+  const one = (c) => cleanCard(c)
+  return {
+    team: cleanTeam(l.team),
+    caught: Math.max(0, Math.floor(num(l.caught))),
+    beloved: one(l.beloved),
+    nemesis: one(l.nemesis),
+    wins: Math.max(0, Math.floor(num(l.wins))),
+    losses: Math.max(0, Math.floor(num(l.losses))),
+    duels: Array.isArray(l.duels) ? l.duels.slice(0, 10).filter((d) => d && typeof d.vs === 'string').map((d) => ({ vs: d.vs, won: Boolean(d.won), score: String(d.score || '').slice(0, 8), at: num(d.at) })) : []
   }
 }

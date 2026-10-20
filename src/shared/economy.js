@@ -10,6 +10,8 @@
 //   - Coins never help you win anything against other people. They buy
 //     investments here and cosmetics in the shop, nothing else.
 
+import { lexiconBonus } from './lexicon.js'
+
 export const BASE_PER_WORD = 5 // coins for rating a word you hadn't rated before
 export const BASE_LOBBY_ROUND = 25 // coins for playing a lobby round, win or lose
 export const MIN_GAP_MS = 1500 // ratings closer together than this don't grow the pace streak
@@ -253,6 +255,9 @@ export function effects (s) {
   const insp = perk(s, 'inspired')
   if (insp && fx.museSecs) { fx.museMult = 1 + (fx.museMult - 1) * (1 + 0.25 * insp); fx.museSecs += 30 * insp }
   fx.prestige = (1 + INK_BONUS * (s.inkTotal || 0)) * (1 + 0.1 * perk(s, 'patron'))
+  // Your Lexicon team helps a little (see shared/lexicon.js).
+  const lex = s.lexicon
+  if (lex?.team?.length) { fx.lexicon = lexiconBonus(lex.team.map((w) => lex.cards[w]).filter(Boolean)); fx.global *= 1 + fx.lexicon } else fx.lexicon = 0
   return fx
 }
 

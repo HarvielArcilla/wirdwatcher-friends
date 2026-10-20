@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatRating } from '../shared/progress.js'
 import { api, Avatar, Bar, ratingColor, timeAgo, plural, useToast } from './ui.jsx'
 import { titleText } from '../shared/cosmetics.js'
+import { Top4, Diary, LexiconPanel, CasinoPanel, thisYear } from './Profile.jsx'
 
 // A friend's profile, laid out like your own Collection: their numbers, how
 // they rate (with yours drawn behind for comparison), how the two of you line
@@ -30,8 +31,8 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
   return (
     <div className='page friend-profile'>
       <button className='btn small ghost back' onClick={onBack}>← Friends</button>
-      <div className='fp-head'>
-        <Avatar name={p.name} color={p.color} frame={p.look?.frame}><i className={online ? 'on' : ''} /></Avatar>
+      <div className='fp-head pf-head'>
+        <Avatar name={p.name} color={p.color} frame={p.look?.frame} size={96}><i className={online ? 'on' : ''} /></Avatar>
         <div>
           <h1 className={`nm-${p.look?.name || 'plain'}`}>{p.name}</h1>
           <p className='lede'>
@@ -43,15 +44,18 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
         </span>
       </div>
 
-      <div className='hero-stats'>
-        <div><strong>{s.rated.toLocaleString()}</strong><span>words rated</span></div>
-        <div><strong style={{ color: ratingColor(s.average) }}>{s.average === null ? '–' : formatRating(s.average)}</strong><span>average rating</span></div>
-        <div><strong>{s.median === null ? '–' : formatRating(s.median)}</strong><span>median</span></div>
-        <div><strong>{p.bestStreak ?? '–'}</strong><span>best streak (days)</span></div>
+      <div className='pf-strip'>
+        <div><strong>{s.rated.toLocaleString()}</strong><span>words</span></div>
+        <div><strong>{thisYear(p.ratings).toLocaleString()}</strong><span>this year</span></div>
+        <div><strong style={{ color: ratingColor(s.average) }}>{s.average === null ? '–' : formatRating(s.average)}</strong><span>average</span></div>
+        <div><strong>{p.bestStreak ?? '–'}</strong><span>best streak</span></div>
         <div><strong>{p.badgeCount}</strong><span>badges</span></div>
+        {p.lexicon && <div><strong>{p.lexicon.caught}</strong><span>caught</span></div>}
         <div><strong style={{ color: m?.pct == null ? undefined : m.pct >= 80 ? 'var(--good)' : m.pct < 55 ? 'var(--bad)' : 'var(--mid)' }}>{m?.pct == null ? '–' : `${m.pct}%`}</strong><span>{m?.pct == null ? `taste match (${m?.shared || 0} of 5 shared)` : `taste match, ${plural(m.shared, 'word')}`}</span></div>
       </div>
 
+      <Top4 name={p.name} openWord={openWord} items={p.top4.map((w) => { const r = p.ratings.find((x) => x.word === w); return { word: w, r: r ? r.r : null } })} />
+      <Diary title={`${p.name}’s recent ratings`} items={p.ratings.slice(0, 10)} openWord={openWord} />
       {s.rated > 0 && (
         <>
           <h2>How they rate</h2>
@@ -82,10 +86,12 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
       )}
 
       <div className='tabs' role='tablist'>
-        {[['words', 'Rated words'], ['favorites', `Favorites (${p.favorites.length})`], ['comments', `Comments (${p.comments.length})`], ['playlists', `Playlists (${p.playlists.length})`], ['badges', 'Badges']].map(([id, label]) => (
+        {[['words', 'Rated words'], ['favorites', `Favorites (${p.favorites.length})`], ['comments', `Comments (${p.comments.length})`], ['playlists', `Playlists (${p.playlists.length})`], ['badges', 'Badges'], ['lexicon', 'Lexicon'], ['casino', 'Casino & Market']].map(([id, label]) => (
           <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
+      {tab === 'lexicon' && <LexiconPanel lex={p.lexicon} name={p.name} />}
+      {tab === 'casino' && <CasinoPanel market={p.market} casino={p.casino} name={p.name} />}
       {tab === 'words' && <TheirRated list={p.ratings} name={p.name} openWord={openWord} />}
       {tab === 'favorites' && (p.favorites.length
         ? <div className='wordcloud'>{p.favorites.map((f) => <button key={f.word} className='chip' onClick={() => openWord(f.word)}>💛 {f.word}</button>)}</div>

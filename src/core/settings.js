@@ -16,6 +16,7 @@ export const SETTING_FIELDS = {
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
   voice: { group: 'sound', kind: 'text', default: '', max: 120, label: 'Voice for saying words', hint: 'Empty picks the best English voice on this computer.' },
+  lexiconEncounters: { group: 'play', kind: 'bool', default: true, label: 'Wild words to catch for your Lexicon', hint: 'Every few new words, one of the words you’ve rated shows up for you to catch. Off keeps the Lexicon to its own tab.' },
   speakOnReveal: { group: 'play', kind: 'bool', default: false, label: 'Say each new word out loud' },
   skipRated: { group: 'play', kind: 'bool', default: true, label: 'Don’t deal words I’ve already rated', hint: 'Turn off to see old words again in shuffles.' },
   autoAdvanceMs: { group: 'play', kind: 'count', default: 0, min: 0, max: 10000, label: 'Move to the next word by itself after (ms)', hint: '0 waits for a second Enter.' },
@@ -29,6 +30,7 @@ export const SETTING_FIELDS = {
   lobbySize: { group: 'lobbies', kind: 'count', default: 8, min: 2, max: 8, label: 'Most players in a lobby I host' },
   lobbyMessagesPerMinute: { group: 'lobbies', kind: 'count', default: 120, min: 10, max: 2000, label: 'Messages one player may send per minute', hint: 'Players who send more are removed (stops reaction spam).' },
   // Network
+  showCasinoStats: { group: 'friends', kind: 'bool', default: true, label: 'Show friends how I do at the market and casino', hint: 'Your returns, coinflips and slots on your profile.' },
   lan: { group: 'network', kind: 'bool', default: true, label: 'Find friends and lobbies on the same Wi-Fi directly', hint: 'Works with no internet. Others on the network see only scrambled tags, never who you are.' },
   internet: { group: 'network', kind: 'bool', default: true, label: 'Use the internet peer-to-peer network', hint: 'Off means same-network only.' }
 }

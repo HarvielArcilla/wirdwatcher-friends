@@ -6,12 +6,14 @@ import { burst, centerOf } from './effects.js'
 // The wirdhouse: where coins are invested. Buildings make coins every
 // second; upgrades change how everything earns (new words, the streak, the
 // muse, time away, lobbies, friends). Publishing an edition starts it all
-// over for ink, which makes everything earn more forever. The coinflip is
-// here too, for no reason at all.
+// over for ink, which makes everything earn more forever. (The coinflip
+// lives in the Casino now; its component is still here.)
+
+
 export default function Wirdhouse ({ econ }) {
   const toast = useToast()
   const [v, setV] = useState(null)
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem('wh-tab') || 'build' } catch { return 'build' } })
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem('wh-tab'); return ['build', 'upgrades', 'publish', 'stats'].includes(t) ? t : 'build' } catch { return 'build' } })
   const load = useCallback(() => api('economy').then(setV).catch(() => {}), [])
   useEffect(() => { load() }, [load])
   useInterval(load, 4000)
@@ -37,14 +39,13 @@ export default function Wirdhouse ({ econ }) {
         <p className='lede'>Every new word you rate pays the same, whatever you give it. Rate new words within a minute of each other for a streak, but the same score five times running ends it. The wirdhouse turns coins into more coins; spend them here, or on looks in the shop.</p>
       </div>
       <div className='tabs' role='tablist'>
-        {[['build', 'Build'], ['upgrades', 'Upgrades'], ['publish', `Publish${v.prestige.gain ? ' ✨' : ''}`], ['flip', 'Coinflip'], ['stats', 'Stats']].map(([id, label]) => (
+        {[['build', 'Build'], ['upgrades', 'Upgrades'], ['publish', `Publish${v.prestige.gain ? ' ✨' : ''}`], ['stats', 'Stats']].map(([id, label]) => (
           <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
       {tab === 'build' && <Build v={v} coins={coins} act={act} />}
       {tab === 'upgrades' && <Upgrades v={v} coins={coins} act={act} />}
       {tab === 'publish' && <Publish v={v} act={act} toast={toast} />}
-      {tab === 'flip' && <Coinflip v={v} coins={coins} act={act} look={econ?.look} />}
       {tab === 'stats' && <Stats v={v} />}
       {v.dev && <DevBar act={act} />}
     </div>
@@ -193,7 +194,7 @@ function Publish ({ v, act, toast }) {
 }
 
 // Heads or tails. Win and the stake doubles; lose and it's gone. That's it.
-function Coinflip ({ v, coins, act, look }) {
+export function Coinflip ({ v, coins, act, look }) {
   const [stake, setStake] = useState('')
   const [call, setCall] = useState('heads')
   const [flip, setFlip] = useState(null) // { side, win, stake, key }

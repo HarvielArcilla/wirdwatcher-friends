@@ -69,6 +69,13 @@ export class Words {
     })
   }
 
+  // What the Word Exchange needs to know about a word.
+  marketFacts (form) {
+    const i = this.index.get(form)
+    if (i === undefined) return null
+    return { sector: this._topic[i] || 'misc', senses: this.list[i][2].length, synonyms: this.synonyms(form).length }
+  }
+
   // Cheap facts about a word for stats: its parts of speech and its topic
   // playlist (by its most common sense). No objects built per call.
   meta (form) {

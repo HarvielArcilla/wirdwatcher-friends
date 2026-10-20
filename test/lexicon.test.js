@@ -1,0 +1,124 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { WirdApp } from '../src/core/app.js'
+import { rarityFor, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/lexicon.js'
+import { effects } from '../src/shared/economy.js'
+import { tmp, network, until } from './helpers.js'
+
+test('rarity is by rank among your own ratings, both ends equally rare', () => {
+  const spread = Array.from({ length: 100 }, (_, i) => i / 20) // 0.0 to 4.95
+  assert.deepEqual(rarityFor(4.95, spread), { tier: 4, side: 'love', pct: 0.995 })
+  assert.equal(rarityFor(0, spread).tier, 4)
+  assert.equal(rarityFor(0, spread).side, 'hate')
+  assert.equal(rarityFor(2.5, spread).tier, 0)
+  // Rating everything 5.0 makes nothing special.
+  const generous = new Array(100).fill(5)
+  assert.equal(rarityFor(5, generous).tier, 0)
+  // A generous rater and a harsh one get the same spread.
+  const high = spread.map((x) => 3 + x / 2.5)
+  assert.equal(rarityFor(high[99], high).tier, rarityFor(spread[99], spread).tier)
+  // Too few ratings to tell: everything's common.
+  assert.equal(rarityFor(5, [5, 0, 2]).tier, 0)
+})
+
+test('power is about level and tier, never the word', () => {
+  const a = { word: 'the', level: 10, tier: 1, rarity: { tier: 0 } }
+  const b = { word: 'serendipity', level: 10, tier: 1, rarity: { tier: 0 } }
+  assert.equal(power(a), power(b))
+  assert.ok(power({ ...a, tier: 2 }) === power(a) * 2)
+  assert.ok(power({ ...a, level: 400, tier: 16 }) > 1e18, 'it scales like the shop')
+})
+
+function app (t0 = Date.UTC(2026, 9, 20, 12)) {
+  const clock = { t: t0 }
+  const a = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false }, now: () => new Date(clock.t) })
+  a.clock = clock
+  return a
+}
+
+test('wild words appear every few new ratings, are caught, and the team grows by rating', () => {
+  const a = app()
+  // Rate enough words for rarity to mean something.
+  const words = a.words.sorted.filter((w) => /^[a-z]{4,8}$/.test(w)).slice(500, 560)
+  let encounter = null
+  for (const [i, w] of words.entries()) {
+    a.clock.t += 5000
+    const res = a.rate(w, (i % 11) / 2)
+    if (res.lexicon?.encounter && !encounter) encounter = res.lexicon.encounter
+    if (encounter && !a.lexicon.s.encounter) break
+    if (encounter) break
+  }
+  assert.ok(encounter, 'a wild word showed up')
+  assert.ok(a.store.rating(encounter.word) !== null, 'it’s one you rated')
+  const card = a.lexicon.catch()
+  assert.equal(card.word, encounter.word)
+  assert.deepEqual(a.lexicon.view().team.map((c) => c.word), [card.word], 'the first catches join the team')
+  // Ratings teach it, whatever the score.
+  const before = card.xpTotal
+  a.clock.t += 5000
+  a.rate('zebra', 0)
+  assert.equal(a.lexicon.s.cards[card.word].xpTotal, before + RATING_XP)
+  // Re-rating an old word teaches nothing.
+  a.rate('zebra', 5)
+  assert.equal(a.lexicon.s.cards[card.word].xpTotal, before + RATING_XP)
+  // The team helps the wirdhouse a little.
+  assert.ok(effects(a.economy.s).lexicon > 0)
+})
+
+test('coins help only a little: training is capped per day, and tiers gate levels', () => {
+  const a = app()
+  a.rate('gravy', 4)
+  a.lexicon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: a.clock.t }
+  const c = a.lexicon.catch()
+  a.economy.devAddCoins(1e12)
+  a.lexicon.train('gravy', TRAIN_MAX_HOURS)
+  assert.throws(() => a.lexicon.train('gravy', 1), /Already training/)
+  a.clock.t += TRAIN_MAX_HOURS * 3600e3
+  a.lexicon.view()
+  assert.ok(c.xpTotal >= 200 && c.xpTotal <= 220, `a full day of training ≈ 20 ratings (${c.xpTotal} XP)`)
+  assert.throws(() => a.lexicon.train('gravy', 1), /trained all it can today/, 'however many coins you have')
+  // The next UTC day it can train again.
+  a.clock.t += 24 * 3600e3
+  a.lexicon.train('gravy', 1)
+  // Level cap at a tier: XP banks until it ascends.
+  for (let i = 0; i < 400; i++) a.lexicon._gain(c, 50)
+  assert.equal(c.level, levelCap(1))
+  assert.ok(c.xp > xpToNext(c.level), 'banked')
+  a.lexicon.ascend('gravy')
+  assert.equal(c.tier, 2)
+  assert.ok(c.level > levelCap(1), 'the banked XP becomes levels')
+})
+
+test('duels are the same wherever they’re worked out', () => {
+  const mine = cleanTeam([{ word: 'hope', level: 20, tier: 1, rarity: { tier: 4, side: 'love' }, stance: 'charm' }, { word: 'tax', level: 5, tier: 1, rarity: { tier: 4, side: 'hate' }, stance: 'spite' }])
+  const theirs = cleanTeam([{ word: 'cat', level: 18, tier: 1, rarity: { tier: 1, side: 'love' }, stance: 'spite' }, { word: 'dog', level: 40, tier: 2, rarity: { tier: 0 }, stance: 'guard' }, { word: 'eel', level: 3, tier: 1, rarity: { tier: 0 }, stance: 'charm' }])
+  const one = duel(mine, theirs, 12345)
+  assert.deepEqual(one, duel(mine, theirs, 12345))
+  assert.equal(one.bouts.length, 3)
+  assert.equal(one.bouts[2].a, null, 'an empty slot loses its bout')
+  // A friend can't send a monster: levels are held to the tier.
+  assert.equal(cleanTeam([{ word: 'x', level: 1e9, tier: 1 }])[0].level, levelCap(1))
+})
+
+test('duel a friend’s team from their profile', async (t) => {
+  const { make } = await network(t)
+  const a = await make()
+  const b = await make()
+  b.setProfile({ name: 'Pip' })
+  for (const x of [a, b]) {
+    x.rate('gravy', 4)
+    x.lexicon.s.encounter = { word: 'gravy', rarity: { tier: 0, side: null, pct: 0.5 }, at: 0 }
+    x.lexicon.catch()
+    x.game._refreshProfile()
+  }
+  const { code } = await a.friends.makeCode()
+  await b.friends.redeem(code)
+  await until(() => a.game.friendProfile(b.identity.userId)?.lexicon?.team?.length === 1)
+  const prof = a.game.friendProfile(b.identity.userId)
+  assert.equal(prof.lexicon.team[0].word, 'gravy')
+  const res = a.duelFriend(b.identity.userId)
+  assert.equal(res.bouts.length, 1)
+  assert.equal(a.lexicon.s.duels.history[0].vs, b.identity.userId)
+  for (let i = 1; i < 5; i++) a.duelFriend(b.identity.userId)
+  assert.throws(() => a.duelFriend(b.identity.userId), /duels today/)
+})

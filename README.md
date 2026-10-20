@@ -31,7 +31,7 @@ The game is built for the keyboard:
 
 **After you rate:** you see where your rating landed on a line from 0 to 5, next to each friend’s rating of the same word, your friends’ average and your own average. A one-line verdict sums it up (“Hot take: 1.9 above your friends”, “Exactly what Pip said”, “Toughest of your friends on this one”), and each friend’s taste match is shown. For a word no friend has rated, you see how it ranks among your own ratings (“One of your highest ratings ever”). The Friends page shows your taste match with each friend.
 
-**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level, with a new title every five levels (5, 10, 15…), and there are 97 badges. Every level up pays a coin bonus that grows with your wirdhouse, and every fifth level (and 75 and 100) unlocks a cosmetic you can't buy. Your Collection shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
+**Progression:** you earn XP for new words, the first word each day, streaks, the word of the day, finished chains and playlists, and lobby rounds. XP raises your level, with a new title every five levels (5, 10, 15…), and there are 97 badges. Every level up pays a coin bonus that grows with your wirdhouse, and every fifth level (and 75 and 100) unlocks a cosmetic you can't buy. Your Profile shows a histogram of how you rate, along with your favorites, playlists and every word you’ve rated.
 
 ## Sound and effects
 
@@ -95,7 +95,7 @@ Every word you rate for the first time pays coins, the same whatever you give it
   - *buildings*, *synergy* (buildings that help each other) and *global*.
 - **The muse** is the wirdhouse's inspiration, and what keeps rating words worth it however big the house gets. Each new word you rate fills it a quarter, and it fades to nothing over three minutes. A full muse runs the wirdhouse at full speed (up to 3× with muse upgrades); an empty one runs it at 40%. The meter is under your coins. Earnings while the app is closed are separate.
 - **Publishing your dictionary** (prestige) starts the wirdhouse over, coins, buildings and upgrades, for **ink**. Every ink you've ever earned makes everything earn 2% more, forever, and ink buys **perks** that last through every edition (head start, seed money, a higher streak, better time away, and more). Your first, third and fifth editions each bring a cosmetic you can't buy.
-- **The coinflip**: bet any amount, call heads or tails, double it or lose it. It means nothing, and flip winnings don't count toward ink.
+- **Your Lexicon team** adds a little to everything the wirdhouse makes (see below).
 
 **The shop** sells looks, never advantages:
 
@@ -107,7 +107,47 @@ The shop lists each kind cheapest first, with the items that come from badges, l
 
 Frames never hide gameplay: the rings for your guesses, the hot seat and pickable seats are drawn outside any frame, and the frame fades back while they show. Everything you buy is kept through every edition. There are badges for coins, building, publishing, flipping and shopping too.
 
-Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see only what you're wearing and your edition.
+Coins and the wirdhouse are kept in `economy.json` on your computer only; friends see what you're wearing, your edition, your Lexicon team and (unless you turn it off) your market and casino record.
+
+## Today
+
+One tab for the daily things, all the same for everyone and all reset at midnight UTC:
+
+- **Daily Clues:** one word for the whole world, shown as blanks. Ask for clues (each costs 12 points), guess as often as you like (each miss costs 10), and get coins for solving it. Copy a result to share that doesn't give the word away, and see how friends did.
+- **Three quests**, like "rate 20 new words", "catch a wild word" or "make a trade". Each pays coins, and doing all three pays a bonus and adds a day to your quest streak. No quest ever asks for a particular score.
+- **A weekly challenge** (rate 150 new words) and **a free spin** of Wird Slots each day.
+
+## The Lexicon
+
+Every 6 to 12 new words, one of the words you've rated turns up as a **wild word** in the corner of Play. Press `L` to catch it (or let it go; it leaves after your next new word). Turn wild words off under Settings → Playing.
+
+- **Rarity is how you feel about it.** It comes from where the word sits among *your* ratings, by rank, so generous and harsh raters get the same spread and rating everything the same makes nothing rare. Your most-loved words are Fond, Adored, Cherished and finally **Beloved**; your most-hated are Disliked, Loathed, Despised and finally **Nemesis**, just as rare. It's fixed when you catch the word.
+- **The word itself never matters.** "the" can become as mighty as "serendipity".
+- **Your team of three learns from every new word you rate**, whatever you give it, and from lobby rounds. That's how words grow, fastest and first.
+- **Coins help, a little.** *Training* teaches a word for coins while you do other things, but only up to 6 hours a word a day (a full day is worth about 20 ratings, however many coins you have). *Focus* speeds up what your team learns from ratings for an hour, never past ×1.5.
+- **Tiers.** Every 25 levels a word has to *ascend* (for coins) to keep levelling, and each tier doubles its power and changes how its card looks: plain, framed, foil, holo, and ever more extravagant. Levels never stop, and power scales into the quadrillions.
+- **Stances** you choose for each word: 💗 Charm beats 🗡️ Spite, 🗡️ Spite beats 🛡️ Guard, 🛡️ Guard beats 💗 Charm.
+- **Duels** with friends' teams, five a day, from the Lexicon's Duels tab: three bouts, word against word, decided by power, stance and a little luck. The battle is worked out from both teams and the day, so it comes out the same on either computer. Win or lose, your team learns from it.
+- Your equipped team also adds a small bonus to the wirdhouse.
+
+## The Word Exchange
+
+A stock market of words under **Market**. Every word has a price, and the price is a pure function of the word and the time (UTC), so every copy of wirdwatcher shows the same price in the same minute without talking to anyone.
+
+- **Prices move** on waves from hours to months, with **sectors** (the topic groups from WordNet: food, animals, feelings…) that rally and slump together, and **news**: some days a word jumps or crashes and then drifts back. Obscure words with one meaning and few synonyms swing wildly; everyday words with many meanings are blue chips. No price ever reaches 0, and over the long run the market rises.
+- **You can trade any word you've rated.** What you gave a word never moves its price. Buying costs 0.5% over the price and selling gets 0.5% under it.
+- Charts by day, week, month and year, a scrolling ticker, sector indexes, the day's movers and headlines, and your portfolio with your all-time return, which friends see on your profile.
+- Shares are sold before you publish an edition, so nothing carries over. A clock that goes back in time can't trade.
+
+## The Casino
+
+- **Wird Slots:** five reels of letters, weighted like English. The longest real word anywhere in them pays: a 3-letter word ×1.5, a 4-letter word ×6, and a full 5-letter word is the jackpot, ×155 (about 1 spin in 435). Over every possible spin it pays back 94.7%, so the house wins slowly, like a real one. Space spins.
+- **The coinflip**: bet any amount, call heads or tails, double it or lose it.
+- Nothing in the casino counts toward ink.
+
+## Your profile
+
+**Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Lexicon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.
 
 ## Friends
 
@@ -118,7 +158,7 @@ There are two ways to add a friend:
 
 From then on, whenever you’re both online, your ratings, comments, favorites and playlists sync both ways. Your friends’ ratings stay hidden on each word until you’ve rated it, so they don’t sway you. Removing a friend removes their data from both computers.
 
-Click a friend to open their profile, laid out like your Collection: their numbers, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
+Click a friend to open their profile, laid out like yours: their top 4, recent ratings, numbers, Lexicon and casino record, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
 
 ## Lobbies
 

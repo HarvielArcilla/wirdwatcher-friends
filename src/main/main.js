@@ -110,11 +110,38 @@ function handlers () {
     lobbyState: () => ww.lobbyState,
     economy: () => ({ ...ww.economy.view(), away: ww.economy.takeAway() }),
     economyAction: (action, ...args) => {
-      const allowed = ['buyBuilding', 'buyUpgrade', 'buyPerk', 'prestige', 'flip', 'buyCosmetic', 'equip']
+      const allowed = ['buyBuilding', 'buyUpgrade', 'buyPerk', 'prestige', 'flip', 'spin', 'buyCosmetic', 'equip']
       const devOnly = ['devUnlockAll', 'devAddCoins', 'devWarp', 'devReset']
       if (!allowed.includes(action) && !(dev && devOnly.includes(action))) throw new Error('Unknown action.')
       const out = ww.economy[action](...args)
       return out === undefined ? ww.economy.view() : out
+    },
+    lexicon: () => ww.lexicon.view(),
+    lexiconAction: (action, ...args) => {
+      if (!['catch', 'dismiss', 'release', 'equip', 'unequip', 'stance', 'train', 'ascend', 'focus'].includes(action)) throw new Error('Unknown action.')
+      ww.lexicon[action](...args)
+      return ww.lexicon.view()
+    },
+    duel: (userId) => ww.duelFriend(userId),
+    today: () => ww.daily.view(),
+    todayAction: (action, ...args) => {
+      if (!['claim', 'claimWeekly', 'guess', 'nextClue', 'giveUp'].includes(action)) throw new Error('Unknown action.')
+      const out = ww.daily[action](...args)
+      return { out, today: ww.daily.view() }
+    },
+    friendsToday: () => ww.friendsToday(),
+    top4: () => ww.top4(),
+    profileExtras: () => ww.profileExtras(),
+    setTop4: (words) => ww.setTop4(words),
+    market: (opts) => ww.market.board(opts || {}),
+    marketQuote: (word) => ww.market.quote(word),
+    marketChart: (word, range) => ww.market.chart(word, range),
+    portfolio: () => ww.market.portfolio(),
+    marketTrade: (kind, word, amount) => {
+      if (kind === 'buy') ww.market.buy(word, amount)
+      else if (kind === 'sell') ww.market.sell(word, amount)
+      else throw new Error('Unknown trade.')
+      return ww.market.portfolio()
     },
     appearance: () => ww.appearance(),
     setAppearance: (patch) => { const a = ww.setAppearance(patch); win?.setBackgroundColor(windowColor()); return a },

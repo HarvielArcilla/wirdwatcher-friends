@@ -1,3 +1,4 @@
+import { WildWord } from './Lexicon.jsx'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
 import { api, R, Avatar, Kbd, Bar, icons, speak, useToast, celebrate, wordSize, ratingColor, Coins, useInterval } from './ui.jsx'
@@ -22,6 +23,8 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   const [panel, setPanel] = useState(null) // 'comment' | 'add' | 'modes'
   const [showAll, setShowAll] = useState(false)
   const [fx, setFx] = useState(null) // { kind: 'perfect' | 'sparkle' | 'zero' | 'wilt', key }
+  const [wild, setWild] = useState(null) // a wild word to catch for the Lexicon
+  useEffect(() => { if (active) api('lexicon').then((v) => setWild(v.encounter || null)).catch(() => {}) }, [active])
   // Every word seen this sitting, in order, and where we are in it. Going
   // back and forward walks this list; only stepping past the end deals.
   const trail = useRef({ items: [], pos: -1 })
@@ -144,6 +147,9 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
         requestAnimationFrame(() => burst(at.x, at.y, burstFor(kind)))
       }
       setSkipNote(null)
+      if (earned.lexicon?.encounter) setWild(earned.lexicon.encounter)
+      else if (earned.lexicon?.fled) setWild((w) => (w && w.word === earned.lexicon.fled ? null : w))
+      for (const u of earned.lexicon?.ups || []) toast({ emoji: '🃏', title: `${u.word} reached level ${u.level}`, text: 'Your Lexicon team learns from every new word.' })
       celebrate(toast, earned)
       if (earned.coins?.broke && earned.coins.same.n === 5) toast({ emoji: '🧯', title: 'Streak lost', text: `That’s ${formatRating(r)} five times in a row. The pace streak is for real ratings, so the same score over and over ends it. Give each word the score it deserves.`, ms: 7000 })
       if (earned.twins.length) toast({ emoji: '👯', title: `Same as ${earned.twins.join(' and ')}`, text: `You both gave “${card.word}” a ${formatRating(r)}.` })
@@ -230,6 +236,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
 
   return (
     <div className='play'>
+      {wild && <WildWord e={wild} toast={toast} active={active} onDone={() => setWild(null)} />}
       <section className='stage'>
         <div className='modebar'>
           <button className='modebtn' onClick={() => setPanel('modes')} title='Choose a playlist (M)'>

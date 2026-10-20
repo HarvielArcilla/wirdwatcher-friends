@@ -212,7 +212,11 @@ export const icons = {
   heart: I(<path d='M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8Z' />),
   chevron: I(<path d='m6 9 6 6 6-6' />),
   house: I(<><path d='M3 10.5 12 3l9 7.5' /><path d='M5 9.5V21h14V9.5' /><path d='M9.5 21v-6h5v6' /><path d='M16 5.5V3h2.5v4.6' /></>),
-  shop: I(<><path d='M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9Z' /><path d='M9 10V6.5a3 3 0 0 1 6 0V10' /></>)
+  shop: I(<><path d='M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9Z' /><path d='M9 10V6.5a3 3 0 0 1 6 0V10' /></>),
+  market: I(<><path d='M3 17l5-6 4 4 8-9' /><path d='M15 6h5v5' /></>),
+  lexicon: I(<><rect x='3.5' y='5' width='11' height='15' rx='2' transform='rotate(-8 9 12.5)' /><rect x='9.5' y='4' width='11' height='15' rx='2' /><path d='M15 9.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3Z' /></>),
+  casino: I(<><rect x='3' y='5' width='18' height='14' rx='3' /><path d='M8 9v6M12 9v6M16 9v6' /></>),
+  daily: I(<><rect x='3.5' y='5' width='17' height='15' rx='2.5' /><path d='M8 3v4M16 3v4M3.5 10h17' /><path d='m9 14.5 2 2 4-4' /></>)
 }
 
 // Leveling up: the screen dims, rays turn behind the new number, it counts

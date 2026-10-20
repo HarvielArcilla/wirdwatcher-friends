@@ -12,14 +12,22 @@ import { setCustomSound } from './sound.js'
 import { setConfettiStyle } from './effects.js'
 import Wirdhouse from './Wirdhouse.jsx'
 import Shop from './Shop.jsx'
+import Market from './Market.jsx'
+import Lexicon from './Lexicon.jsx'
+import Casino from './Casino.jsx'
+import Today from './Today.jsx'
 import { formatCoins } from '../shared/economy.js'
 
 const TABS = [
   { id: 'play', label: 'Play', icon: icons.play },
-  { id: 'collection', label: 'Collection', icon: icons.collection },
+  { id: 'today', label: 'Today', icon: icons.daily },
+  { id: 'collection', label: 'Profile', icon: icons.collection },
   { id: 'friends', label: 'Friends', icon: icons.friends },
   { id: 'lobby', label: 'Lobby', icon: icons.lobby },
   { id: 'wirdhouse', label: 'Wirdhouse', icon: icons.house },
+  { id: 'lexicon', label: 'Lexicon', icon: icons.lexicon },
+  { id: 'market', label: 'Market', icon: icons.market },
+  { id: 'casino', label: 'Casino', icon: icons.casino },
   { id: 'shop', label: 'Shop', icon: icons.shop }
 ]
 
@@ -39,6 +47,7 @@ function App () {
   const [focusWord, setFocusWord] = useState(null)
   const [searching, setSearching] = useState(false)
   const [econ, setEcon] = useState(null) // coins, coins per second, the streak, your look
+  const [today, setToday] = useState(null) // for the dot on Today
 
   useEffect(() => {
     api('boot').then((b) => {
@@ -52,6 +61,8 @@ function App () {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => window.ww.on.economy((c) => setEcon((old) => ({ ...(old || {}), ...c }))), [])
+  useEffect(() => { const get = () => api('today').then(setToday).catch(() => {}); get(); const id = setInterval(get, 30000); return () => clearInterval(id) }, [])
+  const todayDot = today && (today.quests.some((q) => !q.claimed && q.have >= q.n) || (today.weekly.have >= today.weekly.n && !today.weekly.claimed) || !(today.clues.solved || today.clues.gaveUp) || today.freeSpin.ready)
   useEffect(() => { setConfettiStyle(econ?.look?.confetti || 'classic') }, [econ?.look?.confetti])
   useEffect(() => { if (settings) setLevelUpSettings(settings.values) }, [settings])
 
@@ -120,6 +131,7 @@ function App () {
             {t.icon()}{t.label}
             {t.id === 'friends' && onlineFriends > 0 && <span className='dot' title={`${onlineFriends} online`} />}
             {t.id === 'lobby' && lobby && <span className='dot' />}
+            {t.id === 'today' && todayDot && <span className='dot' />}
           </button>
         ))}
         <div className='spacer' />
@@ -152,13 +164,17 @@ function App () {
         <div style={{ display: tab === 'play' ? 'contents' : 'none' }}>
           <Play mode={mode} setMode={pickMode} modes={allModes} settings={settings.values} refreshTop={refreshTop} focusWord={focusWord} clearFocusWord={() => setFocusWord(null)} active={tab === 'play' && !searching} econ={econ} />
         </div>
-        {tab === 'collection' && <Collection profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
+        {tab === 'collection' && <Collection me={me} econ={econ} profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         {tab === 'friends' && <Friends friends={friends} profile={profile} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
           <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} />
         </div>
         {tab === 'wirdhouse' && <Wirdhouse econ={econ} />}
         {tab === 'shop' && <Shop econ={econ} me={me} />}
+        {tab === 'today' && <Today settings={settings.values} goTo={setTab} onChange={setToday} />}
+        {tab === 'casino' && <Casino econ={econ} settings={settings.values} />}
+        {tab === 'lexicon' && <Lexicon econ={econ} friends={friends} />}
+        {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
         {tab === 'settings' && <Settings appearance={appearance} setAppearance={setAppearance} me={me} settings={settings} setSettings={setSettings} setMe={(m) => { setMe(m); refreshTop() }} wordCount={boot.wordCount} source={boot.source} />}
       </main>

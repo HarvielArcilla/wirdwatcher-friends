@@ -13,7 +13,8 @@
 //
 //   r/<word>   rating, 0.0–5.0       c/<word>  comment
 //   f/<word>   favorite (true)       p/<id>    playlist { name, emoji, words }
-//   me         { name, color, level, xp, title, rated, badges }
+//   me         { name, color, level, xp, title, rated, badges, badgeIds, bestStreak,
+//                look, top4, lexicon, market, casino }
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -22,6 +23,9 @@ import { readJson, writeJson } from './files.js'
 
 const USER = /^[0-9a-f]{64}$/
 const KEY = /^(r|c|f|p)\/[a-z0-9-]{1,64}$|^me$/
+
+// A plain object no bigger than `max` characters of JSON, or null.
+const small = (x, max) => { if (!x || typeof x !== 'object' || Array.isArray(x)) return null; try { return JSON.stringify(x).length <= max ? x : null } catch { return null } }
 
 // Checks one record from a friend; returns a clean copy or null.
 export function cleanRecord (key, rec, { maxCommentChars = 2000 } = {}) {
@@ -52,7 +56,16 @@ export function cleanRecord (key, rec, { maxCommentChars = 2000 } = {}) {
         xp: Math.max(0, Number(v.xp) || 0),
         title: String(v.title || '').slice(0, 40),
         rated: Math.max(0, Number(v.rated) || 0),
-        badges: Math.max(0, Number(v.badges) || 0)
+        badges: Math.max(0, Number(v.badges) || 0),
+        badgeIds: Array.isArray(v.badgeIds) ? v.badgeIds.filter((x) => typeof x === 'string' && x.length <= 40).slice(0, 500) : [],
+        bestStreak: Math.max(0, Number(v.bestStreak) || 0),
+        // Shaped further where they're shown (see Game.friendProfile).
+        look: small(v.look, 2000),
+        top4: Array.isArray(v.top4) ? v.top4.filter((w) => typeof w === 'string' && w.length <= 64).slice(0, 4) : [],
+        lexicon: small(v.lexicon, 6000),
+        market: small(v.market, 1000),
+        casino: small(v.casino, 1000),
+        daily: small(v.daily, 300)
       }
     }
   }

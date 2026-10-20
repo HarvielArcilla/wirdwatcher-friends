@@ -19,6 +19,10 @@ import { normalizeAppearance } from '../shared/appearance.js'
 import { readJson, writeJson } from './files.js'
 import { migrate } from './migrate.js'
 import { Economy } from './economy.js'
+import { Market } from './market.js'
+import { Lexicon } from './lexicon.js'
+import { slotWord } from '../shared/slots.js'
+import { Daily } from './daily.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const WORDS_FILE = path.join(here, '..', '..', 'data', 'words.json.gz')
@@ -48,10 +52,16 @@ export class WirdApp extends EventEmitter {
     this.game.identityColor = () => this.identity.color
     this.friends = new Friends({ identity: this.identity, store: this.store, settings: this.settings, swarm, lan })
     this.economy = new Economy({ dir: dataDir, now: now ? () => now().getTime() : () => Date.now(), friendsOnline: () => this.friends.online().length, hasBadge: (id) => Boolean(this.store.progress.badges[id]), level: () => this.game.profile().level.level, dev })
+    this.market = new Market({ words: this.words, store: this.store, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
+    this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
+    this.lexicon = new Lexicon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('lexiconEncounters') })
+    this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
+    this.economy.on('played', (kind) => this.daily.note(kind))
+    this.economy.beforePrestige = () => { for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
     // Levels from before coins existed don't pay out; from here on, each does.
     if (this.economy.s.levelPaid == null) this.economy.s.levelPaid = this.game.profile().level.level
     // Friends see what you wear and which edition you're on.
-    this.game.extraProfile = () => ({ look: this.economy.look() })
+    this.game.extraProfile = () => this._publicProfile()
     this.game.extraStats = () => this.economy.badgeStats()
     // Spending, flipping and publishing can earn badges too.
     this.economy.on('changed', () => {
@@ -65,6 +75,7 @@ export class WirdApp extends EventEmitter {
     this.economy.on('look', () => { this.game._refreshProfile(); if (this.lobby) this.lobby.setProfile(this._lobbyMe()) })
     this.economy.on('tick', (c) => this.emit('economy', c))
     this.economy.on('changed', () => this.emit('economy', this.economy.compact()))
+    this.economy.on('changed', () => this._publishSoon())
     this.lobby = null
     this.lobbyState = null
     this.lobbyRated = new Set()
@@ -74,6 +85,76 @@ export class WirdApp extends EventEmitter {
   rate (word, r, opts) {
     const res = this._withLevelReward(this.game.rate(word, r, opts))
     res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
+    // Only new words teach your Lexicon (and bring wild words), whatever you gave them.
+    if (res.coins) {
+      res.lexicon = this.lexicon.onNewWord(word)
+      this.daily.note('words', { topic: this.words.marketFacts(word)?.sector, streak: res.coins.streak?.n })
+    }
+    return res
+  }
+
+  // What friends see beyond ratings: your look, Top 4, your Lexicon, and
+  // (unless you hide it) how you do at the market and in the casino.
+  _publicProfile (always = false) {
+    const out = { look: this.economy.look(), top4: this.top4(), lexicon: this.lexicon.public(), daily: this.daily.public() }
+    if (always || this.settings.get('showCasinoStats')) {
+      const m = this.market.stats()
+      const f = this.economy.s.flips
+      const sl = this.economy.s.slots || {}
+      out.market = { value: Math.round(m.value), gain: Math.round(m.gain), returnPct: m.returnPct, trades: m.trades, best: m.best ? { word: m.best.word, pct: m.best.pct } : null }
+      out.casino = { flips: f.count, flipWins: f.wins, flipNet: Math.round(f.net), biggestFlip: Math.round(f.biggestWin), flipStreak: f.bestStreak, spins: sl.spins || 0, slotNet: Math.round(sl.net || 0), biggestSpin: Math.round(sl.biggest || 0), jackpots: sl.jackpots || 0, bestSpin: sl.bestWord || null }
+    }
+    return out
+  }
+
+  // Changes to coins, words and trades reach friends, but not on every tick.
+  _publishSoon () {
+    if (this._publishTimer) return
+    this._publishTimer = setTimeout(() => { this._publishTimer = null; this.game._refreshProfile() }, 20000)
+    this._publishTimer.unref?.()
+  }
+
+  // The top of your own profile: Top 4, recent ratings, and the rest.
+  profileExtras () {
+    const all = this.store.ratings().sort((a, b) => b.t - a.t)
+    const y = new Date(this.economy.now()).getFullYear()
+    const def = (w) => this.words.lookup(w)?.senses?.[0]?.def || null
+    return {
+      ...this._publicProfile(true),
+      top4: this.top4().map((w) => ({ word: w, r: this.store.rating(w), def: def(w) })),
+      recent: all.slice(0, 10),
+      thisYear: all.filter((x) => new Date(x.t).getFullYear() === y).length,
+      friends: this.store.listFriends().length
+    }
+  }
+
+  // Your four favorite words, in order, for your profile.
+  top4 () { return (this.store.progress.top4 || []).filter((w) => this.words.has(w)).slice(0, 4) }
+  setTop4 (words) {
+    const list = [...new Set((Array.isArray(words) ? words : []).map((w) => String(w || '').toLowerCase().trim()).filter((w) => this.words.has(w)))].slice(0, 4)
+    this.store.progress.top4 = list
+    this.store.saveProgress()
+    this.game._refreshProfile()
+    return list
+  }
+
+  // How friends did at today's Daily Clues.
+  friendsToday () {
+    const day = new Date(this.economy.now()).toISOString().slice(0, 10)
+    return this.store.listFriends().map((f) => {
+      const d = this.store.friend(f.userId)?.records?.me?.v?.daily
+      if (!d || d.day !== day) return { userId: f.userId, name: f.name, color: f.color, done: false }
+      const n = (x) => Math.max(0, Math.min(999, Math.floor(Number(x) || 0)))
+      return { userId: f.userId, name: f.name, color: f.color, done: Boolean(d.solved || d.gaveUp), solved: Boolean(d.solved), clue: n(d.clue), wrong: n(d.wrong), points: n(d.points) }
+    })
+  }
+
+  // A duel against a friend's Lexicon team, from their profile.
+  duelFriend (userId) {
+    const data = this.store.friend(userId)
+    if (!data) throw new Error('That isn’t a friend.')
+    const res = this.lexicon.duel(userId, data.info.name, data.records.me?.v?.lexicon?.team, this.identity.userId)
+    this.game._refreshProfile()
     return res
   }
 
@@ -320,6 +401,8 @@ export class WirdApp extends EventEmitter {
       if (solved) { items.push({ amount: XP.hiveMind, why: 'Solved it' }); if (solved.clue <= 2) counters.quickClues = 1 }
       const bonus = this._withLevelReward(this.game.award(items, counters))
       coins += this.economy.onLobbyRound({ hosting: Boolean(this.lobby?.isHost) })
+      this.lexicon.onLobbyRound()
+      this.daily.note('lobby')
       this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, reward: bonus.reward || reward, coins, source: 'lobby' })
     }
     if (s.phase === 'results' && prev?.phase !== 'results' && s.history.length) {

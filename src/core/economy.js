@@ -18,6 +18,7 @@ import {
 } from '../shared/economy.js'
 import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../shared/cosmetics.js'
 import { balanced, validStake } from '../shared/stakes.js'
+import { letterAt, WEIGHT_TOTAL, evaluate } from '../shared/slots.js'
 
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
@@ -44,6 +45,8 @@ const blank = (now) => ({
   flips: { count: 0, wins: 0, streak: 0, bestStreak: 0, worstStreak: 0, biggestWin: 0, biggestLoss: 0, net: 0 },
   owned: [],
   look: { ...DEFAULT_LOOK },
+  slots: { spins: 0, wins: 0, net: 0, biggest: 0, jackpots: 0, bestWord: null, bestMult: 0, freeDay: null, last: [] },
+  market: { holdings: {}, spent: 0, proceeds: 0, trades: 0, best: null, worst: null, lastTradeAt: 0 },
   escrow: {}, // lobby stakes in play: key -> { amount, host, state: 'held' | 'committed', at }
   stakes: { games: 0, won: 0, lost: 0, net: 0, biggestPot: 0 }
 })
@@ -62,7 +65,7 @@ export class Economy extends EventEmitter {
     this.dev = dev
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
-    for (const k of ['stats', 'flips', 'stakes']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
+    for (const k of ['stats', 'flips', 'stakes', 'market', 'slots']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
     this.s.escrow = { ...(saved?.escrow || {}) }
     this.s.look = { ...DEFAULT_LOOK, ...(saved?.look || {}) }
     if (!this.s.muse) this.s.muse = { v: 1, t: now() } // arrive inspired
@@ -213,6 +216,9 @@ export class Economy extends EventEmitter {
     const gain = inkGain(this.s)
     if (gain < 1) throw new Error('Not enough to publish yet. Keep earning.')
     this.tick()
+    // Shares are sold at today's prices first: they're part of the edition
+    // that's ending, so nothing carries over through the market.
+    this.beforePrestige?.()
     const s = this.s
     s.edition++
     s.inkTotal += gain
@@ -276,7 +282,106 @@ export class Economy extends EventEmitter {
     }
     this.dirty = true
     this.emit('changed')
+    this.emit('played', 'flip')
     return { win, side, stake: amount, coins: this.s.coins, flips: { ...f } }
+  }
+
+  // --- Wird Slots -------------------------------------------------------------------
+  // isWord(w): set by the app (the word list). See src/shared/slots.js.
+
+  freeSpinAmount () { return Math.max(100, Math.round(this.compact().cps * 60)) }
+  freeSpinReady () { return this.s.slots.freeDay !== new Date(this.now()).toISOString().slice(0, 10) }
+
+  spin (stake, { free = false } = {}) {
+    this.tick()
+    const sl = this.s.slots
+    let amount
+    if (free) {
+      if (!this.freeSpinReady()) throw new Error('Today’s free spin is used. Another tomorrow.')
+      amount = this.freeSpinAmount()
+      sl.freeDay = new Date(this.now()).toISOString().slice(0, 10)
+    } else {
+      amount = Math.floor(Number(stake))
+      if (!(amount >= 1)) throw new Error('Bet at least 1 coin.')
+      if (amount > Math.floor(this.s.coins)) throw new Error('You don’t have that many coins.')
+      this.s.coins -= amount
+    }
+    const reels = Array.from({ length: 5 }, () => letterAt(crypto.randomInt(WEIGHT_TOTAL)))
+    const hit = evaluate(reels, this.isWord || (() => false))
+    const won = Math.floor(amount * hit.mult)
+    this.s.coins += won // winnings don't count as earning: no ink from luck
+    sl.spins++
+    if (won > 0) sl.wins++
+    sl.net += won - (free ? 0 : amount)
+    sl.biggest = Math.max(sl.biggest, won)
+    if (hit.len === 5) sl.jackpots++
+    if (hit.word && (hit.mult > sl.bestMult || (hit.mult === sl.bestMult && won > sl.biggest - 1))) { sl.bestWord = hit.word; sl.bestMult = hit.mult }
+    sl.last = [{ reels: reels.join(''), word: hit.word, won, at: this.now() }, ...(sl.last || [])].slice(0, 12)
+    this.dirty = true
+    this.emit('changed')
+    this.emit('played', 'spin')
+    return { reels, ...hit, stake: amount, won, free, coins: this.s.coins, slots: { ...sl } }
+  }
+
+  // --- the Word Exchange ------------------------------------------------------------
+  //
+  // Prices come from src/shared/market.js (via core/market.js); here is just
+  // the money. Trades don't count as earning, so they make no ink. A clock
+  // that goes backwards can't trade (no buying at yesterday's prices).
+
+  _tradeClock () {
+    const t = this.now()
+    if (t < (this.s.market.lastTradeAt || 0) - 1000) throw new Error('Your computer’s clock is behind your last trade. Fix the clock to trade.')
+    this.s.market.lastTradeAt = Math.max(t, this.s.market.lastTradeAt || 0)
+  }
+
+  marketBuy (word, coins, unitPrice) {
+    this.tick()
+    coins = Math.floor(coins * 100) / 100
+    if (!(coins >= 1)) throw new Error('Spend at least 1 coin.')
+    if (coins > this.s.coins + 1e-9) throw new Error('You don’t have that many coins.')
+    if (!(unitPrice > 0)) throw new Error('No price for that word.')
+    this._tradeClock()
+    const m = this.s.market
+    const shares = Math.floor((coins / unitPrice) * 1e6) / 1e6
+    const h = m.holdings[word] || { shares: 0, cost: 0 }
+    h.shares += shares
+    h.cost += coins
+    m.holdings[word] = h
+    m.spent += coins
+    m.trades++
+    this.s.coins -= coins
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    this.emit('played', 'trade')
+    return { word, shares, coins, price: unitPrice, holding: { ...h } }
+  }
+
+  marketSell (word, shares, unitPrice) {
+    this.tick()
+    const m = this.s.market
+    const h = m.holdings[word]
+    if (!h || !(h.shares > 0)) throw new Error('You don’t own any of that word.')
+    shares = Math.min(h.shares, Math.floor(Number(shares) * 1e6) / 1e6)
+    if (!(shares > 0)) throw new Error('Sell at least a little.')
+    this._tradeClock()
+    const coins = Math.floor(shares * unitPrice * 100) / 100
+    const cost = h.cost * (shares / h.shares) // average cost of what's sold
+    const gain = coins - cost
+    h.shares -= shares
+    h.cost -= cost
+    if (h.shares < 1e-6) delete m.holdings[word]
+    m.proceeds += coins
+    m.trades++
+    if (!m.best || gain > m.best.gain) m.best = { word, gain, pct: cost ? gain / cost : 0 }
+    if (!m.worst || gain < m.worst.gain) m.worst = { word, gain, pct: cost ? gain / cost : 0 }
+    this.s.coins += coins
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    this.emit('played', 'trade')
+    return { word, shares, coins, price: unitPrice, gain }
   }
 
   // --- lobby stakes -------------------------------------------------------------
@@ -525,6 +630,8 @@ export class Economy extends EventEmitter {
       upgrades: upgradeList(s),
       prestige: { edition: s.edition, ink: s.ink, inkTotal: s.inkTotal, gain: inkGain(s), nextAt: ((inkTotalFor(s.allCoins) + 1) ** 3) * INK_PER, bonus: INK_BONUS, perks: PERKS.map((p) => { const level = s.perks[p.id] || 0; return { id: p.id, emoji: p.emoji, name: p.name, max: p.max, level, cost: level < p.max ? p.cost(level) : null, desc: p.desc(level), nextDesc: level < p.max ? p.desc(level + 1) : null } }) },
       flips: { ...s.flips },
+      slots: { ...s.slots },
+      freeSpin: { ready: this.freeSpinReady(), amount: this.freeSpinAmount() },
       stats: { ...s.stats },
       owned: [...COSMETICS.filter((c) => c.free || (c.badge && this.hasBadge(c.badge)) || (c.level && this.level() >= c.level)).map((c) => `${c.kind}:${c.id}`), ...s.owned],
       level: this.level(),
