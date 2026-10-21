@@ -10,6 +10,8 @@ import { spriteCanvas, drawCrop, drawForage, drawBug } from './valleyArt.js'
 export const VW = 320
 export const VH = 180
 export const PLACE_ORDER = ['home', 'field', 'meadow', 'woods', 'lake', 'hill']
+// Where the land meets the hills, the same in every place so they line up.
+export const HORIZON = 104
 
 const lerp = (a, b, t) => a + (b - a) * t
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
@@ -127,7 +129,7 @@ function drawGod (g, id, x, base, s, now, bubble) {
 const SCENES = {
   home (g, ox, now, c) {
     const n = c.n
-    ground(g, ox, 118, n)
+    ground(g, ox, HORIZON, n)
     // The path to the door.
     g.fillStyle = mix('#d8c08a', '#3a3426', n); g.beginPath(); g.moveTo(ox + 196, 132); g.lineTo(ox + 214, 132); g.lineTo(ox + 250, 180); g.lineTo(ox + 160, 180); g.fill()
     // The farmhouse.
@@ -162,38 +164,55 @@ const SCENES = {
 
   field (g, ox, now, c) {
     const n = c.n
-    ground(g, ox, 100, n)
-    tree(g, ox + 20, 108, 1.2, n); tree(g, ox + 300, 106, 1.1, n, 1)
-    const geo = fieldGeo(ox)
-    for (let r = 0; r < c.fieldH; r++) {
+    ground(g, ox, HORIZON, n)
+    tree(g, ox + 20, HORIZON + 6, 1.2, n); tree(g, ox + 300, HORIZON + 4, 1.1, n, 1)
+    const geo = fieldGeo(ox, c.fieldW, c.fieldH)
+    // The soil, one row of pixels at a time, so every edge is a clean pixel.
+    const soil = (cell, r, col) => (cell.soil === 'tilled' ? mix(cell.wet ? '#6a4428' : '#9a6a42', '#2a1c14', n * 0.8) : mix((r + col) % 2 ? '#62ae52' : '#6cb85a', '#1c3424', n * 0.85))
+    const furrow = mix('#5a3a20', '#1a120c', n * 0.8)
+    const furrowWet = mix('#4a2e18', '#160e08', n * 0.8)
+    for (let y = geo.top; y < geo.bot; y++) {
+      const r = geo.rowAt(y)
+      const y0 = geo.rowY(r)
+      const y1 = geo.rowY(r + 1)
+      const edges = geo.edges(y)
       for (let col = 0; col < c.fieldW; col++) {
         const i = r * c.fieldW + col
         const cell = c.field[i]
-        const q = geo.quad(r, col)
-        // The soil: grass, tilled, or damp.
+        const x0 = edges[col]; const x1 = edges[col + 1]
         const tilled = cell.soil === 'tilled'
-        g.fillStyle = tilled ? mix(cell.wet ? '#6a4428' : '#9a6a42', '#2a1c14', n * 0.8) : mix((r + col) % 2 ? '#62ae52' : '#6cb85a', '#1c3424', n * 0.85)
-        g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[1][0], q[1][1]); g.lineTo(q[2][0], q[2][1]); g.lineTo(q[3][0], q[3][1]); g.closePath(); g.fill()
-        if (tilled) { g.strokeStyle = 'rgba(0,0,0,.14)'; g.lineWidth = 0.6; g.beginPath(); for (let k = 1; k < 3; k++) { const t = k / 3; g.moveTo(lerp(q[0][0], q[3][0], t), lerp(q[0][1], q[3][1], t)); g.lineTo(lerp(q[1][0], q[2][0], t), lerp(q[1][1], q[2][1], t)) } g.stroke() }
-        if (c.hover === i) { g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1; g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[1][0], q[1][1]); g.lineTo(q[2][0], q[2][1]); g.lineTo(q[3][0], q[3][1]); g.closePath(); g.stroke() }
-        // What's on it, sized by how near it is.
-        const cx = (q[2][0] + q[3][0]) / 2; const cy = (q[2][1] + q[3][1]) / 2 - 1
-        const s = (q[2][0] - q[3][0]) / 12
-        if (cell.decor === 'weed') { g.fillStyle = mix('#4a8a2a', '#16301a', n); g.fillRect(cx - 4 * s, cy - 6 * s, 2 * s, 6 * s); g.fillRect(cx, cy - 8 * s, 2 * s, 8 * s); g.fillRect(cx + 3 * s, cy - 5 * s, 2 * s, 5 * s) }
-        if (cell.decor === 'stone') { g.fillStyle = mix('#8a8a96', '#2a2a36', n); g.fillRect(cx - 5 * s, cy - 6 * s, 10 * s, 6 * s); g.fillStyle = mix('#a8a8b0', '#3a3a46', n); g.fillRect(cx - 4 * s, cy - 7 * s, 7 * s, 4 * s) }
-        if (cell.crop) { g.save(); g.translate(cx, cy + 3 * s); g.scale(s, s); drawCrop(g, cell, cell.crop === 'word' ? c.wordCrop : c.crops[cell.crop], -8, -13, now); g.restore() }
+        const ridge = tilled && (y - y0) % 3 === 2
+        g.fillStyle = ridge ? (cell.wet ? furrowWet : furrow) : soil(cell, r, col)
+        g.fillRect(x0, y, x1 - x0, 1)
+        if (c.hover === i) {
+          g.fillStyle = 'rgba(255,255,255,.9)'
+          if (y === y0 || y === y1 - 1) g.fillRect(x0, y, x1 - x0, 1); else { g.fillRect(x0, y, 1, 1); g.fillRect(x1 - 1, y, 1, 1) }
+        }
+      }
+    }
+    // What's on each square: nearer rows are drawn twice the size.
+    for (let r = 0; r < c.fieldH; r++) {
+      const s = r >= c.fieldH - 2 ? 2 : 1
+      const yb = geo.rowY(r + 1) - 2
+      const edges = geo.edges(yb)
+      for (let col = 0; col < c.fieldW; col++) {
+        const cell = c.field[r * c.fieldW + col]
+        const cx = Math.round((edges[col] + edges[col + 1]) / 2)
+        if (cell.decor === 'weed') { g.fillStyle = mix('#4a8a2a', '#16301a', n); g.fillRect(cx - 3 * s, yb - 4 * s, s, 4 * s); g.fillRect(cx, yb - 6 * s, s, 6 * s); g.fillRect(cx + 2 * s, yb - 3 * s, s, 3 * s) }
+        if (cell.decor === 'stone') { g.fillStyle = mix('#7a7a88', '#2a2a36', n); g.fillRect(cx - 4 * s, yb - 4 * s, 8 * s, 4 * s); g.fillStyle = mix('#a8a8b0', '#3a3a46', n); g.fillRect(cx - 3 * s, yb - 5 * s, 5 * s, 3 * s) }
+        if (cell.crop) { g.save(); g.translate(cx, yb); g.scale(s, s); drawCrop(g, cell, cell.crop === 'word' ? c.wordCrop : c.crops[cell.crop], -8, -13, now); g.restore() }
       }
     }
     // A scarecrow keeping watch.
-    const sx = ox + 286; g.fillStyle = mix('#7a5030', '#2a1c14', n); g.fillRect(sx, 112, 3, 40); g.fillRect(sx - 10, 122, 23, 3)
-    g.fillStyle = mix('#e8c860', '#3a3420', n); g.fillRect(sx - 5, 104, 13, 4); g.fillStyle = mix('#f0d8a8', '#3a342a', n); g.fillRect(sx - 3, 108, 9, 8)
-    g.fillStyle = mix('#c84a3a', '#3a1a1a', n); g.fillRect(sx - 4, 116, 11, 12)
+    const sx = ox + 290; g.fillStyle = mix('#7a5030', '#2a1c14', n); g.fillRect(sx, 116, 3, 40); g.fillRect(sx - 10, 126, 23, 3)
+    g.fillStyle = mix('#e8c860', '#3a3420', n); g.fillRect(sx - 5, 108, 13, 4); g.fillStyle = mix('#f0d8a8', '#3a342a', n); g.fillRect(sx - 3, 112, 9, 8)
+    g.fillStyle = mix('#c84a3a', '#3a1a1a', n); g.fillRect(sx - 4, 120, 11, 12)
     return [{ kind: 'field', ...geo.box }]
   },
 
   meadow (g, ox, now, c) {
     const n = c.n
-    ground(g, ox, 104, n)
+    ground(g, ox, HORIZON, n)
     tree(g, ox + 40, 106, 0.8, n); tree(g, ox + 60, 108, 0.7, n, 1); tree(g, ox + 270, 105, 0.9, n)
     flowers(g, ox, 108, 160, n, 3)
     // Tall grass in the front.
@@ -215,7 +234,7 @@ const SCENES = {
 
   woods (g, ox, now, c) {
     const n = Math.min(1, c.n + 0.15)
-    ground(g, ox, 112, n)
+    ground(g, ox, HORIZON, n)
     // A canopy overhead and trunks at every distance.
     g.fillStyle = mix('#2a6a3a', '#0c1c14', n)
     for (let x = 0; x < VW; x += 2) { const y = 22 + Math.sin(x / 13) * 6 + Math.sin(x / 5) * 2; g.fillRect(ox + x, 0, 2, Math.round(y)) }
@@ -250,13 +269,13 @@ const SCENES = {
     const n = c.n
     // The far shore, then the water.
     g.fillStyle = mix('#3a7a4a', '#12241c', n)
-    for (let x = 0; x < VW; x += 3) { const y = 88 - Math.abs(Math.sin(x / 9)) * 6 - (x % 7 === 0 ? 4 : 0); g.fillRect(ox + x, Math.round(y), 3, 96 - Math.round(y)) }
+    for (let x = 0; x < VW; x += 3) { const y = HORIZON - 6 - Math.abs(Math.sin(x / 9)) * 6 - (x % 7 === 0 ? 4 : 0); g.fillRect(ox + x, Math.round(y), 3, HORIZON - Math.round(y)) }
     const wtop = mix('#5aa0d8', '#1a2a50', n); const wbot = mix('#3a7ab8', '#0e1a36', n)
-    const gr = g.createLinearGradient(0, 96, 0, VH); gr.addColorStop(0, wtop); gr.addColorStop(1, wbot)
-    g.fillStyle = gr; g.fillRect(ox, 96, VW, VH - 96)
+    const gr = g.createLinearGradient(0, HORIZON, 0, VH); gr.addColorStop(0, wtop); gr.addColorStop(1, wbot)
+    g.fillStyle = gr; g.fillRect(ox, HORIZON, VW, VH - HORIZON)
     // Ripples and the sun (or moon) on the water.
     g.fillStyle = `rgba(255,255,255,${0.25 * (1 - n) + 0.12})`
-    for (let i = 0; i < 26; i++) { const y = 100 + (i * 7) % 76; const w = 4 + (y - 96) / 6; const x = ((i * 71 + now / (60 + i * 3)) % (VW + 40)) - 20; g.fillRect(ox + Math.round(x), y, Math.round(w), 1) }
+    for (let i = 0; i < 26; i++) { const y = HORIZON + 4 + (i * 7) % 72; const w = 4 + (y - HORIZON) / 6; const x = ((i * 71 + now / (60 + i * 3)) % (VW + 40)) - 20; g.fillRect(ox + Math.round(x), y, Math.round(w), 1) }
     if (c.rainy) { g.strokeStyle = 'rgba(220,235,255,.5)'; g.lineWidth = 0.5; for (let i = 0; i < 12; i++) { const k = ((now / 700 + i * 0.37) % 1); const x = ox + (i * 97) % VW; const y = 104 + (i * 31) % 60; g.beginPath(); g.ellipse(x, y, 2 + k * 6, (2 + k * 6) / 3, 0, 0, Math.PI * 2); g.stroke() } }
     // The near shore on either side, where people stand.
     g.fillStyle = mix('#d8c08a', '#3a3426', n)
@@ -277,13 +296,16 @@ const SCENES = {
       g.fillStyle = '#e83a3a'; g.fillRect(bx - 2, by - 3, 4, 3); g.fillStyle = '#fff'; g.fillRect(bx - 2, by, 4, 2)
       if (c.fishing.phase === 'bite') { const k = (now / 400) % 1; g.strokeStyle = `rgba(255,255,255,${1 - k})`; g.beginPath(); g.ellipse(bx, by + 2, 3 + k * 10, (3 + k * 10) / 3, 0, 0, Math.PI * 2); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 14px monospace'; g.textAlign = 'center'; g.fillText('!', bx, by - 10) }
     } else if (Math.sin(now / 2300) > 0.97) { const x = ox + 60 + (Math.floor(now / 2300) * 53) % 200; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(x, 112, 2, 1); g.fillRect(x - 2, 113, 6, 1) }
-    return [{ kind: 'water', x: ox, y: 96, w: VW, h: 50 }]
+    return [{ kind: 'water', x: ox, y: HORIZON, w: VW, h: 42 }]
   },
 
   hill (g, ox, now, c) {
     const n = c.n
     // The hilltop you're sitting on.
-    g.fillStyle = grass(n); g.beginPath(); g.moveTo(ox, VH); g.lineTo(ox, 150); g.quadraticCurveTo(ox + VW / 2, 118, ox + VW, 150); g.lineTo(ox + VW, VH); g.fill()
+    ground(g, ox, HORIZON, n)
+    // The hilltop you're sitting on, rising in front of you.
+    g.fillStyle = mix('#5aa84a', '#183020', n * 0.85)
+    for (let x = 0; x < VW; x++) { const y = Math.round(150 - Math.sin((x / VW) * Math.PI) * 24); g.fillRect(ox + x, y, 1, VH - y) }
     flowers(g, ox, 140, 30, n, 6)
     const hits = []
     // Tonight's constellation.
@@ -305,26 +327,28 @@ const SCENES = {
   }
 }
 
-// The field, seen from its near edge: rows get deeper toward you.
+// The field, seen from its near edge: rows get deeper toward you. All in
+// whole pixels, so drawing and clicking agree exactly.
 export function fieldGeo (ox, W = 10, H = 6) {
-  const top = 104; const bot = 176
-  const left = (y) => lerp(ox + 70, ox + 14, (y - top) / (bot - top))
-  const right = (y) => lerp(ox + 250, ox + 306, (y - top) / (bot - top))
-  const rowY = (r) => top + (bot - top) * Math.pow(r / H, 1.25)
-  const quad = (r, col) => {
-    const y0 = rowY(r); const y1 = rowY(r + 1)
-    const x = (y, k) => lerp(left(y), right(y), k / W)
-    return [[x(y0, col), y0], [x(y0, col + 1), y0], [x(y1, col + 1), y1], [x(y1, col), y1]]
+  const top = HORIZON + 6; const bot = 177
+  const rowY = (r) => Math.round(top + (bot - top) * Math.pow(Math.min(r, H) / H, 1.25))
+  const rowAt = (y) => { let r = 0; while (r < H - 1 && rowY(r + 1) <= y) r++; return r }
+  const edges = (y) => {
+    const t = (y - top) / (bot - top)
+    const left = lerp(ox + 72, ox + 14, t); const right = lerp(ox + 248, ox + 306, t)
+    return Array.from({ length: W + 1 }, (_, k) => Math.round(lerp(left, right, k / W)))
   }
   const cellAt = (sx, sy) => {
-    if (sy < top || sy >= bot) return null
-    let r = 0
-    while (r < H - 1 && rowY(r + 1) <= sy) r++
-    const k = (sx - left(sy)) / (right(sy) - left(sy))
-    if (k < 0 || k >= 1) return null
-    return r * W + Math.floor(k * W)
+    const y = Math.floor(sy)
+    if (y < top || y >= bot) return null
+    const e = edges(y)
+    const x = Math.floor(sx)
+    if (x < e[0] || x >= e[W]) return null
+    let col = 0
+    while (col < W - 1 && x >= e[col + 1]) col++
+    return rowAt(y) * W + col
   }
-  return { quad, cellAt, box: { x: ox + 14, y: top, w: VW - 28, h: bot - top } }
+  return { top, bot, rowY, rowAt, edges, cellAt, box: { x: ox + 14, y: top, w: VW - 28, h: bot - top } }
 }
 
 // Where a butterfly is at t seconds into the round: drifting loops, and

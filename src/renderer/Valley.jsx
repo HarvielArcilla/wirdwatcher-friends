@@ -310,7 +310,7 @@ function Controls ({ v, place, act, toast, tool, setTool, fishing, setFishing, n
     return (
       <div className='vl-controls'>
         <div className='vl-tools' role='toolbar' aria-label='Tools and seeds'>
-          {[['hoe', '⛏️', 'Hoe'], ['can', '💧', 'Watering can'], ['hand', '✋', 'Hands']].map(([id, e, name]) => <button key={id} className={`vl-tool ${tool === id ? 'on' : ''}`} onClick={() => setTool(id)}>{e}<small>{name}</small></button>)}
+          {[['hoe', '⛏️', 'Hoe'], ['can', '💧', 'Can'], ['hand', '✋', 'Hands']].map(([id, e, name]) => <button key={id} className={`vl-tool ${tool === id ? 'on' : ''}`} onClick={() => setTool(id)}>{e}<small>{name}</small></button>)}
           {seeds.map((s) => <button key={s.id} className={`vl-tool ${tool === s.id ? 'on' : ''}`} onClick={() => setTool(s.id)} title={s.name}><ItemIcon it={s} v={v} /><small>{s.kind === 'wordseed' ? `“${s.word}”` : s.name.replace(/ seeds$/, '')}</small><i>{s.n}</i></button>)}
           {!seeds.length && <button className='btn small ghost' onClick={() => setDrawer('stall')}>Buy seeds</button>}
         </div>
