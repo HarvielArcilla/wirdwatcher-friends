@@ -474,7 +474,7 @@ test('Wordjack at the lobby: one dealer, your own hand, and a void round gives b
   }
   await until(() => apps.every((a) => a.lobbyState.phase === 'reveal'))
   const res = pip.lobbyState.current.result
-  assert.ok(res.dealerTotal >= 17 || res.dealer.length >= 10, 'the dealer draws to 17')
+  assert.ok(res.dealerTotal >= 17 || res.dealer.length >= 30, 'the dealer draws to 17')
   await until(() => !Object.keys(pip.tables.s.held).length && !Object.keys(host.tables.s.held).length)
   const [h, p] = apps.map(idOf)
   assert.equal(Math.round(host.tables.net() - nets[0]), Math.round(res.net[h]))

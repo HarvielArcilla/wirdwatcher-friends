@@ -7,12 +7,13 @@
 // a word bet wins if the ball lands on any of its letters, and pays more
 // the fewer letters it has.
 //
-// Wordjack: letter tiles instead of cards. A hand is worth its best word:
-// the highest-scoring word (Scrabble points) some of its tiles spell. Tiles
-// the word doesn't use stay in the hand, so every draw can push the best word
-// over 21, and that's a bust. The dealer draws to 17. Ties push, and a win
-// pays 1 to 1: played well it comes out even (measured over thousands of
-// hands). No house edge; it's for fun.
+// Wordjack: letter tiles instead of cards, each worth its Scrabble points
+// plus 3. A hand is worth its best word: the highest-scoring word some of
+// its tiles spell. Tiles the word doesn't use stay in the hand, so every
+// draw can push the best word over 21, and that's a bust. The dealer draws
+// to 17. Ties push, a win pays 1 to 1 and a Wordjack (exactly 21) pays 3 to
+// 2: played well it comes out even (measured over thousands of hands). No
+// house edge; it's for fun.
 //
 // Wheel of Words: a word puzzle with a wheel. Spin for a value, call
 // consonants, buy vowels, and solve the word to keep what you've banked.
@@ -53,37 +54,59 @@ export function roulettePayout (bet, pocket) {
 // --- Wordjack ----------------------------------------------------------------------
 // The Scrabble bag (no blanks): letter, how many, points.
 const BAG = [['A', 9, 1], ['B', 2, 3], ['C', 2, 3], ['D', 4, 2], ['E', 12, 1], ['F', 2, 4], ['G', 3, 2], ['H', 2, 4], ['I', 9, 1], ['J', 1, 8], ['K', 1, 5], ['L', 4, 1], ['M', 2, 3], ['N', 6, 1], ['O', 8, 1], ['P', 2, 3], ['Q', 1, 10], ['R', 6, 1], ['S', 4, 1], ['T', 6, 1], ['U', 4, 1], ['V', 2, 4], ['W', 2, 4], ['X', 1, 8], ['Y', 2, 4], ['Z', 1, 10]]
-export const TILE_POINTS = Object.fromEntries(BAG.map(([l, , p]) => [l, p]))
+// A tile is worth its Scrabble points plus 3 (E is 4, Q is 13), so every
+// draw is a real step, like a card.
+export const TILE_POINTS = Object.fromEntries(BAG.map(([l, , p]) => [l, p + 3]))
 export const WJ_TARGET = 21
 export const DEALER_STANDS = 17
-export const MAX_TILES = 10 // a hand stops growing here
+export const MAX_TILES = 30 // a hand can't grow past this (it's bust long before)
 export const WORD_MIN = 2
 export function freshBag () { const out = []; for (const [l, n] of BAG) for (let i = 0; i < n; i++) out.push(l); return out }
 export const tilePoints = (tiles) => tiles.reduce((a, l) => a + (TILE_POINTS[l] || 0), 0)
 
+// The words Wordjack knows, best-scoring first, each with its letter counts.
+// Built when first needed: lexicon(() => ['cat', 'quiz', ...]).
+const A = 65
+export function lexicon (getWords) {
+  let entries = null
+  return {
+    get entries () {
+      if (!entries) {
+        entries = []
+        for (const w of getWords()) {
+          if (!/^[a-z]{2,15}$/.test(w)) continue
+          const up = w.toUpperCase()
+          const counts = new Uint8Array(26)
+          for (const ch of up) counts[ch.charCodeAt(0) - A]++
+          entries.push({ word: w, score: tilePoints([...up]), counts, len: w.length })
+        }
+        entries.sort((a, b) => b.score - a.score || b.len - a.len)
+      }
+      return entries
+    }
+  }
+}
+
 // A hand's best word: the highest-scoring word (by Scrabble points) that
-// some of its tiles spell, in any order. byLetters(sortedLower) → a word
-// spelled by exactly those letters, or null. { word, score, used } where
-// used is which tiles it takes; { word: null, score: 0 } if none spell one.
+// some of its tiles spell, in any order. { word, score, used } where used
+// is which tiles it takes; { word: null, score: 0 } if none spell one.
 const memos = new WeakMap()
-export function bestWord (tiles, byLetters) {
-  let memo = memos.get(byLetters)
-  if (!memo) { memo = new Map(); memos.set(byLetters, memo) }
+export function bestWord (tiles, lex) {
+  let memo = memos.get(lex)
+  if (!memo) { memo = new Map(); memos.set(lex, memo) }
   const key = [...tiles].sort().join('')
   let found = memo.get(key)
   if (found === undefined) {
     found = { word: null, score: 0 }
-    const sorted = [...key]
-    const n = sorted.length
-    const seen = new Set()
-    for (let mask = 1; mask < (1 << n); mask++) {
-      let sub = ''
-      let pts = 0
-      for (let i = 0; i < n; i++) if (mask & (1 << i)) { sub += sorted[i]; pts += TILE_POINTS[sorted[i]] }
-      if (sub.length < WORD_MIN || pts < found.score || (pts === found.score && found.word && sub.length <= found.word.length) || seen.has(sub)) continue
-      seen.add(sub)
-      const w = byLetters(sub.toLowerCase())
-      if (w) found = { word: w, score: pts }
+    const have = new Uint8Array(26)
+    let total = 0
+    for (const l of tiles) { have[l.charCodeAt(0) - A]++; total += TILE_POINTS[l] || 0 }
+    // Best first, so the first word the tiles can spell is the answer.
+    for (const e of lex.entries) {
+      if (e.score > total || e.len > tiles.length) continue
+      let ok = true
+      for (let i = 0; i < 26; i++) if (e.counts[i] > have[i]) { ok = false; break }
+      if (ok) { found = { word: e.word, score: e.score }; break }
     }
     if (memo.size > 50000) memo.clear()
     memo.set(key, found)
@@ -103,9 +126,10 @@ export function wjResult (mine, dealer) {
   if (dealer > WJ_TARGET || mine > dealer) return 'win'
   return mine === dealer ? 'push' : 'lose'
 }
-// What a hand pays back in all: a win doubles the stake, a push returns it.
-export function wjPayout (stake, result) {
-  if (result === 'win') return stake * 2
+// What a hand pays back in all: a win doubles the stake (a Wordjack, a
+// winning word worth exactly 21, pays 3 to 2), a push returns it.
+export function wjPayout (stake, result, score = 0) {
+  if (result === 'win') return score === WJ_TARGET ? stake * 2.5 : stake * 2
   if (result === 'push') return stake
   return 0
 }

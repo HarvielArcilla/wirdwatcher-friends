@@ -62,7 +62,7 @@ export class WirdApp extends EventEmitter {
     this.market.derivs = this.derivs
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
-    this.tables = new Tables({ economy: this.economy, byLetters: (k) => this.words.byLetters(k), wordFor: () => this.words.wheelWord() })
+    this.tables = new Tables({ economy: this.economy, byLetters: this.words.wordjack, wordFor: () => this.words.wheelWord() })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
@@ -754,7 +754,7 @@ export class WirdApp extends EventEmitter {
     this.store.count('hosted')
     this.game.award()
     const lookup = (word) => (this.words.has(word) ? this.words.lookup(word) : null)
-    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, byLetters: (k) => this.words.byLetters(k), provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan, options })
+    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, byLetters: this.words.wordjack, provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan, options })
     this._wireLobby(lobby)
     await lobby.start()
     return this.lobbyState

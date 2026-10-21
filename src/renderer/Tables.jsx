@@ -319,7 +319,7 @@ export function Wordjack ({ coins, hold, toast }) {
         </div>
         <div className='tb-hand mine'>
           <small>You {h ? <BestWord word={h.mineWord} score={h.mineScore} bust={h.mineScore > 21} /> : null}</small>
-          <div className='tb-tiles'>{h ? <WordHand tiles={h.mine} used={h.mineUsed} fresh={playing} /> : <span className='tb-empty'>Your hand is worth its best word: the highest-scoring word (in Scrabble points) your tiles can spell. Tiles it doesn’t use stay in your hand, so every draw could push your best word over 21. Beat the dealer without going over.</span>}</div>
+          <div className='tb-tiles'>{h ? <WordHand tiles={h.mine} used={h.mineUsed} fresh={playing} /> : <span className='tb-empty'>Each tile is worth its Scrabble points plus 3. Your hand is worth its best word: the highest-scoring word your tiles can spell. Tiles it doesn’t use stay in your hand, so every draw could push your best word over 21. Beat the dealer without going over; a winning word worth exactly 21 is a Wordjack and pays 3 to 2.</span>}</div>
         </div>
         {h?.done && <div className={`tb-result ${h.result}`}>{h.result === 'win' ? `Won ${formatCoins(h.paid)}` : h.result === 'bust' ? 'Bust' : h.result === 'push' ? 'Push' : 'Dealer wins'}</div>}
       </div>
@@ -341,7 +341,7 @@ export function Wordjack ({ coins, hold, toast }) {
             </>
             )}
       </div>
-      {stats && <p className='tb-stats'>Ties push and a win pays 1 to 1: no house edge. {stats.hands} hand{stats.hands === 1 ? '' : 's'} · {stats.wins} won · {stats.jacks || 0} Wordjack{stats.jacks === 1 ? '' : 's'} · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
+      {stats && <p className='tb-stats'>Ties push, a win pays 1 to 1 and a Wordjack pays 3 to 2: no house edge. {stats.hands} hand{stats.hands === 1 ? '' : 's'} · {stats.wins} won · {stats.jacks || 0} Wordjack{stats.jacks === 1 ? '' : 's'} · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
-import { POCKETS, rouletteBet, roulettePayout, ROULETTE_KINDS, freshBag, bestWord, wjResult, wjPayout, dealerHand, shuffledBag, pickFrom } from '../src/shared/tables.js'
+import { POCKETS, rouletteBet, roulettePayout, ROULETTE_KINDS, freshBag, lexicon, bestWord, wjResult, wjPayout, dealerHand, shuffledBag, pickFrom } from '../src/shared/tables.js'
 import { tmp } from './helpers.js'
 
 const app = () => new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
@@ -53,25 +53,26 @@ test('Wheel of Words: spin, call consonants, buy vowels, solve', () => {
 
 test('Wordjack: a hand is worth its best word, and going over 21 busts', () => {
   assert.equal(freshBag().length, 98)
-  const dict = new Map([['act', 'cat'], ['acst', 'cats'], ['iqz', 'qiz'], ['iq', 'qi'], ['eoqtu', 'quote']])
-  const bl = (k) => dict.get(k) || null
+  const bl = lexicon(() => ['cat', 'cats', 'qiz', 'qi', 'quote'])
   const cat = bestWord(['T', 'A', 'C', 'X'], bl)
   assert.equal(cat.word, 'cat')
-  assert.equal(cat.score, 3 + 1 + 1)
+  assert.equal(cat.score, 6 + 4 + 4, 'a tile is worth its Scrabble points plus 3')
   assert.deepEqual(cat.used.sort(), [0, 1, 2], 'the X waits in the hand')
   assert.equal(bestWord(['T', 'A', 'C', 'S'], bl).word, 'cats', 'the best word scores most')
-  assert.equal(bestWord(['Q', 'I', 'Z'], bl).score, 21)
+  assert.equal(bestWord(['Q', 'I'], bl).score, 17)
+  assert.equal(bestWord(['Q', 'I', 'Z'], bl).score, 30, 'over 21: a bust')
   assert.equal(bestWord(['B', 'B'], bl).score, 0, 'no word, no score')
   assert.equal(wjResult(22, 10), 'bust')
   assert.equal(wjResult(15, 22), 'win')
   assert.equal(wjResult(15, 15), 'push', 'ties push')
   assert.equal(wjResult(14, 15), 'lose')
-  assert.equal(wjPayout(10, 'win'), 20)
+  assert.equal(wjPayout(10, 'win', 18), 20)
+  assert.equal(wjPayout(10, 'win', 21), 25, 'a Wordjack pays 3 to 2')
   assert.equal(wjPayout(10, 'push'), 10)
   assert.equal(wjPayout(10, 'lose'), 0)
   // The dealer draws until their best word reaches 17 (or the hand's full).
   const d = dealerHand(shuffledBag('x'), bl)
-  assert.ok(bestWord(d, bl).score >= 17 || d.length >= 10)
+  assert.ok(bestWord(d, bl).score >= 17 || d.length >= 30)
   // The same seed shuffles the same way everywhere (lobby tables rely on it).
   assert.deepEqual(shuffledBag('abc'), shuffledBag('abc'))
   assert.notDeepEqual(shuffledBag('abc'), shuffledBag('abd'))
@@ -96,7 +97,7 @@ test('playing against the house: bets come out, winnings go back, nothing goes n
   while (!h.done && h.mineScore < 15) h = t.bjHit()
   if (!h.done) h = t.bjStand()
   assert.ok(['win', 'lose', 'push', 'bust'].includes(h.result))
-  if (h.result !== 'bust') assert.ok(h.dealerScore >= 17 || h.dealer.length >= 10 || h.result === 'win')
+  if (h.result !== 'bust') assert.ok(h.dealerScore >= 17 || h.dealer.length >= 30 || h.result === 'win')
   assert.equal(t.view().blackjack.hands, 1)
   // Bankrupt players can't play.
   a.economy.s.bankrupt = { at: 0, discharged: 1, need: 1e9, earned: 0, until: Infinity, n: 1 }

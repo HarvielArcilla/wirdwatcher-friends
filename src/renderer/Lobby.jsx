@@ -19,7 +19,7 @@ export const STYLES = [
   { id: 'jury', name: 'Grand Jury', emoji: '⚖️', blurb: 'One of you is secretly on trial for a rating you really gave. Vote on who did it, then argue about it. 3 or more players.' },
   { id: 'clues', name: 'Clues', emoji: '🧩', blurb: 'Guess a hidden word from its blanks and what the table rated it. Clues keep coming, and every clue and wrong guess costs points.' },
   { id: 'roulette', name: 'Letter Roulette', emoji: '🎡', blurb: 'Everyone bets on the same spin of the letter wheel, against the house. Bet on letters, colours or whole words. Scores are coins won or lost.' },
-  { id: 'blackjack', name: 'Wordjack', emoji: '🀄', blurb: 'One dealer, a hand of letter tiles each. Your hand is worth its best word in Scrabble points; go over 21 and you bust. Ties push.' }
+  { id: 'blackjack', name: 'Wordjack', emoji: '🀄', blurb: 'One dealer, a hand of letter tiles each. Tiles are worth their Scrabble points plus 3, and your hand is worth its best word; go over 21 and you bust. Ties push, and exactly 21 pays 3 to 2.' }
 ]
 const TABLES = ['roulette', 'blackjack']
 const signedCoins = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString()}`

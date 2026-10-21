@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, Coins, useInterval, useToast } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { Field } from './Field.jsx'
+import { RaceBoard, RaceView } from './Races.jsx'
 
 // The prediction market: who wins each game in the Wird leagues. Games are
 // on a schedule and play out live, the same on every computer. A contract
 // pays 100 coins if its team wins; its price is the chance, in coins.
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
-const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA'], ['vote', '🗳️ Politics'], ['pop', '🎬 Pop culture']]
+const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA'], ['f1', '🏎️ Formula 1'], ['derby', '🏇 Horse racing'], ['vote', '🗳️ Politics'], ['pop', '🎬 Pop culture']]
 
 // The game clock, live: it runs between plays at the game's speed (the
 // plays decide everything else). Basketball and football count down each
@@ -119,42 +120,44 @@ export default function Sportsbook ({ coins }) {
         {board && <div className='sp-stats'><span><small>Bets</small><b>{board.stats.count}</b></span><span><small>Won–lost</small><b>{board.stats.won}–{board.stats.lost}</b></span><span><small>All told</small><b className={board.stats.net >= 0 ? 'up' : 'down'}>{signed(board.stats.net)}</b></span></div>}
       </div>
       {!board
-        ? <div className='sp-wait'>Loading {league === 'hoops' ? 'the courts' : league === 'ring' ? 'the ring' : league === 'cage' ? 'the cage' : league === 'vote' || league === 'pop' ? 'the questions' : 'the fields'}…</div>
+        ? <div className='sp-wait'>Loading {league === 'hoops' ? 'the courts' : league === 'ring' ? 'the ring' : league === 'cage' ? 'the cage' : league === 'vote' || league === 'pop' ? 'the questions' : league === 'f1' ? 'the grid' : league === 'derby' ? 'the stables' : 'the fields'}…</div>
         : open
-          ? (open.startsWith('vote-') || open.startsWith('pop-') ? <EventView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} /> : <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />)
-          : board.league.event
-            ? <EventBoard board={board} coins={coins} trade={trade} onOpen={setOpen} />
-            : (
-            <>
-              <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight' : board.league.sport === 'mma' ? 'a three-round fight' : board.league.sport === 'soccer' ? 'a match' : 'a game'} every {Math.round(board.league.every / 60000)} minutes, with every clock at twice real time, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
-              {board.mine.length > 0 && (
-                <section className='sp-sec'>
-                  <h3>Your bets</h3>
-                  <div className='sp-cards'>{board.mine.map((c) => <GameCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => setOpen(c.id)} />)}</div>
-                </section>
-              )}
-              <section className='sp-sec'>
-                <h3>Live {board.live.length > 0 && <i className='sp-live-dot' />}</h3>
-                {board.live.filter((c) => !c.bet).length
-                  ? <div className='sp-cards'>{board.live.filter((c) => !c.bet).map((c) => <GameCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => setOpen(c.id)} />)}</div>
-                  : <p className='lede'>{board.live.length ? 'The game on now is up in your bets.' : 'Nothing on right now. The next game is below.'}</p>}
-              </section>
-              <section className='sp-sec'>
-                <h3>Coming up</h3>
-                <div className='sp-rows'>{board.upcoming.map((c) => <UpcomingRow key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}</div>
-              </section>
-              <section className='sp-sec'>
-                <h3>Recent finals</h3>
-                <div className='sp-rows'>{board.recent.map((c) => <FinalRow key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}</div>
-              </section>
-              {board.history.length > 0 && (
-                <section className='sp-sec'>
-                  <h3>Settled</h3>
-                  <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.how === 'refunded' ? 'A game from the old schedule' : `${h.away} @ ${h.home}`}</span><small>{h.how === 'sold' ? 'sold early' : h.how === 'refunded' ? 'refunded (schedule changed)' : h.method || `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
-                </section>
-              )}
-            </>
-            )}
+          ? (open.startsWith('vote-') || open.startsWith('pop-') ? <EventView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} /> : open.startsWith('f1-') || open.startsWith('derby-') ? <RaceView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} /> : <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />)
+          : board.league.race
+            ? <RaceBoard board={board} coins={coins} trade={trade} onOpen={setOpen} />
+            : board.league.event
+              ? <EventBoard board={board} coins={coins} trade={trade} onOpen={setOpen} />
+              : (
+                <>
+                  <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight' : board.league.sport === 'mma' ? 'a three-round fight' : board.league.sport === 'soccer' ? 'a match' : 'a game'} every {Math.round(board.league.every / 60000)} minutes, with every clock at twice real time, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
+                  {board.mine.length > 0 && (
+                    <section className='sp-sec'>
+                      <h3>Your bets</h3>
+                      <div className='sp-cards'>{board.mine.map((c) => <GameCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => setOpen(c.id)} />)}</div>
+                    </section>
+                  )}
+                  <section className='sp-sec'>
+                    <h3>Live {board.live.length > 0 && <i className='sp-live-dot' />}</h3>
+                    {board.live.filter((c) => !c.bet).length
+                      ? <div className='sp-cards'>{board.live.filter((c) => !c.bet).map((c) => <GameCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => setOpen(c.id)} />)}</div>
+                      : <p className='lede'>{board.live.length ? 'The game on now is up in your bets.' : 'Nothing on right now. The next game is below.'}</p>}
+                  </section>
+                  <section className='sp-sec'>
+                    <h3>Coming up</h3>
+                    <div className='sp-rows'>{board.upcoming.map((c) => <UpcomingRow key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}</div>
+                  </section>
+                  <section className='sp-sec'>
+                    <h3>Recent finals</h3>
+                    <div className='sp-rows'>{board.recent.map((c) => <FinalRow key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}</div>
+                  </section>
+                  {board.history.length > 0 && (
+                    <section className='sp-sec'>
+                      <h3>Settled</h3>
+                      <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.how === 'refunded' ? 'A game from the old schedule' : `${h.away} @ ${h.home}`}</span><small>{h.how === 'sold' ? 'sold early' : h.how === 'refunded' ? 'refunded (schedule changed)' : h.method || `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
+                    </section>
+                  )}
+                </>
+                )}
     </div>
   )
 }

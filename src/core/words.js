@@ -1,6 +1,7 @@
 // The word list (built from Open English WordNet 2025 by
 // scripts/build-words.mjs) and the ways words are dealt from it.
 
+import { lexicon } from '../shared/tables.js'
 import fs from 'node:fs'
 import zlib from 'node:zlib'
 import crypto from 'node:crypto'
@@ -87,18 +88,10 @@ export class Words {
   get size () { return this.list.length }
   has (form) { return this.index.has(form) }
 
-  // A word spelled by exactly these letters (sorted, lower case), for
-  // Wordjack. Words of 2 to 12 letters.
-  byLetters (sorted) {
-    if (!this._anagrams) {
-      this._anagrams = new Map()
-      for (const [form] of this.list) {
-        if (form.length < 2 || form.length > 12 || !/^[a-z]+$/.test(form)) continue
-        const key = [...form].sort().join('')
-        if (!this._anagrams.has(key)) this._anagrams.set(key, form)
-      }
-    }
-    return this._anagrams.get(sorted) || null
+  // The words Wordjack knows (see src/shared/tables.js).
+  get wordjack () {
+    if (!this._wordjack) this._wordjack = lexicon(() => this.list.map((w) => w[0]))
+    return this._wordjack
   }
 
   // A word for the Wheel of Words: an everyday word of 5 to 10 letters, with

@@ -94,7 +94,7 @@ import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
 import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
 import { STAKES, splitPot } from '../shared/stakes.js'
-import { POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS, bestWord, wjResult, wjPayout, handDone, playHand } from '../shared/tables.js'
+import { POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS, lexicon, bestWord, wjResult, wjPayout, handDone, playHand } from '../shared/tables.js'
 import { goodCommit, goodSeed, tableOutcome } from './tables.js'
 
 // How long a player who lost their connection keeps their seat while their
@@ -205,7 +205,7 @@ export class LobbyHost extends EventEmitter {
   // isn't in the word list. settings: the Settings object. provide(kind,
   // args): the host's own answers to what Grand Jury and Clues ask every
   // player's app (see LobbyClient).
-  constructor ({ me, dealer, lookup = () => null, provide = () => null, byLetters = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
+  constructor ({ me, dealer, lookup = () => null, provide = () => null, byLetters = lexicon(() => []), settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
     super()
     this.code = code
     this.provide = provide
@@ -567,7 +567,7 @@ export class LobbyHost extends EventEmitter {
       const best = bestWord(h.tiles, this.byLetters)
       const result = wjResult(best.score, bestWord(dealer, this.byLetters).score)
       const word = best.word
-      paid[id] = wjPayout(b.total, result)
+      paid[id] = wjPayout(b.total, result, best.score)
       net[id] = paid[id] - b.total
       moves[id] = h.moves
       hands[id] = { tiles: h.tiles, total: best.score, used: best.used, stake: b.total, doubled: Boolean(b.doubled), result, word }

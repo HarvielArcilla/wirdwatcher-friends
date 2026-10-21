@@ -14,6 +14,7 @@
 // game ever shown: add a v2 instead.
 
 import { EVENT_LEAGUES, eventGame, eventChance, eventSlate, eventStart } from './events.js'
+import { RACE_LEAGUES, race, raceState, raceOutcomes, raceSlate, raceStart } from './races.js'
 export const SPORTS_EPOCH = Date.UTC(2026, 9, 1) // game 0 of each league
 const MIN = 60000
 const SEC = 1000
@@ -58,7 +59,11 @@ const INITIALS = 'ABCDEFGHJKLMNPRSTW'
 
 export const LEAGUES = {
   hoops: {
-    id: 'hoops', name: 'Word Basketball League', short: 'WBL', sport: 'basketball', emoji: '🏀',
+    id: 'hoops',
+    name: 'Word Basketball League',
+    short: 'WBL',
+    sport: 'basketball',
+    emoji: '🏀',
     teams: [
       ['LAL', 'Los Angeles', 'Lexicons', '#7a3fc4', '#e8b23a'], ['BOS', 'Boston', 'Bylines', '#1f8a4c', '#c8a45c'], ['CHI', 'Chicago', 'Syllables', '#c8323c', '#2a2a2a'], ['SEA', 'Seattle', 'Semicolons', '#127a86', '#8acf3a'],
       ['MIA', 'Miami', 'Metaphors', '#e8507a', '#2ab0c8'], ['DEN', 'Denver', 'Diphthongs', '#2a5ab8', '#f0b43c'], ['AUS', 'Austin', 'Adverbs', '#e0782a', '#5a3a8a'], ['PHX', 'Phoenix', 'Phonemes', '#d8582a', '#6a3ab8'],
@@ -68,7 +73,11 @@ export const LEAGUES = {
     offset: 0
   },
   gridiron: {
-    id: 'gridiron', name: 'Word Football League', short: 'WFL', sport: 'football', emoji: '🏈',
+    id: 'gridiron',
+    name: 'Word Football League',
+    short: 'WFL',
+    sport: 'football',
+    emoji: '🏈',
     teams: [
       ['DAL', 'Dallas', 'Dictionaries', '#2a4a8a', '#9aa3b0'], ['GB', 'Green Bay', 'Glossaries', '#2a6a3a', '#e8b42a'], ['KC', 'Kansas City', 'Consonants', '#d82a3a', '#f0c02a'], ['PHI', 'Philadelphia', 'Pronouns', '#0f6a6a', '#9aa3b0'],
       ['PIT', 'Pittsburgh', 'Prepositions', '#e8b82a', '#2a2a2a'], ['NO', 'New Orleans', 'Nouns', '#b89a5a', '#2a2a2a'], ['BAL', 'Baltimore', 'Ballads', '#4a2a8a', '#c8a42a'], ['SF', 'San Francisco', 'Sonnets', '#b82a2a', '#c8a45c'],
@@ -78,7 +87,11 @@ export const LEAGUES = {
     offset: 15 * MIN
   },
   pitch: {
-    id: 'pitch', name: 'Word Football Club League', short: 'WFC', sport: 'soccer', emoji: '⚽',
+    id: 'pitch',
+    name: 'Word Football Club League',
+    short: 'WFC',
+    sport: 'soccer',
+    emoji: '⚽',
     teams: [
       ['LON', 'London', 'Lexemes', '#c8323c', '#2a4a8a'], ['MAN', 'Manchester', 'Monosyllables', '#5ab0e8', '#2a2a2a'], ['MAD', 'Madrid', 'Modifiers', '#c9a44a', '#7a3fc4'], ['BAR', 'Barcelona', 'Barbarisms', '#a8204a', '#2a4ab8'],
       ['MIL', 'Milan', 'Malapropisms', '#c8202e', '#1f1f1f'], ['MUN', 'Munich', 'Mnemonics', '#d8202e', '#2a5ab8'], ['PAR', 'Paris', 'Paragraphs', '#1f3a7a', '#d8323c'], ['LIS', 'Lisbon', 'Lisps', '#1f8a4c', '#e8e2d0'],
@@ -89,7 +102,11 @@ export const LEAGUES = {
   },
   // Fighters: [code, hometown, name, color, second color, nickname].
   ring: {
-    id: 'ring', name: 'Word Boxing Council', short: 'WBC', sport: 'boxing', emoji: '🥊',
+    id: 'ring',
+    name: 'Word Boxing Council',
+    short: 'WBC',
+    sport: 'boxing',
+    emoji: '🥊',
     teams: [
       ['SER', 'Seattle', 'J. Serendipity', '#c8323c', '#2a4a8a', 'The Thesaurus'], ['GRV', 'Glasgow', 'M. Gravy', '#e8902a', '#2a2a2a', 'Silver Tongue'],
       ['THN', 'Houston', 'T. Thunder', '#7a3fc4', '#e8b42a', 'Hard Consonant'], ['VEL', 'Lagos', 'A. Velvet', '#a8204a', '#c9a44a', 'The Soft Sell'],
@@ -104,7 +121,11 @@ export const LEAGUES = {
     offset: 2 * MIN
   },
   cage: {
-    id: 'cage', name: 'Word Fighting Championship', short: 'WFC MMA', sport: 'mma', emoji: '🥋',
+    id: 'cage',
+    name: 'Word Fighting Championship',
+    short: 'WFC MMA',
+    sport: 'mma',
+    emoji: '🥋',
     teams: [
       ['WOM', 'Sydney', 'G. Wombat', '#8a6a3a', '#2a6a3a', 'The Burrow'], ['KRF', 'Dublin', 'C. Kerfuffle', '#2a9a5a', '#e8902a', 'Chaos Theory'],
       ['LAB', 'Rio de Janeiro', 'F. Labyrinth', '#e8b82a', '#1f8a4c', 'Maze Runner'], ['VOR', 'Moscow', 'Y. Vortex', '#c8202e', '#1f3a7a', 'The Drain'],
@@ -119,7 +140,9 @@ export const LEAGUES = {
     offset: 4 * MIN
   },
   // Politics and pop culture (src/shared/events.js).
-  ...EVENT_LEAGUES
+  ...EVENT_LEAGUES,
+  // Formula 1 and horse racing (src/shared/races.js).
+  ...RACE_LEAGUES
 }
 
 // Two teams' colors for one game: the away team wears its second color if
@@ -153,7 +176,7 @@ export function team (league, code) {
 
 // --- the schedule -------------------------------------------------------------------------
 
-export const gameStart = (league, n) => EVENT_LEAGUES[league] ? eventStart(league, n) : SPORTS_EPOCH + LEAGUES[league].offset + n * LEAGUES[league].every
+export const gameStart = (league, n) => RACE_LEAGUES[league] ? raceStart(league, n) : EVENT_LEAGUES[league] ? eventStart(league, n) : SPORTS_EPOCH + LEAGUES[league].offset + n * LEAGUES[league].every
 export const gameNumberAt = (league, t) => Math.floor((t - SPORTS_EPOCH - LEAGUES[league].offset) / LEAGUES[league].every)
 
 // The schedule: a round-robin season, over and over. Each round is six
@@ -441,7 +464,6 @@ function simFoot (n) {
   plays.push({ at: end, q: plays[plays.length - 1].q, clock: 0, team: null, text: tie ? `Final: a ${score.home}–${score.away} tie` : `Final: ${score.home > score.away ? H.full : A.full} win ${Math.max(score.home, score.away)}–${Math.min(score.home, score.away)}`, pts: 0, kind: 'final', home: score.home, away: score.away })
   return { league: 'gridiron', n, id: gameId('gridiron', n), start, end, home, away, plays, form, periods: 4, periodSecs: 15 * 60, final: { ...score } }
 }
-
 
 // --- soccer --------------------------------------------------------------------------------
 //
@@ -823,6 +845,7 @@ export const gameId = (league, n) => `${league}-v2-${n}`
 const gameCache = new Map()
 export function game (league, n) {
   if (EVENT_LEAGUES[league]) return eventGame(league, n)
+  if (RACE_LEAGUES[league]) return race(league, n)
   const key = `${league}-${n}`
   let g = gameCache.get(key)
   if (!g) {
@@ -834,12 +857,13 @@ export function game (league, n) {
 }
 // Ids carry the schedule's version: games moved when every sport went to
 // the same speed (v2), so a bet on an old id is for a game that's gone.
-export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage|vote|pop)-v2-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
+export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage|vote|pop|f1|derby)-v2-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
 
 // --- watching ----------------------------------------------------------------------------
 
 // How far through the game we are at t: the plays so far and the state.
 export function stateAt (g, t) {
+  if (g.race) return raceState(g, t)
   if (g.event) return { status: t < g.start ? 'pre' : t >= g.end ? 'final' : 'live', home: 0, away: 0, plays: [], q: 0, clock: 0, last: null }
   if (t < g.start) return { status: 'pre', home: 0, away: 0, plays: [], q: 0, clock: g.countUp ? 0 : g.periodSecs, last: null }
   let i = 0
@@ -895,6 +919,7 @@ export function soccerOutcomes (g, st) {
 // Each result's chance: { home, away } and, in soccer, draw.
 export function outcomes (g, t, st = stateAt(g, t)) {
   if (g.event) { const p = eventChance(g, t); return { home: p, away: 1 - p } }
+  if (g.race) return raceOutcomes(g, t)
   if (g.league === 'pitch') return soccerOutcomes(g, st)
   if (g.fight) return fightOutcomes(g, st)
   const p = winChance(g, t, st)
@@ -935,6 +960,7 @@ export function winChance (g, t, st = stateAt(g, t)) {
 // What's on: games that are live, the next few, and recent finals.
 export function slate (league, t, { next = 6, past = 6 } = {}) {
   if (EVENT_LEAGUES[league]) return eventSlate(league, t)
+  if (RACE_LEAGUES[league]) return raceSlate(league, t)
   const n = gameNumberAt(league, t)
   const out = { live: [], upcoming: [], recent: [] }
   for (let k = n - 3; k <= n + next; k++) {

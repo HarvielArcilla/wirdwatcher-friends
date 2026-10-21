@@ -10,13 +10,14 @@
 // agrees on them).
 
 import { LEAGUES, game, gameById, stateAt, outcomes, clockAt, slate, team, gameStart, gameColors } from '../shared/sports.js'
+import { f1At, derbyAt, raceSecs, TYRES } from '../shared/races.js'
 
 export const PAYOUT = 100
 export const PM_SPREAD = 0.02 // two points either side of the fair chance
 const clampPrice = (x) => Math.min(99, Math.max(1, x))
 
 // The sides you can back: soccer and fights have the draw too.
-export const sidesOf = (g) => (!g.event && (g.league === 'pitch' || g.fight) ? ['home', 'draw', 'away'] : ['home', 'away'])
+export const sidesOf = (g) => (g.race ? g.runners.map((_, i) => `r${i}`) : !g.event && (g.league === 'pitch' || g.fight) ? ['home', 'draw', 'away'] : ['home', 'away'])
 
 export function quotes (g, t) {
   const st = stateAt(g, t)
@@ -79,12 +80,12 @@ export class Sportsbook {
         continue
       }
       if (t < g.end) continue
-      const tie = !g.event && g.final.home === g.final.away
+      const tie = !g.event && !g.race && g.final.home === g.final.away
       // A fight is won however it ends (a knockout can come behind on rounds).
       const winner = g.winner || (tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away')
       // A football tie pays half on both teams; soccer and fights have a draw to back.
       const per = (side) => (g.league !== 'pitch' && !g.fight && tie ? PAYOUT / 2 : side === winner ? PAYOUT : 0)
-      const pay = Math.floor(((b.home || 0) * per('home') + (b.away || 0) * per('away') + (b.draw || 0) * per('draw')) * 100) / 100
+      const pay = Math.floor(sidesOf(g).reduce((a, side) => a + (b[side] || 0) * per(side), 0) * 100) / 100
       delete this.s.bets[id]
       this.economy.s.coins += pay
       this.economy.note('got', 'sports', pay)
@@ -92,7 +93,8 @@ export class Sportsbook {
       this.s.net += gain
       if (gain > 0) this.s.won++; else if (gain < 0) this.s.lost++
       this.s.best = Math.max(this.s.best, gain)
-      this.s.history = [{ id, at: g.end, home: g.event ? g.sideNames.home : g.home, away: g.event ? g.sideNames.away : g.away, title: g.question || null, result: g.event ? g.sideNames[g.winner] : null, score: g.final || { home: 0, away: 0 }, method: g.method || null, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
+      const result = g.event ? g.sideNames[g.winner] : g.race ? g.runners[Number(g.winner.slice(1))].name : null
+      this.s.history = [{ id, at: g.end, home: g.event ? g.sideNames.home : g.race ? '' : g.home, away: g.event ? g.sideNames.away : g.race ? '' : g.away, title: g.question || g.title || null, result, score: g.final || { home: 0, away: 0 }, method: g.method || null, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
       changed = true
     }
     if (changed) { this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
@@ -116,7 +118,7 @@ export class Sportsbook {
     const t = this.now()
     const q = quotes(g, t)
     if (!q.open) throw new Error('That game is over.')
-    if (g.event ? t < g.start : t < gameStart(g.league, g.n) - 6 * LEAGUES[g.league].every) throw new Error(g.event ? 'That question isn’t open yet.' : 'That game isn’t open for betting yet.')
+    if (g.event ? t < g.start : t < gameStart(g.league, g.n) - 6 * LEAGUES[g.league].every) throw new Error(g.event ? 'That question isn’t open yet.' : g.race ? 'That race isn’t open for betting yet.' : 'That game isn’t open for betting yet.')
     coins = Math.floor(Number(coins) * 100) / 100
     if (!(coins >= 1)) throw new Error('Bet at least 1 coin.')
     if (coins > e.s.coins + 1e-9) throw new Error('You don’t have that many coins.')
@@ -127,8 +129,8 @@ export class Sportsbook {
     e.s.coins -= coins
     e.note('spent', 'sports', coins)
     const b = { ...blankBet(), ...(this.s.bets[id] || {}) }
-    b[side] += shares
-    b[`${side}Cost`] += coins
+    b[side] = (b[side] || 0) + shares
+    b[`${side}Cost`] = (b[`${side}Cost`] || 0) + coins
     b.cost += coins
     this.s.bets[id] = b
     this.s.count++
@@ -160,8 +162,8 @@ export class Sportsbook {
     const gain = pay - costShare
     this.s.net += gain
     this.s.best = Math.max(this.s.best, gain)
-    if (b.home < 1e-6 && b.away < 1e-6 && !(b.draw > 1e-6)) delete this.s.bets[id]
-    this.s.history = [{ id, at: this.now(), home: g.event ? g.sideNames.home : g.home, away: g.event ? g.sideNames.away : g.away, title: g.question || null, side, cost: costShare, pay, gain, how: 'sold' }, ...this.s.history].slice(0, 40)
+    if (sidesOf(g).every((x) => !(b[x] > 1e-6))) delete this.s.bets[id]
+    this.s.history = [{ id, at: this.now(), home: g.event ? g.sideNames.home : g.race ? '' : g.home, away: g.event ? g.sideNames.away : g.race ? '' : g.away, title: g.question || g.title || null, side, result: g.race ? g.runners[Number(side.slice(1))].name : null, cost: costShare, pay, gain, how: 'sold' }, ...this.s.history].slice(0, 40)
     this._commit()
     return { pay, gain }
   }
@@ -169,6 +171,7 @@ export class Sportsbook {
   // A game as a card: teams, score, clock, chance, prices, your bet.
   _card (g, t, full = false) {
     if (g.event) return this._eventCard(g, t, full)
+    if (g.race) return this._raceCard(g, t, full)
     const q = quotes(g, t)
     const H = team(g.league, g.home)
     const A = team(g.league, g.away)
@@ -278,6 +281,66 @@ export class Sportsbook {
     return { ...card, chart, startChances: outcomes(g, g.start) }
   }
 
+  // A race: every runner with its chance and price, and where the race
+  // stands (Formula 1: the timing tower; horses: how far along each is).
+  _raceCard (g, t, full = false) {
+    const q = quotes(g, t)
+    const sides = sidesOf(g)
+    const b = this.s.bets[g.id] ? { ...blankBet(), ...this.s.bets[g.id] } : null
+    const s = raceSecs(g, t)
+    const live = q.st.status !== 'pre'
+    const runners = g.runners.map((x, i) => {
+      const side = `r${i}`
+      return { side, i, name: x.name, team: x.team || null, color: x.color, number: x.number, style: x.styleName || null, chance: q.o[side], ask: q[side].ask, bid: q[side].bid, held: b?.[side] || 0 }
+    })
+    const card = {
+      id: g.id,
+      league: g.league,
+      sport: LEAGUES[g.league].sport,
+      race: true,
+      kind: g.kind,
+      title: g.title,
+      start: g.start,
+      end: t >= g.end ? g.end : null,
+      status: q.st.status,
+      winner: q.st.status === 'final' ? g.winner : null,
+      secs: s,
+      sides,
+      runners,
+      open: q.open && t >= g.start - 6 * LEAGUES[g.league].every,
+      bet: b ? { ...b, worth: q.open ? sides.reduce((a, side) => a + (b[side] || 0) * q[side].bid, 0) : 0 } : null
+    }
+    if (g.kind === 'f1') {
+      const at = live ? f1At(g, Math.min(s, (g.end - g.start) / 1000 * 2)) : null
+      card.laps = g.laps
+      card.circuit = g.circuit
+      card.lap = at ? Math.min(g.laps, at.leaderLap + (q.st.status === 'final' ? 0 : 1)) : 0
+      card.tower = (at ? at.rows : g.grid.map((d, i) => ({ d, pos: i + 1, lap: 0, gap: null, interval: null, tyre: g.lapsData[0][d].tyre, age: 0, pits: 0, out: false }))).map((x) => ({
+        i: x.d, pos: x.pos, grid: g.grid.indexOf(x.d) + 1, lap: x.lap, gap: x.gap, interval: x.interval, last: x.last ?? null, best: Number.isFinite(x.best) ? x.best : null, tyre: x.tyre, tyreName: TYRES[x.tyre].name, age: x.age, pits: x.pits, due: x.due || 0, out: x.out, pitting: Boolean(x.pitting)
+      }))
+      // What's happened: stops, retirements, mistakes, changes of lead.
+      const timeOf = (e) => (e.kind === 'out' ? g.lapsData[e.lap - 1][e.d].cum + 30 : g.lapsData[e.lap][e.d].cum)
+      const seen = g.events.map((e) => ({ ...e, at: timeOf(e) })).filter((e) => live && e.at <= s).sort((x, y) => y.at - x.at)
+      card.feed = seen.slice(0, full ? 60 : 3).map((e) => ({ lap: e.lap, text: e.text, kind: e.kind, d: e.d }))
+      const fl = g.lapsData.slice(1, Math.max(1, (at?.leaderLap || 0) + 1)).flatMap((row, k) => Object.entries(row).filter(([, x]) => !x.pitting && x.last && !x.out && x.lapsDone === k + 1).map(([d, x]) => ({ d: Number(d), t: x.last, lap: k + 1 })))
+      card.fastest = fl.length > 1 ? fl.reduce((a, x) => (x.t < a.t ? x : a)) : null
+    } else {
+      const at = live ? derbyAt(g, Math.min(s, g.track.length - 1)) : null
+      card.dist = g.dist
+      card.course = g.course
+      card.progress = at ? at.dist.map((x) => Math.min(1, x / g.dist)) : g.runners.map(() => 0)
+      card.ranks = at ? at.ranks : null
+      card.result = q.st.status === 'final' ? g.order.map((i) => ({ i, time: g.finish[i] })) : null
+    }
+    if (!full) return card
+    // The chance of each runner over the race, for a chart: the top few.
+    const top = [...runners].sort((x, y) => y.chance - x.chance).slice(0, 5).map((x) => x.side)
+    const chart = []
+    const span = Math.min(t, g.end) - g.start
+    if (span > 0) for (let k = 0; k <= 60; k++) { const at = g.start + (span * k) / 60; const o = outcomes(g, at); chart.push([at, ...top.map((x) => o[x])]) }
+    return { ...card, chart, chartSides: top }
+  }
+
   board (league) {
     if (!LEAGUES[league]) throw new Error('No such league.')
     this.sync()
@@ -285,7 +348,7 @@ export class Sportsbook {
     const sl = slate(league, t)
     const mine = Object.keys(this.s.bets).filter((id) => id.startsWith(`${league}-`) && gameById(id))
     return {
-      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport, every: LEAGUES[league].every, event: Boolean(LEAGUES[league].dur) },
+      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport, every: LEAGUES[league].every, event: Boolean(LEAGUES[league].dur), race: Boolean(LEAGUES[league].race) },
       at: t,
       live: sl.live.map((n) => this._card(game(league, n), t)),
       upcoming: sl.upcoming.map((n) => this._card(game(league, n), t)),

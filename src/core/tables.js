@@ -7,7 +7,7 @@
 import crypto from 'node:crypto'
 import {
   POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS,
-  shuffledBag, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
+  shuffledBag, lexicon, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
   WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, wfPattern, pickFrom
 } from '../shared/tables.js'
 
@@ -15,9 +15,9 @@ const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: {
 const MAX_BETS = 12
 
 export class Tables {
-  // byLetters(sorted): a word spelled by exactly those letters, or null.
+  // byLetters: the words Wordjack knows (lexicon() in src/shared/tables.js).
   // wordFor(): a word for the wheel, { word, clue }.
-  constructor ({ economy, byLetters = () => null, wordFor = () => null }) {
+  constructor ({ economy, byLetters = lexicon(() => []), wordFor = () => null }) {
     this.economy = economy
     this.byLetters = byLetters
     this.wordFor = wordFor
@@ -262,7 +262,7 @@ export class Tables {
     // The dealer draws to 17 (unless you've already gone over).
     if (mine <= WJ_TARGET) h.dealer = dealerHand(h.bag, this.byLetters, h.dealer)
     h.result = wjResult(mine, bestWord(h.dealer, this.byLetters).score)
-    h.paid = wjPayout(h.stake, h.result)
+    h.paid = wjPayout(h.stake, h.result, mine)
     h.done = true
     const st = this.s.blackjack
     st.hands++
@@ -360,7 +360,7 @@ export class Tables {
       const best = bestWord(hand, this.byLetters)
       const res = wjResult(best.score, bestWord(out.dealer, this.byLetters).score)
       const word = best.word
-      paid = wjPayout(h.total, res)
+      paid = wjPayout(h.total, res, best.score)
       const st = this.s.blackjack
       st.hands++
       if (res === 'win') st.wins++
