@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, Coins, useInterval } from './ui.jsx'
+import { api, Coins, useInterval, useMinuteTick } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { normCdf, RATE, YEAR_MS, maintenanceRatio } from '../shared/derivatives.js'
 
@@ -30,7 +30,7 @@ function useChain (word) {
   const [chain, setChain] = useState(null)
   const load = useCallback(() => { api('derivChain', word).then(setChain).catch(() => setChain(null)) }, [word])
   useEffect(() => { setChain(null); load() }, [load])
-  useInterval(load, 30000)
+  useMinuteTick(load)
   return chain
 }
 
@@ -330,48 +330,131 @@ export function Positions ({ book, coins, onChange, toast, onPick }) {
 
 // --- funds ------------------------------------------------------------------------------
 
-export function Funds ({ coins, toast, onChange }) {
+export function Funds ({ coins, toast, onChange, onPick }) {
   const [list, setList] = useState(null)
   const [open, setOpen] = useState(null)
-  const [amt, setAmt] = useState('')
   const load = useCallback(() => { api('etfs').then(setList).catch(() => {}) }, [])
   useEffect(() => { load() }, [load])
-  useInterval(load, 30000)
+  useMinuteTick(load)
   if (!list) return null
-  const trade = async (kind, id, n) => {
-    try {
-      const out = await api('etfTrade', kind, id, n)
-      toast({ emoji: kind === 'buy' ? '📈' : '💰', title: kind === 'buy' ? `Bought ${id}` : `Sold ${id}`, text: kind === 'buy' ? `${formatCoins(n)} coins.` : `${money(out.pay)} back, ${signed(out.gain)}.` })
-      setAmt(''); load(); onChange()
-    } catch (err) { toast({ error: true, title: 'Couldn’t trade', text: err.message }) }
-  }
-  const card = (f) => (
-    <div key={f.id} className={`dv-fund ${open === f.id ? 'open' : ''} ${f.k !== 1 ? 'geared' : ''}`}>
-      <button className='dv-fund-head' onClick={() => { setOpen(open === f.id ? null : f.id); setAmt('') }}>
-        <span className='dv-fund-emoji'>{f.emoji}</span>
-        <span className='dv-fund-name'><b>{f.id}</b><small>{f.name}</small></span>
-        <span className='dv-fund-px'><b>{money(f.nav)}</b><small className={f.day >= 0 ? 'up' : 'down'}>{pct(f.day)}</small></span>
-      </button>
-      {f.shares > 0 && <small className='dv-fund-held'>You hold <Coins n={f.value} /> <span className={f.gain >= 0 ? 'up' : 'down'}>{signed(f.gain)}</span></small>}
-      {open === f.id && (
-        <div className='dv-fund-trade'>
-          {f.blurb && <small>{f.blurb}</small>}
-          <small>{(f.fee * 100).toFixed(2)}% a year in fees{f.k !== 1 ? '. Resets daily, so over weeks it won’t be exactly ' + (f.k > 0 ? `${f.k}×` : f.k === -1 ? 'the opposite' : `${f.k}×`) + ' the market.' : '.'}</small>
-          <div className='mk-amt'>
-            <input className='field' inputMode='decimal' placeholder='Coins to spend' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ''))} />
-            <button className='btn primary' disabled={!(num(amt) >= 1) || num(amt) > coins} onClick={() => trade('buy', f.id, num(amt))}>Buy</button>
-          </div>
-          {f.shares > 0 && <button className='btn small' onClick={() => trade('sell', f.id, 'all')}>Sell all for {money(f.value)}</button>}
-        </div>
-      )}
-    </div>
+  const groups = [
+    ['The whole market', 'Every sector, plain, geared or upside down.', list.filter((f) => f.track === 'all')],
+    ['Baskets', 'Real words, held equally: the fund is exactly how they do.', list.filter((f) => f.track === 'basket')],
+    ['Sectors', 'A topic at a time. Every word in a sector shares its moves.', list.filter((f) => f.track !== 'all' && f.track !== 'basket')]
+  ]
+  const tile = (f) => (
+    <button key={f.id} className={`dv-fund ${open === f.id ? 'open' : ''} ${f.k !== 1 ? 'geared' : ''} ${f.shares > 0 ? 'held' : ''}`} onClick={() => setOpen(open === f.id ? null : f.id)} aria-expanded={open === f.id}>
+      <span className='dv-fund-emoji' aria-hidden='true'>{f.emoji}</span>
+      <span className='dv-fund-name'><b>{f.id}</b><small>{f.name}</small></span>
+      <span className='dv-fund-px'><b>{money(f.nav)}</b><small className={f.day >= 0 ? 'up' : 'down'}>{pct(f.day)}</small></span>
+      <span className='dv-fund-held'>{f.shares > 0 ? <>Yours <Coins n={f.value} /> <i className={f.gain >= 0 ? 'up' : 'down'}>{signed(f.gain)}</i></> : <i className='none'>Not held</i>}</span>
+    </button>
   )
   return (
     <section className='mk-port dv-funds'>
       <h2>Funds</h2>
-      <p className='lede'>Buy a whole sector at once. Anyone can trade these: no rating needed.</p>
-      <div className='dv-fund-grid market'>{list.filter((f) => f.track === 'all').map(card)}</div>
-      <div className='dv-fund-grid'>{list.filter((f) => f.track !== 'all').map(card)}</div>
+      <p className='lede'>Buy many words at once. Anyone can trade these: no rating needed.</p>
+      {groups.map(([title, blurb, fs]) => (
+        <div key={title} className='dv-fund-group'>
+          <h3>{title} <small>{blurb}</small></h3>
+          <div className='dv-fund-grid'>{fs.map(tile)}</div>
+          {fs.some((f) => f.id === open) && <FundDetail id={open} coins={coins} toast={toast} onTraded={() => { load(); onChange() }} onPick={onPick} onClose={() => setOpen(null)} />}
+        </div>
+      ))}
     </section>
   )
+}
+
+const FUND_RANGES = [['week', '1W'], ['month', '1M'], ['year', '1Y']]
+
+function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
+  const [range, setRange] = useState('month')
+  const [f, setF] = useState(null)
+  const [amt, setAmt] = useState('')
+  const load = useCallback(() => { api('fund', id, range).then(setF).catch(() => {}) }, [id, range])
+  useEffect(() => { load() }, [load])
+  useMinuteTick(load)
+  if (!f || f.id !== id) return <div className='dv-fund-detail loading' />
+  const trade = async (kind, n) => {
+    try {
+      const out = await api('etfTrade', kind, id, n)
+      toast({ emoji: kind === 'buy' ? '📈' : '💰', title: kind === 'buy' ? `Bought ${id}` : `Sold ${id}`, text: kind === 'buy' ? `${formatCoins(n)} coins.` : `${money(out.pay)} back, ${signed(out.gain)}.` })
+      setAmt(''); load(); onTraded()
+    } catch (err) { toast({ error: true, title: 'Couldn’t trade', text: err.message }) }
+  }
+  const pts = f.points.map((p) => p[1])
+  const lo = Math.min(...pts)
+  const hi = Math.max(...pts)
+  const line = pts.map((v, i) => `${(i / (pts.length - 1)) * 100},${hi === lo ? 50 : 92 - ((v - lo) / (hi - lo)) * 84}`).join(' ')
+  const change = pts[pts.length - 1] / pts[0] - 1
+  const t = f.together
+  const geared = f.k !== 1
+  return (
+    <div className='dv-fund-detail'>
+      <div className='dv-fd-head'>
+        <span className='dv-fund-emoji big' aria-hidden='true'>{f.emoji}</span>
+        <div className='dv-fd-title'><b>{f.id}</b><span>{f.name}</span></div>
+        <div className='dv-fd-px'><b>{money(f.nav)}</b><small className={f.returns.day >= 0 ? 'up' : 'down'}>{pct(f.returns.day)} today</small></div>
+        <button className='btn small ghost' onClick={onClose} aria-label='Close'>✕</button>
+      </div>
+      <div className='dv-fd-body'>
+        <div className='dv-fd-chart'>
+          <svg viewBox='0 0 100 100' preserveAspectRatio='none' className={change >= 0 ? 'up' : 'down'} aria-label={`${f.id} over the last ${range}`}>
+            <polygon points={`0,100 ${line} 100,100`} className='area' />
+            <polyline points={line} fill='none' stroke='currentColor' strokeWidth='2' vectorEffect='non-scaling-stroke' />
+          </svg>
+          <div className='dv-fd-chartbar'>
+            <div className='seg'>{FUND_RANGES.map(([k, l]) => <button key={k} className={range === k ? 'on' : ''} onClick={() => setRange(k)}>{l}</button>)}</div>
+            <span className='dv-fd-returns'>{[['1W', f.returns.week], ['1M', f.returns.month], ['1Y', f.returns.year]].map(([l, v]) => <span key={l}><small>{l}</small><b className={v >= 0 ? 'up' : 'down'}>{pct(v)}</b></span>)}</span>
+          </div>
+        </div>
+        <div className='dv-fd-side'>
+          <small className='dv-fd-blurb'>{f.blurb || (f.sectorName ? `Tracks the ${f.sectorName.toLowerCase()} index: the waves every word in the sector rides.` : '')} {(f.fee * 100).toFixed(2)}% a year in fees.{geared ? ` Resets daily, so over weeks it drifts from ${f.k}× the market.` : ''}</small>
+          <div className='mk-amt'>
+            <input className='field' inputMode='decimal' placeholder='Coins to spend' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && num(amt) >= 1) trade('buy', num(amt)) }} />
+            <button className='btn primary' disabled={!(num(amt) >= 1) || num(amt) > coins} onClick={() => trade('buy', num(amt))}>Buy</button>
+          </div>
+          {f.shares > 0
+            ? <div className='dv-fd-pos'><span>You hold <Coins n={f.value} /> <i className={f.value - f.cost >= 0 ? 'up' : 'down'}>{signed(f.value - f.cost)}</i></span><button className='btn small' onClick={() => trade('sell', 'all')}>Sell all</button></div>
+            : <small className='dv-fd-note'>Buying costs 0.05% over the fund’s value.</small>}
+        </div>
+      </div>
+      {f.holdings.length > 0 && (
+        <div className='dv-fd-holdings'>
+          {t && (
+            <div className='dv-fd-together'>
+              <div className='dv-fd-heat' aria-hidden='true'>{f.holdings.map((h, i) => <i key={i} title={`${h.word || h.name} ${pct(h.day)}`} style={{ background: heat(h.day) }} />)}</div>
+              <span><b>{t.same} of {t.of}</b> {f.track === 'all' ? 'sectors' : 'words'} moved with the fund today · they move together <b>{togetherText(t.corr)}</b> <small>(correlation {t.corr.toFixed(2)} over 30 days)</small></span>
+            </div>
+          )}
+          <table className='dv-fd-table'>
+            <thead><tr><th>{f.track === 'all' ? 'Sector' : f.track === 'basket' ? 'Holds' : 'Some of its words'}</th><th>Week</th><th>Price</th><th>Today</th><th>With the fund</th></tr></thead>
+            <tbody>
+              {f.holdings.map((h) => (
+                <tr key={h.word || h.name}>
+                  <td>{h.word ? <button className='dv-fd-word' onClick={() => onPick?.(h.word)} title={h.tradable ? 'Open it on the Exchange' : 'Rate it to trade it'}>{h.word}</button> : <span>{h.emoji} {h.name}</span>}</td>
+                  <td><MiniSpark points={h.spark} /></td>
+                  <td>{money(h.price)}</td>
+                  <td className={h.day >= 0 ? 'up' : 'down'}>{pct(h.day)}</td>
+                  <td><span className='dv-corr'><i style={{ width: `${Math.max(0, Math.min(1, h.corr)) * 100}%` }} /></span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {f.track !== 'basket' && f.track !== 'all' && <small className='dv-fd-note'>A sector fund tracks the sector’s index. Each word’s price is its own waves plus the sector’s, so its words lean the same way on the same days.</small>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const heat = (d) => { const a = Math.min(1, Math.abs(d) / 0.08); return d >= 0 ? `color-mix(in oklab, var(--good) ${Math.round(25 + a * 75)}%, var(--panel-raise))` : `color-mix(in oklab, var(--bad) ${Math.round(25 + a * 75)}%, var(--panel-raise))` }
+const togetherText = (c) => (c >= 0.6 ? 'closely' : c >= 0.35 ? 'fairly closely' : c >= 0.15 ? 'loosely' : 'hardly at all')
+
+function MiniSpark ({ points }) {
+  if (!points?.length) return null
+  const lo = Math.min(...points)
+  const hi = Math.max(...points)
+  const d = points.map((p, i) => `${(i / (points.length - 1)) * 60},${hi === lo ? 10 : 18 - ((p - lo) / (hi - lo)) * 16}`).join(' ')
+  return <svg className={`spark ${points[points.length - 1] >= points[0] ? 'up' : 'down'}`} viewBox='0 0 60 20' preserveAspectRatio='none' aria-hidden='true'><polyline points={d} fill='none' stroke='currentColor' strokeWidth='1.5' vectorEffect='non-scaling-stroke' /></svg>
 }

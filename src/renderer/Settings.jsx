@@ -180,7 +180,7 @@ function SoundSettings ({ settings, save, setSettings }) {
         <div className='seg'>{[['all', 'Every rating'], ['ends', 'Only the ends'], ['off', 'Off']].map(([x, label]) => <button key={x} className={v.animations === x ? 'on' : ''} onClick={() => save({ animations: x })}>{label}</button>)}</div>
       </div>
       <VoicePicker value={v.voice} save={save} />
-      {['celebrate', 'soundPitch'].map((key) => {
+      {['celebrate', 'soundPitch', 'tableSounds'].map((key) => {
         const f = settings.fields[key]
         return (
           <div key={key} className='setting'>

@@ -183,10 +183,10 @@ export class Friends extends EventEmitter {
     mesh.on('connection', (socket) => {
       if (session.friend) return socket.destroy()
       this._pair(socket, mesh, key, session, (err, friend) => {
-        if (err) { netlog('friend code (made)', 'handshake failed:', err.message); if (!session.friend && !err.transient) this.emit('code', { code, error: err.message }); return }
+        if (err) { netlog('friend code (made)', 'handshake failed:', err.message); if (!session.friend && !err.transient && !err.quiet) this.emit('code', { code, error: err.message }); return }
         if (this.pairing === pairing) this.cancelCode()
-        this.emit('code', { code, friend })
-      })
+        if (!session.announced) { session.announced = true; this.emit('code', { code, friend }) }
+      }, { open: () => this.pairing === pairing && Date.now() < expiresAt, role: 'maker' })
     })
     await mesh.join(topic, { server: true, client: true })
     return { code, expiresAt }
@@ -217,10 +217,10 @@ export class Friends extends EventEmitter {
         mesh.on('connection', (socket) => {
           if (session.friend) return socket.destroy()
           this._pair(socket, mesh, key, session, (err, friend) => {
-            if (err) { if (!err.transient) lastError = err; netlog('friend code (used)', 'handshake failed:', err.message); if (err.final) { clearTimeout(timer); reject(err) } return }
+            if (err) { if (!err.transient && !err.quiet) lastError = err; netlog('friend code (used)', 'handshake failed:', err.message); if (err.final) { clearTimeout(timer); reject(err) } return }
             clearTimeout(timer)
             resolve(friend)
-          })
+          }, { role: 'guest' })
         })
         mesh.join(topic, { server: true, client: true })
       })
@@ -232,36 +232,64 @@ export class Friends extends EventEmitter {
   // One handshake over one of the code's connections. `session` is shared by
   // every connection in the same attempt: the first one to finish makes the
   // friendship, and the rest just close.
-  _pair (socket, mesh, key, session, done) {
+  //
+  // Each side sends a signed hello, and answers a good hello from the other
+  // with "done". A side stores the friendship only once it has both the
+  // other's hello and their "done", so nobody ends up friends on their own.
+  // A code that has already made a friendship, or has run out of time,
+  // refuses anyone else. open(): whether this code may still be used.
+  _pair (socket, mesh, key, session, done, { open = () => true, role = 'maker' } = {}) {
     const myKey = mesh.publicKey
     const theirKey = socket.remotePublicKey.toString('hex')
     let finished = false
+    let theirs = null // their hello, checked
+    let accepted = false // they said "done"
     const finish = (err, value) => { if (!finished) { finished = true; done(err, value) } }
+    const settle = () => {
+      if (!theirs || !accepted || finished) return
+      if (!session.friend) {
+        session.friendId = theirs.userId
+        session.friend = this._befriend({ userId: theirs.userId, name: theirs.name, color: theirs.color, myNonce: session.nonce, theirNonce: theirs.nonce })
+      }
+      finish(null, session.friend)
+    }
     const send = channel(socket, {
       key,
       maxBytes: 64 * 1024,
       onClose: () => finish(Object.assign(new Error('Your friend’s computer went away before you finished. Try a new code.'), { transient: true })),
       onMessage: (msg) => {
         if (msg.type === 'refused') return finish(Object.assign(new Error(msg.reason || 'Your friend couldn’t add you.'), { final: true }))
-        if (msg.type !== 'hello') return
-        if (session.friend) { send({ type: 'done' }); return finish(null, session.friend) }
+        if (msg.type === 'done') { accepted = true; return settle() }
+        if (msg.type !== 'hello' || theirs) return
         const userId = String(msg.userId || '')
         if (!/^[0-9a-f]{64}$/.test(userId) || !/^[0-9a-f]{64}$/.test(String(msg.nonce)) || !verify(userId, pairProof(theirKey, myKey), String(msg.sig || ''))) {
           send({ type: 'refused', reason: 'That code was answered by something that isn’t wirdwatcher.' })
           return finish(new Error('The other side couldn’t prove who it is.'))
         }
         if (userId === this.identity.userId) return finish(Object.assign(new Error('That’s your own code. Send it to a friend.'), { final: true }))
+        // Two people using the same code meet each other too: a guest only
+        // pairs with the code's maker (older copies don't say, and are makers).
+        if (role === 'guest' && msg.role === 'guest') return finish(Object.assign(new Error('Met someone else using the same code.'), { quiet: true, transient: true }))
+        // Someone else, after the code has already made a friend.
+        if (session.friendId && session.friendId !== userId) {
+          send({ type: 'refused', reason: 'That code has already been used. Ask for a new one.' })
+          return finish(Object.assign(new Error('Someone else tried a code that was already used.'), { quiet: true }))
+        }
+        if (!session.friendId && !open()) {
+          send({ type: 'refused', reason: 'That code has expired. Ask for a new one.' })
+          return finish(Object.assign(new Error('Someone tried an expired code.'), { quiet: true }))
+        }
         if (!this.store.friend(userId) && this.store.listFriends().length >= this.settings.get('maxFriends')) {
           send({ type: 'refused', reason: 'They’re at their friend limit.' })
           return finish(Object.assign(new Error('You’re at your friend limit (Settings → Friends).'), { final: true }))
         }
-        session.friend = this._befriend({ userId, name: msg.name, color: msg.color, myNonce: session.nonce, theirNonce: msg.nonce })
+        theirs = { userId, name: msg.name, color: msg.color, nonce: String(msg.nonce) }
         send({ type: 'done' })
-        finish(null, session.friend)
+        settle()
       }
     })
     const me = this.identity.toPublic()
-    send({ type: 'hello', userId: me.userId, name: me.name, color: me.color, nonce: session.nonce, sig: this.identity.sign(pairProof(myKey, theirKey)) })
+    send({ type: 'hello', role, userId: me.userId, name: me.name, color: me.color, nonce: session.nonce, sig: this.identity.sign(pairProof(myKey, theirKey)) })
   }
 
   // Both sides have each other's identity and nonce: they're friends. The

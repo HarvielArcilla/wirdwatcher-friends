@@ -28,6 +28,8 @@ export const KINDS = [
   { id: 'coin', name: 'Coins', blurb: 'The coin you flip.', seen: 'you' }
 ]
 
+import { MORE_COSMETICS } from './cosmetics-more.js'
+
 const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
@@ -243,7 +245,10 @@ export const COSMETICS = [
   item('reactions', 'drama', 'Drama', 200000, 'rare', '', { emoji: ['😱', '🫠', '🤯', '😤'] }),
   item('reactions', 'love', 'Love', 800000, 'epic', '', { emoji: ['💖', '🥰', '😘', '💐'] }),
   item('reactions', 'spooky', 'Spooky', 3e6, 'epic', '', { emoji: ['👻', '🎃', '🦇', '🕸️'] }),
-  item('reactions', 'royal', 'Royal', 5e8, 'legendary', '', { emoji: ['👑', '💎', '🏆', '🎩'] })
+  item('reactions', 'royal', 'Royal', 5e8, 'legendary', '', { emoji: ['👑', '💎', '🏆', '🎩'] }),
+
+  // The bigger wardrobe: drawn from data (see cosmetics-more.js).
+  ...MORE_COSMETICS
 ]
 
 export const DEFAULT_LOOK = Object.fromEntries(KINDS.map((k) => [k.id, COSMETICS.find((c) => c.kind === k.id && c.free).id]))

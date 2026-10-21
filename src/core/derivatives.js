@@ -12,11 +12,11 @@
 // and _settle moves them (either way) as it closes, and a position leaves
 // the book in the same step that settles it, so it can't settle twice.
 
-import { priceAt, quoteTime, splitFactor } from '../shared/market.js'
+import { priceAt, quoteTime, splitFactor, hash32, sectorOf, sectorIndex, SECTORS } from '../shared/market.js'
 import {
   RATE, YEAR_MS, LIQUIDATION_FEE, mark, marginCallAt, nextBell, optionQuote, futureQuote, futurePrice, expiries, futureExpiries,
   isListedExpiry, strikes, atmVol, initialMargin, maxFutureLeverage, maxMarginLeverage, longBorrowRate, shortBorrowRate,
-  maintenanceRatio, shortOptionRequirement, blackScholes, ETFS, etfById, etfQuote
+  maintenanceRatio, shortOptionRequirement, blackScholes, ETFS, etfById, etfQuote, etfSeries
 } from '../shared/derivatives.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -349,20 +349,107 @@ export class Derivatives {
 
   // --- ETFs -----------------------------------------------------------------------------
 
+  // The words a fund holds. Basket funds hold exactly these (equally
+  // weighted); sector funds track their sector's index, which every word in
+  // the sector moves with, and these are a sample of its everyday words.
+  // Picked from the word list, so the same on every copy of a version.
+  _holdings (e) {
+    this._held = this._held || new Map()
+    if (this._held.has(e.id)) return this._held.get(e.id)
+    const W = this.market.words
+    const everyday = W.everyday.map((i) => W.list[i][0]).filter((w) => /^[a-z]+$/.test(w))
+    const byHash = (list) => [...list].sort((x, y) => hash32(`fund|${e.id}|${x}`) - hash32(`fund|${e.id}|${y}`))
+    const vol = (w) => this.market.profile(w)?.vol ?? 0.5
+    let words
+    if (e.track === 'basket') {
+      if (e.pick === 'blue') words = byHash(everyday).sort((x, y) => vol(x) - vol(y)).slice(0, 25)
+      else if (e.pick === 'wild') words = byHash(W.list.map((x) => x[0]).filter((w) => /^[a-z]{5,10}$/.test(w) && W.list[W.index.get(w)][2].length === 1)).slice(0, 400).sort((x, y) => vol(y) - vol(x)).slice(0, 25)
+      else if (e.pick === 'long') words = byHash(everyday.filter((w) => w.length >= 11)).slice(0, 25)
+      else if (e.pick === 'tiny') words = byHash(everyday.filter((w) => w.length <= 4)).slice(0, 25)
+      else if (e.pick === 'pali') words = byHash(W.list.map((x) => x[0]).filter((w) => /^[a-z]{3,}$/.test(w) && w === [...w].reverse().join(''))).slice(0, 25)
+      else if (e.pick === 'twin') words = byHash(everyday.filter((w) => /([a-z])\1/.test(w))).slice(0, 25)
+      else words = []
+    } else if (e.track === 'all') {
+      words = []
+    } else {
+      words = byHash(everyday.filter((w) => this.market.profile(w)?.sector === e.track)).slice(0, 10)
+    }
+    const out = { words, profiles: words.map((w) => this.market.profile(w)).filter(Boolean) }
+    this._held.set(e.id, out)
+    return out
+  }
+
+  _etfQuote (e, t) { return etfQuote(e, t, e.track === 'basket' ? this._holdings(e).profiles : null) }
+
   etfs () {
     const t = this.now()
     return ETFS.map((e) => {
-      const q = etfQuote(e, t)
+      const q = this._etfQuote(e, t)
       const h = this.m.etfs[e.id]
       const value = h ? h.shares * q.sell : 0
       return { ...e, ...q, shares: h?.shares || 0, cost: h?.cost || 0, value, gain: h ? value - h.cost : 0 }
     })
   }
 
+  // One fund, up close: its chart, what it holds and how they moved, and
+  // how closely its words move with it.
+  fund (id, range = 'month') {
+    const e = etfById(id)
+    if (!e) throw new Error('No such fund.')
+    const t = this.now()
+    const DAY = 864e5
+    const span = { day: DAY, week: 7 * DAY, month: 30 * DAY, year: 365 * DAY }[range] || 30 * DAY
+    const hold = this._holdings(e)
+    const basket = e.track === 'basket' ? hold.profiles : null
+    const nav = (x) => etfQuote(e, x, basket).nav
+    const now = nav(t)
+    const back = (d) => now / nav(t - d * DAY) - 1
+    // Daily moves over the last 30 days, for how much its words move with it.
+    const days = Array.from({ length: 31 }, (_, i) => t - (30 - i) * DAY)
+    const rets = (f) => days.slice(1).map((d, i) => Math.log(f(d) / f(days[i])))
+    const corr = (a, b) => {
+      const ma = a.reduce((x, y) => x + y, 0) / a.length
+      const mb = b.reduce((x, y) => x + y, 0) / b.length
+      let sab = 0; let saa = 0; let sbb = 0
+      for (let i = 0; i < a.length; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2 }
+      return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0
+    }
+    const fundRets = rets(nav)
+    const holdings = hold.profiles.map((p) => {
+      const q = this.market.quote(p.word, t)
+      const c = corr(fundRets, rets((d) => priceAt(p, d)))
+      return { word: p.word, price: q.price, day: q.day, week: q.week, vol: p.vol, sector: p.sector, corr: c, tradable: q.tradable, spark: this.market.chart(p.word, 'week')?.points.filter((_, i) => i % 8 === 0).map((x) => x[1]) || [] }
+    }).sort((a, b) => b.day - a.day)
+    // The whole market holds sectors, not words.
+    if (e.track === 'all') {
+      for (const sec of SECTORS) {
+        const lvl = (d) => sectorIndex(sec.id, d)
+        holdings.push({ sector: sec.id, word: null, name: sec.name, emoji: sec.emoji, price: lvl(t), day: lvl(t) / lvl(t - DAY) - 1, week: lvl(t) / lvl(t - 7 * DAY) - 1, corr: corr(fundRets, rets(lvl)), spark: Array.from({ length: 22 }, (_, i) => lvl(t - (21 - i) * 8 * 3600e3)) })
+      }
+      holdings.sort((a, b) => b.day - a.day)
+    }
+    const fundDay = back(1)
+    const h = this.m.etfs[id]
+    const q = this._etfQuote(e, t)
+    return {
+      ...e,
+      ...q,
+      range,
+      points: etfSeries(e, Math.max(t - span, Date.UTC(2026, 0, 1)), t, 140, basket),
+      returns: { day: fundDay, week: back(7), month: back(30), year: back(365) },
+      holdings,
+      together: holdings.length ? { same: holdings.filter((x) => Math.sign(x.day) === Math.sign(fundDay)).length, of: holdings.length, corr: holdings.reduce((a, x) => a + x.corr, 0) / holdings.length } : null,
+      sectorName: e.track !== 'basket' && e.track !== 'all' ? sectorOf(e.track).name : null,
+      shares: h?.shares || 0,
+      cost: h?.cost || 0,
+      value: h ? h.shares * q.sell : 0
+    }
+  }
+
   buyEtf (id, coins) {
     const e = etfById(id)
     if (!e) throw new Error('No such fund.')
-    const q = etfQuote(e, this.now())
+    const q = this._etfQuote(e, this.now())
     const paid = this._pay(Math.floor(Number(coins) * 100) / 100)
     const h = this.m.etfs[id] || { shares: 0, cost: 0 }
     h.shares += Math.floor((paid / q.buy) * 1e6) / 1e6
@@ -380,7 +467,7 @@ export class Derivatives {
     if (!(shares > 0)) throw new Error('Sell at least a little.')
     this.economy.tick()
     this.economy._tradeClock()
-    const q = etfQuote(e, this.now())
+    const q = this._etfQuote(e, this.now())
     const cost = h.cost * (shares / h.shares)
     h.shares -= shares
     h.cost -= cost
@@ -400,7 +487,7 @@ export class Derivatives {
   value (t = this.now()) {
     let v = 0
     for (const pos of this.d.open) { const p = this.market.profile(pos.word); if (p) v += mark(pos, t, p).value }
-    for (const [id, h] of Object.entries(this.m.etfs)) { const e = etfById(id); if (e) v += h.shares * etfQuote(e, t).sell }
+    for (const [id, h] of Object.entries(this.m.etfs)) { const e = etfById(id); if (e) v += h.shares * this._etfQuote(e, t).sell }
     return v
   }
 

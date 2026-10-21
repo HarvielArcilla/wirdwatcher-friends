@@ -164,3 +164,35 @@ test('friends notice drift and repair it', async (t) => {
   bob.friends.mesh.drop(aliceId)
   await until(() => !bob.store.friend(aliceId).records['r/emu'], { timeout: 30000 })
 })
+
+test('a used or expired code refuses anyone else, and nobody is added on one side only', async (t) => {
+  const { make } = await network(t)
+  const alice = await make()
+  const bob = await make()
+  const carol = await make()
+  alice.setProfile({ name: 'Alice' })
+  bob.setProfile({ name: 'Bob' })
+  carol.setProfile({ name: 'Carol' })
+  const events = []
+  alice.friends.on('code', (e) => events.push(e))
+  const { code } = await alice.friends.makeCode()
+  await bob.friends.redeem(code)
+  // Carol tries the same code straight away, while Alice's side is still listening.
+  await assert.rejects(carol.friends.redeem(code, { timeoutMs: 6000 }), /already been used|Couldn’t reach/)
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  assert.deepEqual(alice.friends.list().map((f) => f.name), ['Bob'])
+  assert.equal(carol.friends.list().length, 0, 'Carol didn’t add Alice on her own')
+  assert.equal(bob.friends.list().length, 1)
+  assert.equal(events.filter((e) => e.friend).length, 1, 'Alice heard about one new friend, once')
+
+  // An expired code is refused too.
+  alice.settings.set({ friendCodeMinutes: 1 })
+  const second = await alice.friends.makeCode()
+  alice.friends.pairing.expiresAt = Date.now() - 1 // as if the time ran out a moment ago
+  const p = alice.friends.pairing
+  const open = () => alice.friends.pairing === p && Date.now() < p.expiresAt
+  assert.equal(open(), false)
+  await alice.friends.cancelCode()
+  await assert.rejects(carol.friends.redeem(second.code, { timeoutMs: 6000 }), /expired|Couldn’t reach/)
+  assert.equal(carol.friends.list().length, 0)
+})

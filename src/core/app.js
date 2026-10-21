@@ -21,6 +21,7 @@ import { migrate } from './migrate.js'
 import { Economy } from './economy.js'
 import { Market } from './market.js'
 import { Derivatives } from './derivatives.js'
+import { Sportsbook } from './sportsbook.js'
 import { Leximon } from './leximon.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
@@ -56,11 +57,12 @@ export class WirdApp extends EventEmitter {
     this.market = new Market({ words: this.words, store: this.store, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.derivs = new Derivatives({ market: this.market, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.market.derivs = this.derivs
+    this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.on('played', (kind) => this.daily.note(kind))
-    this.economy.beforePrestige = () => { this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
+    this.economy.beforePrestige = () => { this._sellBets(); this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
     // Levels from before coins existed don't pay out; from here on, each does.
     if (this.economy.s.levelPaid == null) this.economy.s.levelPaid = this.game.profile().level.level
     // A free card pack for every fifth level, including ones reached before packs existed.
@@ -92,7 +94,7 @@ export class WirdApp extends EventEmitter {
     res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
     // Only new words teach your Leximon (and bring wild words), whatever you gave them.
     if (res.coins) {
-      res.leximon = this.leximon.onNewWord(word)
+      res.leximon = this.leximon.onNewWord(word, { lobby: opts?.source === 'lobby' })
       this.daily.note('words', { topic: this.words.marketFacts(word)?.sector, streak: res.coins.streak?.n })
     }
     return res
@@ -116,7 +118,62 @@ export class WirdApp extends EventEmitter {
   // plus what your shares, funds and positions would sell for now.
   netWorth () {
     const m = this.market.stats()
-    return { coins: this.economy.s.coins, holdings: m.value, total: this.economy.s.coins + m.value, debt: Math.max(0, -this.economy.s.coins), canFile: this.economy.s.coins + m.value < 0 && !this.economy.s.bankrupt }
+    const held = m.value + this.sports.value()
+    return { coins: this.economy.s.coins, holdings: held, total: this.economy.s.coins + held, debt: Math.max(0, -this.economy.s.coins), canFile: this.economy.s.coins + m.value < 0 && !this.economy.s.bankrupt }
+  }
+
+  // Open prediction-market bets, sold back to the house.
+  _sellBets () {
+    this.sports.sync()
+    for (const [id, b] of Object.entries(this.economy.s.sports.bets)) for (const side of ['home', 'away']) if (b[side] > 0) { try { this.sports.sell(id, side, 'all') } catch {} }
+  }
+
+  // Every way your coins are used, in one place: what you have and where it
+  // sits (cash, shares, funds, positions, stakes, debt), and what's come in
+  // and gone out (kept since 2.3.1).
+  portfolioSummary () {
+    this.derivs.sync()
+    const e = this.economy.s
+    const port = this.market.portfolio()
+    const funds = this.derivs.etfs().filter((f) => f.shares > 0)
+    const open = this.derivs.d.open.map((pos) => this.derivs.view(pos))
+    const sum = (list, k = 'value') => list.reduce((a, x) => a + (x[k] || 0), 0)
+    const kinds = { margin: open.filter((p) => p.kind === 'margin'), future: open.filter((p) => p.kind === 'future'), option: open.filter((p) => p.kind === 'option') }
+    const staked = this.economy.stakedNow()
+    const parts = [
+      { id: 'cash', name: 'Coins', value: Math.max(0, e.coins) },
+      { id: 'shares', name: 'Shares', value: sum(port.rows), gain: sum(port.rows, 'gain'), count: port.rows.length },
+      { id: 'funds', name: 'Funds', value: sum(funds), gain: sum(funds, 'gain'), count: funds.length },
+      { id: 'margin', name: 'Leverage', value: sum(kinds.margin), gain: sum(kinds.margin, 'gain'), count: kinds.margin.length },
+      { id: 'future', name: 'Futures', value: sum(kinds.future), gain: sum(kinds.future, 'gain'), count: kinds.future.length },
+      { id: 'option', name: 'Options', value: sum(kinds.option), gain: sum(kinds.option, 'gain'), count: kinds.option.length },
+      { id: 'bets', name: 'Prediction bets', value: this.sports.value(), count: Object.keys(e.sports.bets).length },
+      { id: 'stakes', name: 'Lobby stakes', value: staked },
+      { id: 'debt', name: 'Debt', value: Math.min(0, e.coins) }
+    ]
+    const total = parts.reduce((a, p) => a + p.value, 0)
+    const st = this.market.stats()
+    return {
+      at: this.economy.now(),
+      total,
+      parts,
+      shares: port.rows.map((r) => ({ word: r.word, shares: r.shares, value: r.value, cost: r.cost, gain: r.gain, pct: r.pct, day: r.quote?.day ?? 0 })),
+      funds: funds.map((f) => ({ id: f.id, name: f.name, emoji: f.emoji, value: f.value, cost: f.cost, gain: f.gain, day: f.day })),
+      positions: open,
+      results: {
+        market: st.gain,
+        slots: e.slots.net || 0,
+        flips: e.flips.net || 0,
+        stakes: e.stakes.net || 0,
+        sports: e.sports.net || 0,
+        bankruptcy: e.credit.discharged || 0,
+        debtInterest: e.credit.debtInterest || 0
+      },
+      ledger: e.ledger,
+      wirdhouse: { cps: this.economy.compact().cps, edition: e.edition, earnedEver: e.allCoins },
+      debt: Math.max(0, -e.coins),
+      bankrupt: this.economy.bankruptView()
+    }
   }
 
   // Bankruptcy, the way courts do it: everything on the Exchange is sold to
@@ -126,6 +183,7 @@ export class WirdApp extends EventEmitter {
     const nw = this.netWorth()
     if (this.economy.s.bankrupt) throw new Error('You’re already bankrupt.')
     if (nw.total >= 0) throw new Error(nw.debt > 0 ? 'Selling what you hold would cover your debt: no need for bankruptcy.' : 'You’re not in debt.')
+    this._sellBets()
     this.derivs.sync()
     this.derivs.closeAll()
     for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all')
@@ -397,7 +455,9 @@ export class WirdApp extends EventEmitter {
       let coins = 0
       let reward = null
       let levelUp = false
-      // Words I rated at the table become my ratings.
+      let leximon = null
+      // Words I rated at the table become my ratings.  They teach the
+      // Leximon and bring wild words, like any other new word.
       for (const { by, word, r } of res.rated || []) {
         if (by !== s.you || !this.words.has(word)) continue
         const earned = this.rate(word, r, { source: 'lobby' })
@@ -406,6 +466,7 @@ export class WirdApp extends EventEmitter {
         xp.push(...earned.xp)
         badges.push(...earned.badges)
         levelUp = levelUp || earned.levelUp
+        if (earned.leximon) leximon = { ...earned.leximon, encounter: earned.leximon.encounter || leximon?.encounter || null }
       }
       const items = [{ amount: XP.lobbyRound, why: 'Lobby round' }]
       const counters = { lobbyRounds: 1 }
@@ -429,7 +490,7 @@ export class WirdApp extends EventEmitter {
       coins += this.economy.onLobbyRound({ hosting: Boolean(this.lobby?.isHost) })
       this.leximon.onLobbyRound()
       this.daily.note('lobby')
-      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, reward: bonus.reward || reward, coins, source: 'lobby' })
+      this.emit('progress', { ...bonus, xp: [...xp, ...bonus.xp], badges: [...badges, ...bonus.badges], levelUp: levelUp || bonus.levelUp, reward: bonus.reward || reward, coins, leximon, source: 'lobby' })
     }
     if (s.phase === 'results' && prev?.phase !== 'results' && s.history.length) {
       const counters = { lobbyGames: 1 }

@@ -3,6 +3,7 @@ import { formatRating } from '../shared/progress.js'
 import { formatCoins } from '../shared/economy.js'
 import { playLevelUp } from './sound.js'
 import { burst } from './effects.js'
+import { COSMETICS } from '../shared/cosmetics.js'
 
 export const api = (name, ...args) => window.ww.call(name, ...args)
 
@@ -49,6 +50,8 @@ export const SKINS = {
   ink: ['#e8eaf6', '#3a3f6b', '#141632', '#e8eaf6'],
   platinum: ['#ffffff', '#e4e7ec', '#9aa3b0', '#4a5260']
 }
+// Coin skins described by data (cosmetics-more.js).
+for (const c of COSMETICS) if (c.kind === 'coin' && c.coin) SKINS[c.id] = c.coin
 let coinIds = 0
 // thick: draw the milled edge under the face, so a coin at rest looks like a
 // solid disc (off for the flipping coin, which draws its own edge in 3D).
@@ -200,6 +203,27 @@ export function useInterval (fn, ms) {
   useEffect(() => { if (!ms) return; const t = setInterval(() => ref.current(), ms); return () => clearInterval(t) }, [ms])
 }
 
+// Calls fn right after each minute turns (when Word Exchange prices change),
+// and every `ms` in between if given.
+export function useMinuteTick (fn, ms = 0) {
+  const ref = useRef(fn)
+  ref.current = fn
+  useEffect(() => {
+    let t
+    const next = () => { t = setTimeout(() => { ref.current(); next() }, 60000 - (Date.now() % 60000) + 250) }
+    next()
+    const iv = ms ? setInterval(() => ref.current(), ms) : null
+    return () => { clearTimeout(t); if (iv) clearInterval(iv) }
+  }, [ms])
+}
+
+// Seconds until the next minute.
+export function useSecondsToMinute () {
+  const [s, setS] = useState(() => 60 - Math.floor((Date.now() % 60000) / 1000))
+  useEffect(() => { const t = setInterval(() => setS(60 - Math.floor((Date.now() % 60000) / 1000)), 1000); return () => clearInterval(t) }, [])
+  return s
+}
+
 // --- icons (simple strokes) -----------------------------------------------------
 const I = (d) => function Icon () { return <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>{d}</svg> }
 export const icons = {
@@ -252,4 +276,21 @@ function LevelUp ({ level, onDone }) {
       </div>
     </div>
   )
+}
+// Holding the coin count still while a coin flips or the reels spin, so the
+// number doesn't give the result away before the animation does.
+let held = null
+const holdSubs = new Set()
+const notifyHold = () => holdSubs.forEach((fn) => fn())
+export function holdCoins (coins, ms) {
+  const until = Date.now() + ms
+  held = { coins, until }
+  notifyHold()
+  setTimeout(() => { if (held && held.until <= Date.now()) { held = null; notifyHold() } }, ms + 30)
+}
+export function releaseCoins () { held = null; notifyHold() }
+export function useShownCoins (coins) {
+  const [, rerender] = useState(0)
+  useEffect(() => { const fn = () => rerender((x) => x + 1); holdSubs.add(fn); return () => holdSubs.delete(fn) }, [])
+  return held ? held.coins : coins
 }

@@ -8,7 +8,7 @@ import {
 } from '../src/shared/derivatives.js'
 import { splitFactor, splitsUpTo, pendingSplit, splitTaste } from '../src/shared/market.js'
 import { DEBT_RATE } from '../src/core/economy.js'
-import { drawPack, PITY, packPool } from '../src/shared/packs.js'
+import { drawPack, PITY, packPool, packOdds, cardValue, craftCost, scrapFor, BONUS_MIN } from '../src/shared/packs.js'
 import { tmp } from './helpers.js'
 
 const DAY = 864e5
@@ -210,7 +210,7 @@ test('splits change the price you see, never what you hold', () => {
   assert.equal(splitFactor(a.market.profile(word), when.at), splitFactor(a.market.profile(word), when.at - 60000) * when.ratio)
 })
 
-test('card packs: one free every five levels, three cards, pity, scraps and crafting', () => {
+test('card packs: one free every five levels, three cards, value-weighted, pity, scraps and crafting', () => {
   const a = app()
   a.economy.s.packs.granted = 0
   a.economy.s.packs.free = 0
@@ -218,22 +218,31 @@ test('card packs: one free every five levels, three cards, pity, scraps and craf
   assert.equal(a.economy.grantLevelPacks(12), 0, 'only once')
   const r = a.economy.openPack({ free: true })
   assert.equal(r.cards.length, 3)
-  assert.ok(['rare', 'epic', 'legendary'].includes(r.cards[2].rarity), 'the last card is rare or better')
+  const price = a.economy.packPrice()
+  assert.ok(r.cards[2].value >= BONUS_MIN * price, 'the third card is the bonus')
   for (const c of r.cards) assert.ok(c.dup || a.economy.owns(c.kind, c.id))
-  // Bought packs cost coins; pity guarantees an epic within PITY packs.
+  // Expensive things are really hard to get from a cheap pack.
+  const odds = packOdds(10000)
+  const top = packPool().reduce((x, c) => (cardValue(c) > cardValue(x) ? c : x))
+  assert.ok(odds.cardChance(top) < 1e-9, 'the priciest card is about once in a lifetime')
+  assert.ok(odds.main.legendary < 1e-4)
+  // …and come within reach as packs get dearer.
+  assert.ok(packOdds(1e10).main.legendary > packOdds(1e6).main.legendary * 100)
+  // Pity: a card worth the pack within PITY packs.
   let seed = 1
   const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
-  let since = 0
+  let dry = 0
   let worst = 0
-  for (let i = 0; i < 5000; i++) { const d = drawPack(rand, since); since = d.sinceEpic; worst = Math.max(worst, since) }
+  for (let i = 0; i < 5000; i++) { const d = drawPack(rand, 50000, dry); dry = d.dry; worst = Math.max(worst, dry) }
   assert.ok(worst < PITY)
   assert.ok(packPool().some((c) => c.pack) && !packPool().some((c) => c.level || c.badge || c.edition))
-  // Scraps make what you choose.
-  a.economy.s.packs.scraps = 500
-  const target = packPool().find((c) => c.rarity === 'legendary' && !a.economy.owns(c.kind, c.id))
+  // Scraps: a quarter of the value for a duplicate; crafting costs the full value.
+  const target = packPool().find((c) => c.rarity === 'rare' && !a.economy.owns(c.kind, c.id))
+  a.economy.s.packs.scraps = craftCost(target) + 7
   a.economy.craft(target.kind, target.id)
   assert.ok(a.economy.owns(target.kind, target.id))
-  assert.equal(a.economy.s.packs.scraps, 100)
+  assert.equal(a.economy.s.packs.scraps, 7)
+  assert.equal(scrapFor(target), Math.round(cardValue(target) / 4))
   const coins = a.economy.s.coins
   a.economy.openPack()
   assert.ok(a.economy.s.coins < coins)

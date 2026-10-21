@@ -54,7 +54,9 @@ export class Leximon {
   focusMult (t = this.now()) { return this.s.focus && this.s.focus.until > t ? this.s.focus.mult : 1 }
 
   // A new word was rated: the team grows, wild words come and go.
-  onNewWord (word) {
+  // lobby: rated at a table, where rounds come fast, so a wild word that
+  // shows up there sticks around for a few more words before it leaves.
+  onNewWord (word, { lobby = false } = {}) {
     const t = this.now()
     this._applyTraining(t)
     const ups = []
@@ -62,12 +64,21 @@ export class Leximon {
     for (const c of this.team()) this._gain(c, xp, ups)
     // A wild word that wasn't caught leaves after the next rating.
     let fled = null
-    if (this.s.encounter && this.s.encounter.at < t) { fled = this.s.encounter.word; this.s.encounter = null }
+    const e = this.s.encounter
+    if (e && e.at < t) {
+      e.stay = (e.stay ?? 1) - 1
+      if (e.stay <= 0) { fled = e.word; this.s.encounter = null }
+    }
     let encounter = null
     this.s.since++
     if (this.encounters() && this.s.since >= this.s.nextAt) {
       encounter = this._spawn(word, t)
-      if (encounter) { this.s.since = 0; this.s.nextAt = nextEncounterIn(Math.random()) }
+      if (encounter) {
+        this.s.since = 0
+        this.s.nextAt = nextEncounterIn(Math.random())
+        this.s.encounter.stay = lobby ? 4 : 1
+        encounter = { ...encounter, stay: this.s.encounter.stay }
+      }
     }
     this._save()
     return { xp: this.team().length ? xp : 0, ups, encounter, fled }
@@ -149,7 +160,7 @@ export class Leximon {
     const used = c.trainDay?.day === day ? c.trainDay.hours : 0
     if (used + hours > TRAIN_MAX_HOURS) throw new Error(used >= TRAIN_MAX_HOURS ? 'That word has trained all it can today. Rating words still teaches it.' : `Only ${TRAIN_MAX_HOURS - used} more hour${TRAIN_MAX_HOURS - used === 1 ? '' : 's'} today.`)
     const cost = trainCostPerHour(c.level) * hours
-    this.economy._spend(cost)
+    this.economy._spend(cost, 'leximon')
     c.trainDay = { day, hours: used + hours }
     c.train = { start: t, end: t + hours * HOUR, xp: hours * TRAIN_XP_PER_HOUR, applied: 0 }
     this._save()
@@ -172,7 +183,7 @@ export class Leximon {
   ascend (word) {
     const c = this.card(word)
     if (c.level < levelCap(c.tier)) throw new Error(`Reach level ${levelCap(c.tier)} first.`)
-    this.economy._spend(ascendCost(c.tier))
+    this.economy._spend(ascendCost(c.tier), 'leximon')
     c.tier++
     this._gain(c, 0) // banked XP turns into levels
     this._save()
@@ -184,7 +195,7 @@ export class Leximon {
     if (!f) throw new Error('Unknown focus.')
     const t = this.now()
     if (this.s.focus && this.s.focus.until > t && this.s.focus.mult >= f.mult) throw new Error('Already focused.')
-    this.economy._spend(f.cost(this.economy.compact().cps))
+    this.economy._spend(f.cost(this.economy.compact().cps), 'leximon')
     this.s.focus = { mult: f.mult, until: t + f.mins * 60e3 }
     this._save()
   }

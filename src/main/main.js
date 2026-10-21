@@ -139,6 +139,10 @@ function handlers () {
     marketQuote: (word) => ww.market.quote(word),
     marketChart: (word, range) => ww.market.chart(word, range),
     portfolio: () => ww.market.portfolio(),
+    portfolioSummary: () => ww.portfolioSummary(),
+    sportsBoard: (league) => ww.sports.board(league),
+    sportsGame: (id) => ww.sports.view(id),
+    sportsTrade: (kind, id, side, amount) => (kind === 'buy' ? ww.sports.buy(id, side, amount) : ww.sports.sell(id, side, amount)),
     marketTrade: (kind, word, amount) => {
       if (kind === 'buy') ww.market.buy(word, amount)
       else if (kind === 'sell') ww.market.sell(word, amount)
@@ -155,6 +159,7 @@ function handlers () {
     derivClose: (id) => ww.derivs.close(id),
     derivAddMargin: (id, coins) => ww.derivs.addMargin(id, coins),
     etfs: () => ww.derivs.etfs(),
+    fund: (id, range) => ww.derivs.fund(id, range),
     netWorth: () => ww.netWorth(),
     declareBankruptcy: () => ww.declareBankruptcy(),
     etfTrade: (kind, id, amount) => (kind === 'buy' ? ww.derivs.buyEtf(id, amount) : ww.derivs.sellEtf(id, amount)),

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Coins } from './ui.jsx'
 import { COSMETICS, KINDS } from '../shared/cosmetics.js'
-import { packPool, epicChance, RARITIES } from '../shared/packs.js'
+import { packPool, packOdds, cardValue, craftCost, RARITIES } from '../shared/packs.js'
+import { formatCoins } from '../shared/economy.js'
 import { burst, centerOf } from './effects.js'
 import { Preview } from './Shop.jsx'
 
@@ -11,7 +12,8 @@ import { Preview } from './Shop.jsx'
 // craft whatever you like.
 
 const RNAME = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
-const pctText = (p) => `${(p * 100).toFixed(p < 0.1 ? 1 : 0)}%`
+const pctText = (p) => (p <= 0 ? '0%' : p < 0.001 ? '<0.1%' : `${(p * 100).toFixed(p < 0.1 ? 1 : 0)}%`)
+const oneIn = (p) => (p <= 0 ? 'never' : p >= 0.5 ? 'most packs' : `1 in ${formatCoins(Math.round(1 / p))} packs`)
 
 export default function Packs ({ v, coins, act }) {
   const pk = v.packs
@@ -39,8 +41,10 @@ export default function Packs ({ v, coins, act }) {
     void el
   }
   const pool = packPool()
+  const odds = useMemo(() => packOdds(pk.price), [pk.price])
   const craftable = pool.filter((c) => !owned.has(`${c.kind}:${c.id}`) && (craftKind === 'all' || c.kind === craftKind))
-    .sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity) || a.name.localeCompare(b.name))
+    .sort((a, b) => cardValue(a) - cardValue(b) || a.name.localeCompare(b.name))
+  const rarest = pool.filter((c) => !owned.has(`${c.kind}:${c.id}`)).reduce((x, c) => (!x || cardValue(c) > cardValue(x) ? c : x), null)
   const kindsInPool = KINDS.filter((k) => pool.some((c) => c.kind === k.id))
   const left = pool.filter((c) => !owned.has(`${c.kind}:${c.id}`)).length
 
@@ -54,11 +58,11 @@ export default function Packs ({ v, coins, act }) {
               {pk.free > 0 ? `Open a free pack (${pk.free})` : 'No free packs'}
             </button>
             <button className='btn' disabled={busy || coins < pk.price} onClick={(e) => open(false, e.currentTarget)}>Buy and open · <Coins n={pk.price} /></button>
-            <small>{pk.free > 0 ? 'Free packs never expire.' : `Next free pack at level ${pk.nextFreeAt}.`} An epic or better is guaranteed within {pk.toPity} more pack{pk.toPity === 1 ? '' : 's'}.</small>
+            <small>{pk.free > 0 ? 'Free packs never expire.' : `Next free pack at level ${pk.nextFreeAt}.`} A card worth at least the pack is guaranteed within {pk.toPity} more pack{pk.toPity === 1 ? '' : 's'}.</small>
           </div>
           <div className='pk-stats'>
             <span><b>{pk.opened}</b><small>opened</small></span>
-            <span><b>{pk.scraps}</b><small>scraps</small></span>
+            <span><b>{formatCoins(pk.scraps)}</b><small>scraps</small></span>
             <span><b>{left}</b><small>still to find</small></span>
           </div>
         </div>
@@ -74,7 +78,8 @@ export default function Packs ({ v, coins, act }) {
                     <div className='pk-art'>{full && <Preview c={full} />}</div>
                     <b>{c.name}</b>
                     <small>{String(c.kindName || c.kind).replace(/s$/, '')}</small>
-                    {c.dup ? <span className='pk-dup'>Duplicate · +{c.scraps} scraps</span> : <span className='pk-new'>New!</span>}
+                    <small className='pk-val'>worth <Coins n={c.value} /></small>
+                    {c.dup ? <span className='pk-dup'>Duplicate · +{formatCoins(c.scraps)} scraps</span> : <span className='pk-new'>New!</span>}
                   </div>
                 </div>
               )
@@ -85,27 +90,29 @@ export default function Packs ({ v, coins, act }) {
 
       <div className='pk-grid'>
         <section className='panel pk-odds'>
-          <h3>The odds</h3>
+          <h3>The odds <small>at <Coins n={pk.price} /> a pack</small></h3>
           <table>
-            <thead><tr><th /><th>Cards 1–2</th><th>Card 3</th><th>Duplicate</th><th>Craft</th></tr></thead>
+            <thead><tr><th /><th>Cards 1–2</th><th>Bonus card</th></tr></thead>
             <tbody>
               {RARITIES.map((r) => (
                 <tr key={r}>
                   <th><span className={`pk-dot r-${r}`} />{RNAME[r]}</th>
-                  <td>{pctText(pk.odds[r] || 0)}</td>
-                  <td>{pk.lastOdds[r] ? pctText(pk.lastOdds[r]) : '—'}</td>
-                  <td>+{pk.scrapFor[r]}</td>
-                  <td>{pk.craftCost[r]}</td>
+                  <td>{pctText(odds.main[r])}</td>
+                  <td>{pctText(odds.bonus[r])}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <small>{pctText(epicChance())} of packs hold an epic or better. If {pk.pity} packs in a row don’t, the next one’s third card is epic (80%) or legendary (20%). Cards are anything the shop sells plus a few you can only find here. Never level, badge or edition rewards: those stay earned. Looks only: nothing changes a score, a rating or a duel.</small>
+          <div className='pk-facts'>
+            <span><b>{pctText(odds.worthPack)}</b><small>of packs hold a card worth what the pack cost</small></span>
+            {rarest && <span><b>{oneIn(odds.cardChance(rarest))}</b><small>for the priciest card you don’t have ({rarest.name}, <Coins n={cardValue(rarest)} />)</small></span>}
+          </div>
+          <small>A card’s chance depends on what it’s worth next to the pack: anything up to half the pack’s price is equally likely, and beyond that each doubling in value makes it about 2.8 times rarer. The bonus card is always worth at least a quarter of the pack. Packs cost about fifteen minutes of the wirdhouse, so the rare things come within reach as it grows. If {pk.pity} packs in a row hold nothing worth the pack, the next one’s bonus card is. Duplicates give a quarter of their value in scraps; crafting costs the full value. Never level, badge or edition rewards: those stay earned. Looks only.</small>
         </section>
 
         <section className='panel pk-craft'>
           <div className='pk-craft-head'>
-            <h3>Craft with scraps <small>{pk.scraps} to spend</small></h3>
+            <h3>Craft with scraps <small>{formatCoins(pk.scraps)} to spend</small></h3>
             <select className='field' value={craftKind} onChange={(e) => setCraftKind(e.target.value)}>
               <option value='all'>Everything</option>
               {kindsInPool.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
@@ -118,8 +125,8 @@ export default function Packs ({ v, coins, act }) {
                 {craftable.map((c) => (
                   <div key={`${c.kind}:${c.id}`} className={`pk-craft-item r-${c.rarity}`}>
                     <span className={`pk-dot r-${c.rarity}`} />
-                    <span className='pk-craft-name'><b>{c.name}</b><small>{KINDS.find((k) => k.id === c.kind)?.name.replace(/s$/, '')}{c.pack ? ' · pack only' : ''}</small></span>
-                    <button className='btn small' disabled={pk.scraps < pk.craftCost[c.rarity]} onClick={() => act('craft', c.kind, c.id)}>{pk.craftCost[c.rarity]} scraps</button>
+                    <span className='pk-craft-name'><b>{c.name}</b><small>{KINDS.find((k) => k.id === c.kind)?.name.replace(/s$/, '')}{c.pack ? ' · pack only' : ''} · {oneIn(odds.cardChance(c))}</small></span>
+                    <button className='btn small' disabled={pk.scraps < craftCost(c)} onClick={() => act('craft', c.kind, c.id)}>{formatCoins(craftCost(c))} scraps</button>
                   </div>
                 ))}
               </div>

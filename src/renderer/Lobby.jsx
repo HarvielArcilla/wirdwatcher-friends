@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { typeRating, ratingValue, nudge, formatRating } from '../shared/progress.js'
-import { playRating } from './sound.js'
+import { playRating, playTable } from './sound.js'
 import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 import { titleText, packEmoji } from '../shared/cosmetics.js'
+import { WildWord } from './Leximon.jsx'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player and a card on the felt in front of each seat. What happens
@@ -21,9 +22,9 @@ const coins = (n) => (n >= 1e6 ? `${n / 1e6}M` : n >= 1e3 ? `${n / 1e3}K` : Stri
 const cluePoints = (clue, wrong) => Math.max(10, 100 - 12 * clue - 10 * wrong)
 const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0]
 
-export default function Lobby ({ lobby, choices, me, active, events, settings }) {
+export default function Lobby ({ lobby, choices, me, active, events, settings, wild, clearWild }) {
   if (!lobby) return <Entry />
-  return <Table lobby={lobby} choices={choices} active={active} events={events} settings={settings} />
+  return <Table lobby={lobby} choices={choices} active={active} events={events} settings={settings} wild={wild} clearWild={clearWild} />
 }
 
 function Entry () {
@@ -81,7 +82,7 @@ const typingIn = (el) => Boolean(el && ((el.tagName === 'INPUT' && !el.readOnly)
 
 const list = (xs) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
-function Table ({ lobby, choices, active, events, settings }) {
+function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
   const toast = useToast()
   const [text, setText] = useState('')
   const [, tick] = useState(0)
@@ -110,6 +111,30 @@ function Table ({ lobby, choices, active, events, settings }) {
   const iMustAct = waiting.has(you)
   const name = (id) => { const p = lobby.players.find((x) => x.id === id); return p ? (p.me ? 'you' : p.name) : 'someone' }
   const Name = (id) => { const p = lobby.players.find((x) => x.id === id); return p ? (p.me ? 'You' : p.name) : 'Someone' }
+
+  // Sounds for what others do, so the game can be heard from another tab.
+  const heard = useRef(null)
+  useEffect(() => {
+    const locked = lobby.players.filter((p) => p.locked && !p.me).length
+    const now = { phase, round: lobby.round, locked, mustAct: iMustAct, last: events[events.length - 1] || null }
+    const was = heard.current
+    heard.current = now
+    if (!was) return
+    const from = was.last ? events.lastIndexOf(was.last) + 1 : 0
+    const fresh = (from > 0 || !was.last ? events.slice(from) : []).filter((e) => e.id !== you)
+    for (const e of fresh) {
+      if (e.kind === 'join' || e.kind === 'back') playTable('join', settings)
+      else if (e.kind === 'leave') playTable('leave', settings)
+      else if (e.kind === 'chat') playTable('chat', settings)
+      else if (e.kind === 'react') playTable('react', settings)
+      else if (e.kind === 'solved') playTable('solved', settings)
+    }
+    if (phase === 'results' && was.phase !== 'results') playTable('gameover', settings)
+    else if (phase === 'reveal' && was.phase !== 'reveal') playTable('reveal', settings)
+    else if ((was.phase === 'waiting' || was.phase === 'results') && phase !== was.phase) playTable('start', settings)
+    else if (now.mustAct && (!was.mustAct || now.round !== was.round || now.phase !== was.phase)) playTable('turn', settings)
+    else if (locked > was.locked && phase === was.phase && now.round === was.round) playTable('card', settings)
+  }, [lobby, events]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resets for each phase of each word. The keyboard comes back to the table
   // too: whatever was focused (the chat, a button, a menu) lets go, so typing a
@@ -461,6 +486,7 @@ function Table ({ lobby, choices, active, events, settings }) {
           <button role='tab' aria-selected={tab === 'game'} className={tab === 'game' ? 'on' : ''} onClick={() => setTab('game')}>Game{offers.some((o) => lobby.players.some((p) => p.id === o.from)) && <i className='dot' />}</button>
           <button role='tab' aria-selected={tab === 'chat'} className={tab === 'chat' ? 'on' : ''} onClick={() => { setTab('chat'); setTimeout(() => document.querySelector('.lobby-side form input')?.focus(), 0) }}>Chat{unread > 0 && <b className='unread'>{unread > 9 ? '9+' : unread}</b>}</button>
         </div>
+        {wild && <div className='lobby-wild'><WildWord e={wild} toast={toast} active={active && phase !== 'clues'} onDone={clearWild} /></div>}
         {tab === 'game' && <div className='side-scroll'>
         {offers.filter((o) => lobby.players.some((p) => p.id === o.from)).map((o) => (
           <div key={o.from} className='sect friend-offer'>

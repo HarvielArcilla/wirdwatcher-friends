@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, Coins, useToast, useInterval } from './ui.jsx'
+import { api, Coins, useToast, useInterval, holdCoins, useShownCoins } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { PAYS, LETTERS } from '../shared/slots.js'
 import { burst, centerOf } from './effects.js'
 import { playRating } from './sound.js'
 import { Coinflip, useLiveCoins } from './Wirdhouse.jsx'
 import Packs from './Packs.jsx'
+import Sportsbook from './Sportsbook.jsx'
 import { Credit } from './Credit.jsx'
 
-// The Casino: Wird Slots, the coinflip and card packs. Luck, for coins that only buy
+// The Casino: Wird Slots, the coinflip, the prediction market and card packs. Luck, for coins that only buy
 // looks. Nothing here counts toward ink.
 export default function Casino ({ econ, settings }) {
   const toast = useToast()
@@ -18,13 +19,29 @@ export default function Casino ({ econ, settings }) {
   useEffect(() => { load() }, [load])
   useInterval(load, 8000)
   useEffect(() => { try { localStorage.setItem('casino-tab', tab) } catch {} }, [tab])
+  const [frozen, setFrozen] = useState(null) // what the page showed before a game, until its animation ends
   const act = async (action, ...args) => {
     try { const out = await api('economyAction', action, ...args); load(); return out } catch (err) { toast({ error: true, title: 'Can’t do that', text: err.message }); return null }
   }
-  const coins = useLiveCoins(econ)
+  const live = useLiveCoins(econ)
+  // A game whose result is animated: the coins and stats stay as they were
+  // until it lands, ms later.
+  const play = async (ms, action, ...args) => {
+    const before = v
+    holdCoins(live, ms + 2000)
+    setFrozen(before)
+    const out = await act(action, ...args)
+    if (!out) { setFrozen(null); holdCoins(live, 0); return null }
+    holdCoins(live, ms)
+    setTimeout(() => setFrozen(null), ms)
+    return out
+  }
+  const coins = useShownCoins(live)
   if (!v) return null
-  const sl = v.slots
-  const f = v.flips
+  const real = v
+  const shown = frozen || real
+  const sl = shown.slots
+  const f = shown.flips
   const net = sl.net + f.net
   return (
     <div className='page casino'>
@@ -39,15 +56,16 @@ export default function Casino ({ econ, settings }) {
         </div>
       </div>
       <div className='tabs' role='tablist'>
-        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
       {econ?.bankrupt
         ? <div className='casino-closed'><h2>The casino’s closed to you for now</h2><p className='lede'>It doesn’t take bankrupt players. Build some steady income and the doors open again{v.packs.free > 0 ? `, and your ${v.packs.free} free pack${v.packs.free === 1 ? ' is' : 's are'} waiting` : ''}.</p><Credit econ={econ} compact /></div>
         : (
           <>
-            {tab === 'slots' && <Slots v={v} coins={coins} act={act} settings={settings} />}
-            {tab === 'flip' && <Coinflip v={v} coins={coins} act={act} look={econ?.look} />}
-            {tab === 'packs' && <Packs v={v} coins={coins} act={act} />}
+            {tab === 'slots' && <Slots v={shown} live={real} coins={coins} play={play} settings={settings} />}
+            {tab === 'flip' && <Coinflip v={shown} coins={coins} act={(...a) => play(1500, ...a)} look={econ?.look} />}
+            {tab === 'sports' && <Sportsbook coins={coins} />}
+            {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}
           </>
           )}
     </div>
@@ -57,7 +75,7 @@ export default function Casino ({ econ, settings }) {
 const REEL_SPIN_MS = 900
 const REEL_GAP_MS = 260
 
-function Slots ({ v, coins, act, settings }) {
+function Slots ({ v, live, coins, play, settings }) {
   const [stake, setStake] = useState('100')
   const [res, setRes] = useState(null)
   const [stopped, setStopped] = useState(5) // reels that have stopped
@@ -74,7 +92,7 @@ function Slots ({ v, coins, act, settings }) {
   }, [spinning, stopped])
   const go = async (free = false) => {
     if (spinning || (!free && (amount < 1 || amount > whole))) return
-    const out = await act('spin', free ? 0 : amount, { free })
+    const out = await play(REEL_SPIN_MS + 5 * REEL_GAP_MS + 60, 'spin', free ? 0 : amount, { free })
     if (!out) return
     setRes(null)
     setStopped(0)
@@ -119,7 +137,7 @@ function Slots ({ v, coins, act, settings }) {
           <button onClick={() => setStake(String(Math.min(whole, Math.max(1, amount * 2))))}>×2</button>
         </div>
         <button className='btn primary big' disabled={spinning || amount < 1 || amount > whole} onClick={() => go()}>{amount > whole ? 'You don’t have that many' : `Spin for ${formatCoins(amount)}`}</button>
-        <button className='btn big free-spin' disabled={spinning || !v.freeSpin.ready} onClick={() => go(true)}>{v.freeSpin.ready ? <>🎁 Today’s free spin (<Coins n={v.freeSpin.amount} />)</> : 'Free spin used today'}</button>
+        <button className='btn big free-spin' disabled={spinning || !live.freeSpin.ready} onClick={() => go(true)}>{live.freeSpin.ready ? <>🎁 Today’s free spin (<Coins n={live.freeSpin.amount} />)</> : 'Free spin used today'}</button>
         <div className='paytable'>
           <div><b>5-letter word</b><span>×{PAYS[5]}</span></div>
           <div><b>4-letter word</b><span>×{PAYS[4]}</span></div>

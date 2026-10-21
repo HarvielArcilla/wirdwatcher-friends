@@ -138,3 +138,21 @@ test('battles act out the duel faithfully, the same every time', async () => {
     assert.deepEqual(battleScript(res, 'Pip'), beats)
   }
 })
+
+test('words rated at a lobby table bring wild Leximon too, and they stay a few words', () => {
+  const a = app()
+  const words = a.words.sorted.filter((w) => /^[a-z]{4,8}$/.test(w)).slice(700, 800)
+  let enc = null
+  let i = 0
+  for (; i < words.length && !enc; i++) {
+    a.clock.t += 5000
+    enc = a.rate(words[i], (i % 11) / 2, { source: 'lobby' }).leximon?.encounter
+  }
+  assert.ok(enc, 'a wild word showed up from a table rating')
+  assert.equal(enc.stay, 4)
+  for (let k = 0; k < 3; k++) { a.clock.t += 5000; a.rate(words[i + k], 3, { source: 'lobby' }) }
+  assert.equal(a.leximon.s.encounter?.word, enc.word, 'still there three words later')
+  a.clock.t += 5000
+  const res = a.rate(words[i + 3], 3, { source: 'lobby' })
+  assert.equal(res.leximon.fled, enc.word, 'gone after the fourth')
+})

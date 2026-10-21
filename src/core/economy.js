@@ -19,7 +19,7 @@ import {
 import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../shared/cosmetics.js'
 import { balanced, validStake } from '../shared/stakes.js'
 import { letterAt, WEIGHT_TOTAL, evaluate } from '../shared/slots.js'
-import { drawPack, packPool, packPrice, PACK_ODDS, LAST_CARD_ODDS, PITY, SCRAP_FOR, CRAFT_COST } from '../shared/packs.js'
+import { drawPack, packPool, packPrice, PITY, scrapFor, craftCost, cardValue, FLAT, STEEP, BONUS_MIN, SCRAP_RATE } from '../shared/packs.js'
 
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
@@ -57,7 +57,9 @@ const blank = (now) => ({
   stakes: { games: 0, won: 0, lost: 0, net: 0, biggestPot: 0 },
   bankrupt: null, // { at, discharged, need, earned, until, n } while it lasts
   credit: { filings: 0, discharged: 0, lastFiled: null, debtInterest: 0, deepest: 0 },
-  packs: { free: 0, granted: 0, opened: 0, bought: 0, sinceEpic: 0, scraps: 0, last: [] }
+  packs: { free: 0, granted: 0, opened: 0, bought: 0, dry: 0, scraps: 0, scrapsV: 2, last: [] },
+  // Where coins came from and went (kept from 2.3.1 on).
+  ledger: { since: now, spent: {}, got: {} }
 })
 
 const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` }
@@ -75,7 +77,10 @@ export class Economy extends EventEmitter {
     const saved = readJson(this.file, null)
     this.s = { ...blank(now()), ...(saved || {}) }
     for (const k of ['stats', 'flips', 'stakes', 'market', 'slots', 'credit', 'packs']) this.s[k] = { ...blank(0)[k], ...(saved?.[k] || {}) }
+    if (!this.s.ledger) this.s.ledger = { since: now(), spent: {}, got: {} }
     this.s.escrow = { ...(saved?.escrow || {}) }
+    // 2.3.0 counted scraps in small numbers by rarity; from 2.3.1 they're worth coins' value.
+    if (saved?.packs && saved.packs.scrapsV !== 2) { this.s.packs.scraps = Math.round((this.s.packs.scraps || 0) * 5000); this.s.packs.dry = this.s.packs.sinceEpic || 0; delete this.s.packs.sinceEpic; this.s.packs.scrapsV = 2 }
     this.s.look = { ...DEFAULT_LOOK, ...(saved?.look || {}) }
     if (!this.s.muse) this.s.muse = { v: 1, t: now() } // arrive inspired
     this.paid = new Set(this.s.paid)
@@ -112,8 +117,9 @@ export class Economy extends EventEmitter {
     this.dirty = false
   }
 
-  _earn (coins) {
+  _earn (coins, what = 'income') {
     if (!(coins > 0)) return 0
+    this.note('got', what, coins)
     this.s.coins += coins
     this.s.runCoins += coins
     this.s.allCoins += coins
@@ -203,11 +209,19 @@ export class Economy extends EventEmitter {
 
   // --- spending -------------------------------------------------------------------
 
-  _spend (cost) {
+  _spend (cost, what = 'other') {
     this.tick()
     if (!(cost >= 0) || this.s.coins + 1e-6 < cost) throw new Error('Not enough coins.')
     this.s.coins = Math.max(0, this.s.coins - cost)
+    this.note('spent', what, cost)
     this.dirty = true
+  }
+
+  // The ledger: what came in and went out, by what for.
+  note (side, what, coins) {
+    if (!(coins > 0)) return
+    const l = this.s.ledger
+    l[side][what] = (l[side][what] || 0) + coins
   }
 
   buyBuilding (id, count = 1) {
@@ -217,7 +231,7 @@ export class Economy extends EventEmitter {
     this.tick()
     const n = count === 'max' ? maxAffordable(b, owned, this.s.coins) : Math.max(1, Math.min(1000, Math.floor(Number(count) || 1)))
     if (!n) throw new Error('Not enough coins.')
-    this._spend(buildingCost(b, owned, n))
+    this._spend(buildingCost(b, owned, n), 'wirdhouse')
     this.s.buildings[id] = owned + n
     this.emit('changed')
     return this.view()
@@ -228,7 +242,7 @@ export class Economy extends EventEmitter {
     if (!u) throw new Error('No such upgrade.')
     if (this.s.upgrades.includes(id)) throw new Error('You already have that.')
     if (!u.req(this.s)) throw new Error(`Not yet: ${u.hint.toLowerCase()}.`)
-    this._spend(u.cost)
+    this._spend(u.cost, 'wirdhouse')
     this.s.upgrades.push(id)
     this.emit('changed')
     return this.view()
@@ -533,6 +547,7 @@ export class Economy extends EventEmitter {
     }
     this.s.levelPaid = level
     this.s.coins += coins // a gift, not earned: doesn't count toward ink
+    this.note('got', 'rewards', coins)
     const packs = this.grantLevelPacks(level)
     this.dirty = true
     this.emit('changed')
@@ -556,7 +571,7 @@ export class Economy extends EventEmitter {
     if (this.s.bankrupt) throw new Error('No new looks while you’re bankrupt.')
     if (c.pack) throw new Error('That one only comes in card packs.')
     if (c.price === null) throw new Error(`That one comes from publishing ${c.edition === 1 ? 'once' : `${c.edition} times`}.`)
-    this._spend(c.price)
+    this._spend(c.price, 'cosmetics')
     this.s.owned.push(`${kind}:${id}`)
     this.s.look[kind] = id // wear it straight away
     this.emit('changed')
@@ -688,18 +703,19 @@ export class Economy extends EventEmitter {
       pk.free--
     } else {
       price = this.packPrice()
-      this._spend(price)
+      this._spend(price, 'packs')
       pk.bought++
     }
     const owned = new Set([...this.s.owned, ...COSMETICS.filter((c) => c.free).map((c) => `${c.kind}:${c.id}`)])
-    const { cards, sinceEpic } = drawPack(() => crypto.randomInt(2 ** 32) / 2 ** 32, pk.sinceEpic)
-    pk.sinceEpic = sinceEpic
+    const value = this.packPrice()
+    const { cards, dry } = drawPack(() => crypto.randomInt(2 ** 32) / 2 ** 32, value, pk.dry || 0)
+    pk.dry = dry
     const out = cards.map((c) => {
       const key = `${c.kind}:${c.id}`
       const dup = owned.has(key)
-      if (dup) pk.scraps += SCRAP_FOR[c.rarity]
+      if (dup) pk.scraps += scrapFor(c)
       else { this.s.owned.push(key); owned.add(key) }
-      return { kind: c.kind, id: c.id, name: c.name, rarity: c.rarity, dup, scraps: dup ? SCRAP_FOR[c.rarity] : 0, kindName: KINDS.find((k) => k.id === c.kind)?.name }
+      return { kind: c.kind, id: c.id, name: c.name, rarity: c.rarity, value: cardValue(c), dup, scraps: dup ? scrapFor(c) : 0, kindName: KINDS.find((k) => k.id === c.kind)?.name }
     })
     pk.opened++
     pk.last = [{ at: this.now(), cards: out.map((c) => `${c.kind}:${c.id}`), free }, ...pk.last].slice(0, 10)
@@ -715,8 +731,8 @@ export class Economy extends EventEmitter {
     const c = cosmetic(kind, id)
     if (!c || !packPool().includes(c)) throw new Error('That can’t be crafted.')
     if (this.owns(kind, id)) throw new Error('You already have it.')
-    const cost = CRAFT_COST[c.rarity]
-    if (this.s.packs.scraps < cost) throw new Error(`That takes ${cost} scraps.`)
+    const cost = craftCost(c)
+    if (this.s.packs.scraps < cost) throw new Error(`That takes ${cost.toLocaleString('en-US')} scraps.`)
     this.s.packs.scraps -= cost
     this.s.owned.push(`${kind}:${id}`)
     this.dirty = true
@@ -727,7 +743,7 @@ export class Economy extends EventEmitter {
 
   packsView () {
     const pk = this.s.packs
-    return { ...pk, price: this.packPrice(), odds: PACK_ODDS, lastOdds: LAST_CARD_ODDS, pity: PITY, scrapFor: SCRAP_FOR, craftCost: CRAFT_COST, toPity: Math.max(1, PITY - pk.sinceEpic), nextFreeAt: (pk.granted + 1) * 5 }
+    return { ...pk, price: this.packPrice(), pity: PITY, flat: FLAT, steep: STEEP, bonusMin: BONUS_MIN, scrapRate: SCRAP_RATE, toPity: Math.max(1, PITY - (pk.dry || 0)), nextFreeAt: (pk.granted + 1) * 5 }
   }
 
   // --- for testing (the dev account) -------------------------------------------------
@@ -738,7 +754,7 @@ export class Economy extends EventEmitter {
     if (notify) { this.emit('changed'); this.emit('look') }
   }
 
-  devAddCoins (n) { this._earn(Math.max(0, Number(n) || 0)); this.emit('changed') }
+  devAddCoins (n) { this._earn(Math.max(0, Number(n) || 0), 'dev'); this.emit('changed') }
   devDebt (n) { this.tick(); this.s.coins -= Math.max(0, Number(n) || 0); this.dirty = true; this.emit('changed') }
 
   devWarp (secs) {

@@ -66,7 +66,7 @@ export function WildWord ({ e, onDone, toast, active = true }) {
         <button className='btn small primary' onClick={grab}>Catch <kbd>L</kbd></button>
         <button className='btn small ghost' onClick={() => { api('leximonAction', 'dismiss'); onDone(false) }}>Let it go</button>
       </div>
-      <small className='wild-hint'>It leaves after your next new word.</small>
+      <small className='wild-hint'>{e.stay > 1 ? 'It sticks around for a few more words.' : 'It leaves after your next new word.'}</small>
     </div>
   )
 }

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, Coins, useToast, useInterval } from './ui.jsx'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { api, Coins, useToast, useInterval, useMinuteTick, useSecondsToMinute } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
 import { sectorOf } from '../shared/market.js'
 import { Credit } from './Credit.jsx'
+import Portfolio from './Portfolio.jsx'
 import { LeverageTicket, FuturesTicket, OptionsTicket, Positions, Funds } from './Derivs.jsx'
 
 // The Word Exchange. Every word has a price that's the same on every
@@ -22,6 +23,8 @@ export default function Market ({ econ, openWord }) {
   const [query, setQuery] = useState('')
   const [pick, setPick] = useState(null)
   const [book, setBook] = useState(null)
+  const [view, setView] = useState(() => { try { return localStorage.getItem('market-view') || 'exchange' } catch { return 'exchange' } })
+  useEffect(() => { try { localStorage.setItem('market-view', view) } catch {} }, [view])
   const load = useCallback(() => {
     api('market', { sector, sort, query, limit: 80 }).then(setBoard).catch(() => {})
     api('portfolio').then(setPort).catch(() => {})
@@ -32,7 +35,7 @@ export default function Market ({ econ, openWord }) {
     }).catch(() => {})
   }, [sector, sort, query]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
-  useInterval(load, 20000) // prices change by the minute
+  useMinuteTick(load) // prices change by the minute
   useEffect(() => { if (!pick && board?.rows?.[0]) setPick(port?.rows?.[0]?.word || board.rows[0].word) }, [board, port]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!board || !port) return null
   const tape = [...port.rows.map((r) => r.quote), ...board.rows.filter((r) => !port.rows.some((p) => p.word === r.word)).slice(0, 14)].filter(Boolean)
@@ -52,6 +55,11 @@ export default function Market ({ econ, openWord }) {
       </div>
 
       <Credit econ={econ} />
+      <div className='tabs mk-views' role='tablist'>
+        {[['exchange', 'Exchange'], ['portfolio', 'Portfolio']].map(([id, label]) => <button key={id} role='tab' aria-selected={view === id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>{label}</button>)}
+      </div>
+      {view === 'portfolio' && <Portfolio onPick={(w) => { setPick(w); setView('exchange') }} />}
+      {view === 'exchange' && <>
       <div className='mk-sectors' role='tablist' aria-label='Sectors'>
         <button className={!sector ? 'on' : ''} onClick={() => setSector(null)} role='tab' aria-selected={!sector}>All</button>
         {board.sectors.map((s) => (
@@ -110,8 +118,9 @@ export default function Market ({ econ, openWord }) {
           </table>
         </section>
       )}
-      <Positions book={book} coins={econ?.coins ?? 0} toast={toast} onChange={load} onPick={setPick} />
-      <Funds coins={econ?.coins ?? 0} toast={toast} onChange={load} />
+      </>}
+      {view === 'exchange' && <Positions book={book} coins={econ?.coins ?? 0} toast={toast} onChange={load} onPick={setPick} />}
+      {view === 'exchange' && <Funds coins={econ?.coins ?? 0} toast={toast} onChange={load} onPick={(w) => { setPick(w); window.scrollTo?.({ top: 0, behavior: 'smooth' }); document.querySelector('.main')?.scrollTo?.({ top: 0, behavior: 'smooth' }) }} />}
     </div>
   )
 }
@@ -162,7 +171,21 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
     api('marketQuote', word).then(setQ).catch(() => {})
   }, [word, range])
   useEffect(() => { load(); setHover(null) }, [load])
-  useInterval(load, 30000)
+  useMinuteTick(load, 15000) // the moment a new price is out, and often in between
+  // A flash when the price moves.
+  const [flash, setFlash] = useState(null)
+  const lastPrice = useRef(null)
+  useEffect(() => {
+    if (!q) return
+    if (lastPrice.current && lastPrice.current.word === word && lastPrice.current.price !== q.price) {
+      setFlash(q.price > lastPrice.current.price ? 'up' : 'down')
+      const t = setTimeout(() => setFlash(null), 1200)
+      lastPrice.current = { word, price: q.price }
+      return () => clearTimeout(t)
+    }
+    lastPrice.current = { word, price: q.price }
+  }, [q?.price, word]) // eslint-disable-line react-hooks/exhaustive-deps
+  const secs = useSecondsToMinute()
   const [tab, setTab] = useState('shares')
   const pos = port.rows.find((r) => r.word === word)
   const coins = econ?.coins ?? 0
@@ -204,8 +227,9 @@ function Detail ({ word, econ, port, toast, onTraded, openWord }) {
         <span className='mk-tags'><span>{sec.emoji} {sec.name}</span><span>{q.vol > 0.6 ? '🎢 Wild' : q.vol > 0.35 ? '〰️ Lively' : '🧱 Blue chip'}</span></span>
       </div>
       <div className='mk-quote'>
-        <b>{money(shown ? shown[1] : q.price)}</b>
+        <b className={flash && !shown ? `flash-${flash}` : ''}>{money(shown ? shown[1] : q.price)}</b>
         <span className={change >= 0 ? 'up' : 'down'}>{pct(change)} {RANGES.find((r) => r[0] === range)[1]}</span>
+        {!shown && <small className='mk-next' title='Prices change every minute'>next price in {secs}s</small>}
         {shown && <small>{new Date(shown[0]).toLocaleString([], range === 'day' ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric', ...(range === 'year' ? { year: 'numeric' } : { hour: 'numeric' }) })}</small>}
       </div>
       <div className='mk-chart' onMouseLeave={() => setHover(null)} onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setHover(Math.round(((e.clientX - r.left) / r.width) * (pts.length - 1))) }}>

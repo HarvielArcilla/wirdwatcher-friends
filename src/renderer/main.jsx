@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
+import './lookStyles.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, icons, ToastHost, useToast, celebrate, Coins, setLevelUpSettings } from './ui.jsx'
+import { api, icons, ToastHost, useToast, celebrate, Coins, setLevelUpSettings, useShownCoins } from './ui.jsx'
 import Play from './Play.jsx'
 import Lobby from './Lobby.jsx'
 import Collection from './Collection.jsx'
@@ -49,6 +50,8 @@ function App () {
   const [econ, setEcon] = useState(null) // coins, coins per second, the streak, your look
   const [today, setToday] = useState(null) // for the dot on Today
   const [update, setUpdate] = useState(null) // a new release, as it downloads and gets ready
+  const [lobbyWild, setLobbyWild] = useState(null)
+  const shownCoins = useShownCoins(econ?.coins ?? 0) // a wild Leximon from a word rated at the table
   const [sure, setSure] = useState(false)
 
   useEffect(() => {
@@ -115,7 +118,11 @@ function App () {
     const offs = [
       window.ww.on.friends((f) => { setFriends(f); api('modes').then(setModes) }),
       window.ww.on.friendRecords(() => api('modes').then(setModes)),
-      window.ww.on.progress((p) => { celebrate(toast, p); refreshTop() }),
+      window.ww.on.progress((p) => {
+        celebrate(toast, p); refreshTop()
+        if (p.source === 'lobby' && p.leximon?.encounter) setLobbyWild(p.leximon.encounter)
+        else if (p.source === 'lobby' && p.leximon?.fled) setLobbyWild((w) => (w && w.word === p.leximon.fled ? null : w))
+      }),
       window.ww.on.lobby((s) => { setLobby(s); if (!s) setEvents([]) }),
       window.ww.on.lobbyEvent((e) => setEvents((all) => [...all.slice(-80), e])),
       window.ww.on.lobbyClosed((reason) => toast({ emoji: '🚪', title: 'The lobby ended', text: reason }))
@@ -172,7 +179,7 @@ function App () {
           </button>
         )}
         {econ?.bankrupt && <button className='stat bankchip' onClick={() => setTab('market')} title='Bankrupt: see what’s left to be discharged'>⚖️ Bankrupt</button>}
-        {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''} ${econ.coins < 0 ? 'debt' : ''}`} onClick={() => setTab('wirdhouse')} title={econ.coins < 0 ? `In debt: ${formatCoins(-econ.coins)} coins owed` : `${formatCoins(econ.cps)} coins a second`}><strong><Coins n={econ.coins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
+        {econ && <button className={`stat coinstat ${econ.streak?.n > 1 ? 'hot' : ''} ${econ.coins < 0 ? 'debt' : ''}`} onClick={() => setTab('wirdhouse')} title={econ.coins < 0 ? `In debt: ${formatCoins(-econ.coins)} coins owed` : `${formatCoins(econ.cps)} coins a second`}><strong><Coins n={shownCoins} /></strong>{econ.cps >= 0.1 ? `${formatCoins(econ.cps)}/s` : 'coins'}</button>}
         <span className='stat flame' title='Days in a row'><strong>{me.streak || 0}</strong>day streak 🔥</span>
         <span className='stat'><strong>{profile.stats.rated.toLocaleString()}</strong>rated</span>
         <span className='stat'><strong>{onlineFriends}</strong>friends online</span>
@@ -185,7 +192,7 @@ function App () {
         {tab === 'collection' && <Collection me={me} econ={econ} profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         {tab === 'friends' && <Friends friends={friends} profile={profile} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
-          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} />
+          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} wild={lobbyWild} clearWild={() => setLobbyWild(null)} />
         </div>
         {tab === 'wirdhouse' && <Wirdhouse econ={econ} />}
         {tab === 'shop' && <Shop econ={econ} me={me} />}

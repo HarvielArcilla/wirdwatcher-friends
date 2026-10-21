@@ -326,3 +326,49 @@ export function playLevelUp (settings) {
     renderLevelUp(c, bus)
   } catch {}
 }
+
+// --- the lobby table ---------------------------------------------------------------
+//
+// Little sounds for what happens at a table, so you can be on another tab
+// (or another window) and still hear the game: someone sitting down or
+// leaving, a card going down, your turn, the reveal, the end of a game, a
+// chat message. Each is its own short sound, quieter than rating sounds.
+const TABLE = {
+  join: (c, out) => { voice(c, out, { type: 'triangle', freq: 523.25, decay: 0.16, gain: 0.22 }); voice(c, out, { type: 'triangle', freq: 783.99, start: 0.09, decay: 0.22, gain: 0.22 }) },
+  leave: (c, out) => { voice(c, out, { type: 'triangle', freq: 659.25, decay: 0.16, gain: 0.18 }); voice(c, out, { type: 'triangle', freq: 440, start: 0.1, decay: 0.26, gain: 0.18 }) },
+  // A card slapped onto felt: a soft thump and a papery flick.
+  card: (c, out) => { noise(c, out, { decay: 0.05, gain: 0.55, freq: 1800 }); voice(c, out, { type: 'sine', freq: 180, glide: 90, decay: 0.09, gain: 0.25 }) },
+  // Everyone's in: the cards turn over.
+  reveal: (c, out) => {
+    for (let i = 0; i < 4; i++) noise(c, out, { start: i * 0.06, decay: 0.035, gain: 0.35, freq: 2200 + i * 300 })
+    bell(c, out, { freq: 1046.5, start: 0.26, decay: 0.9, gain: 0.2 })
+    bell(c, out, { freq: 1318.5, start: 0.36, decay: 0.9, gain: 0.16 })
+  },
+  // Your turn: two bright bells, hard to miss.
+  turn: (c, out) => { bell(c, out, { freq: 1567.98, decay: 0.7, gain: 0.28 }); bell(c, out, { freq: 2093, start: 0.16, decay: 0.9, gain: 0.26 }) },
+  start: (c, out) => { [392, 523.25, 659.25].forEach((f, i) => voice(c, out, { type: 'triangle', freq: f, start: i * 0.08, decay: 0.25, gain: 0.22 })) },
+  gameover: (c, out) => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => voice(c, out, { type: 'triangle', freq: f, start: i * 0.11, decay: 0.3, gain: 0.24 }))
+    for (const f of [523.25, 659.25, 783.99]) voice(c, out, { type: 'sawtooth', freq: f, start: 0.48, attack: 0.02, decay: 1.1, gain: 0.05, filter: [2400, 800] })
+    bell(c, out, { freq: 2093, start: 0.5, decay: 1.4, gain: 0.18 })
+  },
+  chat: (c, out) => voice(c, out, { type: 'sine', freq: 880, glide: 1320, decay: 0.12, gain: 0.16 }),
+  react: (c, out) => voice(c, out, { type: 'sine', freq: 1200, glide: 1600, decay: 0.08, gain: 0.1 }),
+  solved: (c, out) => { bell(c, out, { freq: 1318.5, decay: 0.6, gain: 0.2 }); bell(c, out, { freq: 1975.5, start: 0.1, decay: 0.8, gain: 0.18 }) }
+}
+export const TABLE_SOUNDS = Object.keys(TABLE)
+
+let lastTable = {}
+export function playTable (kind, settings) {
+  try {
+    if (!settings || settings.tableSounds === false || !settings.soundVolume || !TABLE[kind]) return
+    // The same sound twice in a breath (several cards at once) plays once.
+    const now = performance.now()
+    if (now - (lastTable[kind] || 0) < 90) return
+    lastTable[kind] = now
+    const c = audio()
+    if (!bus) { bus = c.createGain(); bus.connect(c.destination) }
+    bus.gain.value = (settings.soundVolume / 100) * 0.9
+    TABLE[kind](c, chain(c, bus))
+  } catch {}
+}

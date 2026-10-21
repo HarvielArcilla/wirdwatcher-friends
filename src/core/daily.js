@@ -118,6 +118,7 @@ export class Daily {
       coins += this.questReward() * 2
     }
     this.economy.s.coins += coins // a reward, not earnings: no ink
+    this.economy.note('got', 'rewards', coins)
     this._save()
     return { coins, all, streak: this.s.streak }
   }
@@ -129,6 +130,7 @@ export class Daily {
     this.s.weekClaimed = true
     const coins = this.weeklyReward()
     this.economy.s.coins += coins
+    this.economy.note('got', 'rewards', coins)
     this._save()
     return { coins }
   }
@@ -194,6 +196,7 @@ export class Daily {
       st.points = Math.max(10, 100 - 12 * st.clue - 10 * st.wrong)
       st.coins = this.cluesReward(st.points)
       this.economy.s.coins += st.coins
+      this.economy.note('got', 'rewards', st.coins)
       this.note('clues')
       this.s.history = [{ day: this.s.day, points: st.points, clue: st.clue, wrong: st.wrong }, ...this.s.history].slice(0, 60)
     } else {

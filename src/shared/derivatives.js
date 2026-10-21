@@ -351,7 +351,15 @@ export const ETFS = [
   { id: 'WRD3', name: 'Whole Market 3×', emoji: '🚀', track: 'all', k: 3, fee: 0.0095, blurb: 'Three times the market’s daily move, reset each day.' },
   { id: 'WSHT', name: 'Whole Market Short', emoji: '🐻', track: 'all', k: -1, fee: 0.0095, blurb: 'The opposite of the market’s daily move.' },
   { id: 'WSH3', name: 'Whole Market Short 3×', emoji: '🕳️', track: 'all', k: -3, fee: 0.0095, blurb: 'Three times the opposite, reset each day.' },
-  ...SECTOR_FUNDS
+  ...SECTOR_FUNDS,
+  // Baskets of real words (picked from the word list; see core/derivatives.js),
+  // equally weighted, so the fund is exactly how its words do.
+  { id: 'BLUE', name: 'Blue Chips', emoji: '🧱', track: 'basket', pick: 'blue', k: 1, fee: 0.002, blurb: 'The 25 steadiest everyday words.' },
+  { id: 'WILD', name: 'Wild Ones', emoji: '🎢', track: 'basket', pick: 'wild', k: 1, fee: 0.006, blurb: 'The 25 wildest obscure words.' },
+  { id: 'LONG', name: 'Long Words', emoji: '📏', track: 'basket', pick: 'long', k: 1, fee: 0.004, blurb: '25 everyday words of eleven letters or more.' },
+  { id: 'TINY', name: 'Tiny Words', emoji: '🐜', track: 'basket', pick: 'tiny', k: 1, fee: 0.004, blurb: '25 everyday words of four letters or fewer.' },
+  { id: 'PALI', name: 'Palindromes', emoji: '🪞', track: 'basket', pick: 'pali', k: 1, fee: 0.005, blurb: 'Words that read the same backwards.' },
+  { id: 'TWIN', name: 'Double Letters', emoji: '👯', track: 'basket', pick: 'twin', k: 1, fee: 0.004, blurb: '25 everyday words with a letter twice in a row.' }
 ]
 export const etfById = (id) => ETFS.find((e) => e.id === id)
 
@@ -367,9 +375,19 @@ function trackLevel (track, t) {
 // inverse funds compound k × each day's move, plus the cash they hold
 // (1 − k) earning RATE, less fees, resetting at 00:00 UTC.
 const navDays = new Map() // id -> [nav at the start of each day since the open]
-export function etfNav (etf, t) {
+// A basket's level: the geometric mean of its words' growth since the open.
+export function basketLevel (profiles, t) {
+  if (!profiles?.length) return 1
+  let s = 0
+  for (const p of profiles) s += Math.log(priceAt(p, t) / priceAt(p, MARKET_OPEN))
+  return Math.exp(s / profiles.length)
+}
+
+// basket: the word profiles a basket fund holds.
+export function etfNav (etf, t, basket = null) {
   t = quoteTime(Math.max(MARKET_OPEN, t))
   const yrs = (t - MARKET_OPEN) / YEAR_MS
+  if (etf.track === 'basket') return 100 * basketLevel(basket, t) * Math.exp(-etf.fee * yrs)
   if (etf.k === 1) return 100 * (trackLevel(etf.track, t) / trackLevel(etf.track, MARKET_OPEN)) * Math.exp(-etf.fee * yrs)
   const d = Math.floor((t - MARKET_OPEN) / DAY)
   let days = navDays.get(etf.id)
@@ -386,7 +404,13 @@ export function etfNav (etf, t) {
   const move = trackLevel(etf.track, t) / trackLevel(etf.track, dayStart) - 1
   return days[d] * Math.max(0.001, 1 + etf.k * move + carry * frac)
 }
-export function etfQuote (etf, t) {
-  const nav = etfNav(etf, t)
-  return { nav, buy: nav * (1 + ETF_SPREAD), sell: nav * (1 - ETF_SPREAD), day: nav / etfNav(etf, t - DAY) - 1 }
+export function etfQuote (etf, t, basket = null) {
+  const nav = etfNav(etf, t, basket)
+  return { nav, buy: nav * (1 + ETF_SPREAD), sell: nav * (1 - ETF_SPREAD), day: nav / etfNav(etf, t - DAY, basket) - 1 }
+}
+export function etfSeries (etf, from, to, n, basket = null) {
+  const out = []
+  const step = (to - from) / Math.max(1, n - 1)
+  for (let i = 0; i < n; i++) { const t = from + step * i; out.push([quoteTime(t), etfNav(etf, t, basket)]) }
+  return out
 }
