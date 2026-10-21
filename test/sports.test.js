@@ -256,3 +256,25 @@ test('politics and pop culture: several open at once, chances come true, and the
   const card = a.sports.view(g.id)
   assert.ok(card.event && card.chart.length > 1 && card.winner === g.winner)
 })
+
+test('box scores: basketball points add up to the score, and passing yards to receiving yards', async () => {
+  const { playerStats } = await import('../src/core/sportsbook.js')
+  for (let n = 300; n < 320; n++) {
+    const h = game('hoops', n)
+    const s = playerStats(h, h.plays)
+    for (const side of ['home', 'away']) {
+      assert.equal(s[side].reduce((a, x) => a + x.pts, 0), h.final[side])
+      for (const x of s[side]) assert.ok(x.fgm <= x.fga && x.tpm <= x.tpa && x.ftm <= x.fta && x.tpa <= x.fga)
+    }
+    const f = game('gridiron', n)
+    const t = playerStats(f, f.plays)
+    for (const side of ['home', 'away']) {
+      const pass = t[side].passing.reduce((a, x) => a + x.pyds, 0)
+      const rec = t[side].receiving.reduce((a, x) => a + x.cyds, 0)
+      assert.equal(pass, rec)
+      assert.equal(t[side].passing.reduce((a, x) => a + x.cmp, 0), t[side].receiving.reduce((a, x) => a + x.rec, 0))
+      const tds = f.plays.filter((p) => p.team === side && (p.kind === 'td-pass' || p.kind === 'td-rush')).length
+      assert.equal(t[side].receiving.reduce((a, x) => a + x.ctd, 0) + t[side].rushing.reduce((a, x) => a + x.rtd, 0), tds)
+    }
+  }
+})

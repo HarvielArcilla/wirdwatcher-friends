@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, Coins, useToast, useInterval, useMinuteTick, useSecondsToMinute } from './ui.jsx'
-import { formatCoins } from '../shared/economy.js'
+import { formatCoins, shortCoins } from '../shared/economy.js'
 import { sectorOf } from '../shared/market.js'
 import { Credit } from './Credit.jsx'
 import Portfolio from './Portfolio.jsx'
@@ -9,7 +9,7 @@ import { LeverageTicket, FuturesTicket, OptionsTicket, Positions, Funds } from '
 // The Word Exchange. Every word has a price that's the same on every
 // computer, minute by minute; you can trade the words you've rated.
 const pct = (x, digits = 1) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(digits)}%`
-const money = (n) => (n >= 1000 ? formatCoins(n) : n.toFixed(2))
+const money = (n) => (Math.abs(n) >= 1000 ? shortCoins(n) : n.toFixed(2))
 const SORTS = [['movers', 'Movers'], ['gainers', 'Gainers'], ['losers', 'Losers'], ['price', 'Price'], ['volatile', 'Volatile'], ['name', 'A–Z']]
 const RANGES = [['day', '1D'], ['week', '1W'], ['month', '1M'], ['year', '1Y']]
 const TABS = [['shares', 'Shares'], ['leverage', 'Leverage'], ['futures', 'Futures'], ['options', 'Options']]
@@ -110,7 +110,7 @@ export default function Market ({ econ, openWord }) {
             <tbody>
               {port.rows.map((r) => (
                 <tr key={r.word} onClick={() => setPick(r.word)} style={{ cursor: 'pointer' }}>
-                  <td><b>{r.word}</b></td><td>{r.shares.toFixed(r.shares < 10 ? 3 : 1)}</td><td><Coins n={r.cost} /></td><td><Coins n={r.value} /></td>
+                  <td><b>{r.word}</b></td><td>{r.shares >= 1e4 ? shortCoins(r.shares) : r.shares.toFixed(r.shares < 10 ? 3 : 1)}</td><td><Coins short n={r.cost} /></td><td><Coins short n={r.value} /></td>
                   <td className={r.gain >= 0 ? 'up' : 'down'}>{pct(r.pct)}</td>
                 </tr>
               ))}

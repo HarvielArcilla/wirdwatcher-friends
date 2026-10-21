@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { formatRating } from '../shared/progress.js'
-import { formatCoins } from '../shared/economy.js'
+import { formatCoins, shortCoins } from '../shared/economy.js'
 import { playLevelUp } from './sound.js'
 import { burst } from './effects.js'
 import { COSMETICS } from '../shared/cosmetics.js'
@@ -28,8 +28,9 @@ export function Avatar ({ name, color, size, frame, children }) {
 }
 
 // A coin amount, with the coin.
-export function Coins ({ n, className = '' }) {
-  return <span className={`coins ${className}`}><CoinArt size='0.95em' side='plain' className='coin-glyph' />{formatCoins(n)}</span>
+// short: abbreviated (12.3M) for tight columns, with the full amount on hover.
+export function Coins ({ n, className = '', short = false }) {
+  return <span className={`coins ${className}`} title={short ? `${formatCoins(n)} coins` : undefined}><CoinArt size='0.95em' side='plain' className='coin-glyph' />{short ? shortCoins(n) : formatCoins(n)}</span>
 }
 
 // The coin, drawn: a milled rim, a raised ring, and a face. Heads carries

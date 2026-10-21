@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, Coins, useInterval, useMinuteTick } from './ui.jsx'
-import { formatCoins } from '../shared/economy.js'
+import { formatCoins, shortCoins } from '../shared/economy.js'
 import { normCdf, RATE, YEAR_MS, maintenanceRatio } from '../shared/derivatives.js'
 
 // Derivatives on the Word Exchange: leverage, futures and options tickets for
 // the word you're looking at, your open positions, and the funds (ETFs).
 // Prices come from src/shared/derivatives.js through the main process.
 
-export const money = (n) => (n == null || !isFinite(n) ? '—' : Math.abs(n) >= 1000 ? formatCoins(n) : n.toFixed(2))
+// Coin amounts, abbreviated past 10,000 (12.3K, 4.5M, 1.2B) so columns hold.
+export const money = (n) => (n == null || !isFinite(n) ? '—' : Math.abs(n) >= 1000 ? shortCoins(n) : n.toFixed(2))
 const pct = (x, d = 1) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(d)}%`
+const qtyText = (q) => (q >= 1e4 ? shortCoins(q) : q % 1 ? q.toFixed(q < 10 ? 3 : 1) : String(q))
 const signed = (n) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`
 const num = (s) => Number(String(s).replace(/[^\d.]/g, ''))
 const H = 3600e3
@@ -89,7 +91,7 @@ export function LeverageTicket ({ word, coins, trade }) {
       <Lev lev={L} set={setLev} min={min} max={max} />
       <Amount value={amt} set={setAmt} coins={coins} />
       <Facts rows={[
-        ['Position', m ? <><Coins n={L * m} /> · {qty.toFixed(qty < 10 ? 3 : 1)} sh</> : '—'],
+        ['Position', m ? <><Coins short n={L * m} /> · {qty.toFixed(qty < 10 ? 3 : 1)} sh</> : '—'],
         ['Entry', money(entry)],
         ['Liquidated at', liq > 0 ? `${money(liq)} (${pct(liq / S - 1)})` : 'never', 'down'],
         [side === 'long' ? 'Borrow cost' : 'Borrow fee', `${(rate * 100).toFixed(1)}% a year${m ? ` · ${money((base * rate) / 365.25)}/day` : ''}`]
@@ -282,14 +284,14 @@ export function Positions ({ book, coins, onChange, toast, onPick }) {
                 <button className='dv-pos-name' onClick={() => onPick(p.word)}>
                   <b>{p.label}</b>
                   <small>
-                    {p.kind === 'option' ? `${p.side > 0 ? 'Bought' : 'Wrote'} ${p.qty} at ${money(p.entry)}` : `${p.side > 0 ? 'Long' : 'Short'} ${p.qty.toFixed(p.qty < 10 ? 3 : 1)} at ${money(p.entry)}`}
+                    {p.kind === 'option' ? `${p.side > 0 ? 'Bought' : 'Wrote'} ${qtyText(p.qty)} at ${money(p.entry)}` : `${p.side > 0 ? 'Long' : 'Short'} ${qtyText(p.qty)} at ${money(p.entry)}`}
                     {p.expiry ? ` · ${untilText(p.expiry)} left` : ''}
                     {p.interest >= 0.01 ? ` · ${money(p.interest)} interest so far` : ''}
                   </small>
                 </button>
                 <div className='dv-pos-nums'>
-                  <span><small>Put up</small><Coins n={p.paid} /></span>
-                  <span><small>Worth</small><Coins n={p.value} /></span>
+                  <span><small>Put up</small><Coins short n={p.paid} /></span>
+                  <span><small>Worth</small><Coins short n={p.value} /></span>
                   <span className={p.gain >= 0 ? 'up' : 'down'}><small>P&L</small>{signed(p.gain)} <i>{pct(p.pct)}</i></span>
                 </div>
                 {p.liqPrice === undefined && <div className='dv-health none'><small>{p.kind === 'option' ? 'Can’t be liquidated: the premium is all you can lose' : ''}</small></div>}
@@ -346,7 +348,7 @@ export function Funds ({ coins, toast, onChange, onPick }) {
       <span className='dv-fund-emoji' aria-hidden='true'>{f.emoji}</span>
       <span className='dv-fund-name'><b>{f.id}</b><small>{f.name}</small></span>
       <span className='dv-fund-px'><b>{money(f.nav)}</b><small className={f.day >= 0 ? 'up' : 'down'}>{pct(f.day)}</small></span>
-      <span className='dv-fund-held'>{f.shares > 0 ? <>Yours <Coins n={f.value} /> <i className={f.gain >= 0 ? 'up' : 'down'}>{signed(f.gain)}</i></> : <i className='none'>Not held</i>}</span>
+      <span className='dv-fund-held'>{f.shares > 0 ? <>Yours <Coins short n={f.value} /> <i className={f.gain >= 0 ? 'up' : 'down'}>{signed(f.gain)}</i></> : <i className='none'>Not held</i>}</span>
     </button>
   )
   return (
@@ -414,7 +416,7 @@ function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
             <button className='btn primary' disabled={!(num(amt) >= 1) || num(amt) > coins} onClick={() => trade('buy', num(amt))}>Buy</button>
           </div>
           {f.shares > 0
-            ? <div className='dv-fd-pos'><span>You hold <Coins n={f.value} /> <i className={f.value - f.cost >= 0 ? 'up' : 'down'}>{signed(f.value - f.cost)}</i></span><button className='btn small' onClick={() => trade('sell', 'all')}>Sell all</button></div>
+            ? <div className='dv-fd-pos'><span>You hold <Coins short n={f.value} /> <i className={f.value - f.cost >= 0 ? 'up' : 'down'}>{signed(f.value - f.cost)}</i></span><button className='btn small' onClick={() => trade('sell', 'all')}>Sell all</button></div>
             : <small className='dv-fd-note'>Buying costs 0.05% over the fund’s value.</small>}
         </div>
       </div>

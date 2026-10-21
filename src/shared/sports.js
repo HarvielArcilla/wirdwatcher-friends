@@ -299,12 +299,17 @@ function simHoops (n) {
             boards++
             const reb = shooter(T)
             add(q, clock, side, `${p.name} ${pickOf(r, three ? MISS3 : MISS2)}; offensive rebound ${reb.name}`, 0, 'miss', p.name)
+            Object.assign(plays[plays.length - 1], { three, reb: reb.name, oreb: true })
             const extra = Math.min(clock, 3 + r() * 5)
             clock -= extra
             real += (extra * SEC) / HOOPS_SPEED
           } else {
             const D = side === 'home' ? A : H
-            add(q, clock, side, `${p.name} ${pickOf(r, three ? MISS3 : MISS2)}; ${shooter(D).name} rebounds`, 0, 'miss', p.name)
+            // (In this order, so the game plays out as it always has.)
+            const how = pickOf(r, three ? MISS3 : MISS2)
+            const reb = shooter(D)
+            add(q, clock, side, `${p.name} ${how}; ${reb.name} rebounds`, 0, 'miss', p.name)
+            Object.assign(plays[plays.length - 1], { three, reb: reb.name, oreb: false })
             alive = false
           }
         }
@@ -402,20 +407,24 @@ function simFoot (n) {
       let turnover = false
       let who = null // who'd score if this goes in
       let passer = null
+      let stat = null // for the box score: { qb, rec, rb, how }
       if (passing) {
         const qb = p(pos, 0)
+        stat = { qb: qb.name }
         const x = r()
-        if (x < 0.065 - e * 0.01) { gain = -Math.round(5 + r() * 5); text = `${qb.name} is sacked`; stop = false } else if (x < 0.09 - e * 0.012) { turnover = true; text = `${qb.name}’s pass is intercepted` } else if (x < 0.09 + 0.575 + e * 0.03) {
+        if (x < 0.065 - e * 0.01) { gain = -Math.round(5 + r() * 5); text = `${qb.name} is sacked`; stop = false; stat.how = 'sack' } else if (x < 0.09 - e * 0.012) { turnover = true; text = `${qb.name}’s pass is intercepted`; stat.how = 'int' } else if (x < 0.09 + 0.575 + e * 0.03) {
           const rec = p(pos, pickOf(r, [2, 2, 3, 3, 4, 1]))
+          Object.assign(stat, { how: 'catch', rec: rec.name })
           gain = Math.max(1, Math.round(5.5 + Math.abs(normal(r)) * 8.5 + (r() < 0.06 ? 20 + r() * 40 : 0) + e * 1.2))
           text = `${qb.name} to ${rec.name}: ${rec.name.split(' ')[1]} ${pickOf(r, CATCHES)}`
           who = rec.name
           passer = qb.name
           stop = r() < 0.3
-        } else { text = `${qb.name}’s pass falls incomplete`; gain = 0 }
+        } else { text = `${qb.name}’s pass falls incomplete`; gain = 0; stat.how = 'incomplete' }
       } else {
         const rb = p(pos, r() < 0.85 ? 1 : 0)
-        if (r() < 0.012) { turnover = true; text = `${rb.name} fumbles, and the defense recovers` } else {
+        stat = { rb: rb.name, how: 'run' }
+        if (r() < 0.012) { turnover = true; text = `${rb.name} fumbles, and the defense recovers`; stat.how = 'fumble' } else {
           gain = Math.round(3.3 + normal(r) * 4.2 + (r() < 0.025 ? 18 + r() * 45 : 0) + e * 0.7)
           text = `${rb.name} ${pickOf(r, RUNS)}`
           who = rb.name
@@ -423,8 +432,10 @@ function simFoot (n) {
         }
       }
       use(stop ? 6 + r() * 3 : 28 + r() * 12)
+      const tag = (yds) => { plays[plays.length - 1].stat = { ...stat, yds } }
       if (turnover) {
         add(q, clock, pos, text, 0, 'turnover')
+        tag(0)
         pos = other(pos)
         yl = Math.max(5, Math.min(95, 100 - yl - Math.round(r() * 10)))
         down = 1
@@ -435,6 +446,7 @@ function simFoot (n) {
       yl += gain
       if (yl >= 100) {
         add(q, clock, pos, passer ? `TOUCHDOWN! ${passer} finds ${who} for a ${100 - before}-yard score` : `TOUCHDOWN! ${who} runs it in from ${100 - before} yards`, 6, passer ? 'td-pass' : 'td-rush', who)
+        tag(100 - before)
         if (passer) plays[plays.length - 1].passer = passer
         const xp = r() < 0.94
         add(q, clock, pos, `${p(pos, 5).name} ${xp ? 'adds the extra point' : 'misses the extra point'}`, xp ? 1 : 0, 'xp', p(pos, 5).name)
@@ -444,6 +456,7 @@ function simFoot (n) {
       }
       if (yl <= 0) {
         add(q, clock, pos, `${text}: tackled in the end zone for a safety`, 0, 'safety')
+        tag(gain)
         score[other(pos)] += 2
         plays[plays.length - 1].home = score.home
         plays[plays.length - 1].away = score.away
@@ -452,6 +465,7 @@ function simFoot (n) {
         continue
       }
       add(q, clock, pos, `${text}${gain ? ` for ${Math.abs(gain) === 1 ? 'a yard' : `${Math.abs(gain)} yards`}${gain < 0 ? ' lost' : ''}` : passing ? '' : ' for no gain'}`, 0, passing ? 'pass' : 'run')
+      tag(gain)
       if (gain >= togo) { down = 1; togo = Math.min(10, 100 - yl) } else { down++; togo -= gain; if (down > 4) { pos = other(pos); yl = 100 - yl; down = 1; togo = 10; plays[plays.length - 1].text += ': turnover on downs' } }
     }
     plays.push({ at: Math.round(real), q, clock: Math.max(0, Math.round(clock)), team: null, text: q < 4 ? `End of quarter ${q}` : q === 4 ? 'End of regulation' : 'End of overtime', pts: 0, kind: 'period-end', home: score.home, away: score.away, pos, yl, down, togo })

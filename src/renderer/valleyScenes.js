@@ -205,7 +205,7 @@ const SCENES = {
         const cx = Math.round((edges[col] + edges[col + 1]) / 2)
         if (cell.decor === 'weed') { g.fillStyle = mix('#4a8a2a', '#16301a', n); g.fillRect(cx - 3 * s, yb - 4 * s, s, 4 * s); g.fillRect(cx, yb - 6 * s, s, 6 * s); g.fillRect(cx + 2 * s, yb - 3 * s, s, 3 * s) }
         if (cell.decor === 'stone') { g.fillStyle = mix('#7a7a88', '#2a2a36', n); g.fillRect(cx - 4 * s, yb - 4 * s, 8 * s, 4 * s); g.fillStyle = mix('#a8a8b0', '#3a3a46', n); g.fillRect(cx - 3 * s, yb - 5 * s, 5 * s, 3 * s) }
-        if (cell.crop) { g.save(); g.translate(cx, yb); g.scale(s, s); drawCrop(g, cell, cell.crop === 'word' ? c.wordCrop : c.crops[cell.crop], -8, -13, now); g.restore() }
+        if (cell.crop) { g.save(); g.translate(cx, yb); g.scale(s, s); drawCrop(g, cell, c.crops[cell.crop], -8, -13, now); g.restore() }
       }
     }
     // A scarecrow keeping watch.

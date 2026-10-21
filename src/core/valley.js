@@ -7,15 +7,15 @@ import crypto from 'node:crypto'
 import { VALLEY_COSMETICS, VALLEY_GOALS } from '../shared/cosmetics-valley.js'
 import {
   HOUR, WET_HOURS, HEART, MAX_FRIEND, MAX_DATING, MAX_MARRIED, GIFTS_PER_WEEK, TALK_POINTS, GIFT_POINTS, BIRTHDAY_MULT,
-  BOUQUET, QUILL, STARDUST, WORD_SEEDS_MAX, CROPS, WORD_CROP, FISH, BUGS, SHOP, GODS, GOD_IDS, ACTIVITIES, FIELD, fieldStart,
+  BOUQUET, QUILL, STARDUST, CROPS, FISH, BUGS, SHOP, GODS, GOD_IDS, ACTIVITIES, FIELD, fieldStart,
   cropDone, dayKey, weekKey, isRainy, partOfDay, itemInfo, taste, isBirthday, heartsOf, pickFish, pickBug, BUG_ROUND_MS,
-  forestRound, starsTonight, isNight, outingPoints, hash32, RESET_MS
+  forestRound, starsTonight, isNight, outingPoints, hash32, RESET_MS, growable, cropItem
 } from '../shared/valley.js'
 
 const STEP = 15 * 60e3 // growth is worked out in quarter hours
 export const blankValley = () => ({
   field: fieldStart(),
-  bag: { 'seed:syllabeet': 6, 'seed:thyme': 3 },
+  bag: {},
   gods: {},
   spouse: null,
   forest: { window: null, found: [] },
@@ -30,8 +30,10 @@ export const blankValley = () => ({
 const blankGod = () => ({ points: 0, talked: null, outing: null, gifts: { week: null, n: 0 }, seen: [], dating: false, married: false, met: false, known: {} })
 
 export class Valley {
-  constructor ({ economy, now = () => Date.now(), random = () => crypto.randomInt(2 ** 32) / 2 ** 32 }) {
+  // rated(): the words you've rated, [{ word, r, t }] (only these can be grown).
+  constructor ({ economy, now = () => Date.now(), random = () => crypto.randomInt(2 ** 32) / 2 ** 32, rated = () => [] }) {
     this.economy = economy
+    this.rated = rated
     this.now = now
     this.random = random
     // An early build kept a walkable farm as s.farm; Wird Valley starts fresh.
@@ -41,6 +43,14 @@ export class Valley {
     if (!Array.isArray(v.field) || v.field.length !== FIELD) v.field = fieldStart()
     for (const id of GOD_IDS) v.gods[id] = { ...blankGod(), ...(v.gods[id] || {}) }
     if (!v.started) v.started = this.now()
+    // Seeds used to be kept in the bag (bought, or dropped by new words):
+    // bought ones go back as coins, and grown words become syllabeets of
+    // that word.
+    for (const [id, n] of Object.entries(v.bag || {})) {
+      if (id.startsWith('seed:')) { economy.s.coins += (CROPS[id.slice(5)]?.seed || 0) * n; delete v.bag[id] } else if (id.startsWith('wordseed:')) delete v.bag[id]
+      else if (id.startsWith('word:')) { delete v.bag[id]; const to = cropItem('syllabeet', id.slice(5)); v.bag[to] = (v.bag[to] || 0) + n }
+    }
+    for (const c of v.field || []) if (c.crop === 'word') c.crop = 'syllabeet'
     economy.s.valley = v
   }
 
@@ -140,16 +150,21 @@ export class Valley {
     return { tilled: true }
   }
 
-  plant (i, item) {
+  // Buys a crop's seed as a word you've rated, and plants it.
+  plant (i, crop, word) {
     this.tick()
     const c = this._cell(i)
     if (c.soil !== 'tilled') throw new Error('Till the soil first, with the hoe.')
     if (c.crop) throw new Error('Something is already growing there.')
-    const info = itemInfo(String(item))
-    if (!info || (info.kind !== 'seed' && info.kind !== 'wordseed')) throw new Error('That isn’t a seed.')
-    this._take(item)
+    const C = CROPS[String(crop)]
+    if (!C) throw new Error('Pick a seed.')
+    const w = String(word || '').toLowerCase().trim()
+    if (!w) throw new Error('Pick a word to grow.')
+    if (!growable(w) || !this.rated().some((x) => x.word === w)) throw new Error(`You can only grow words you’ve rated, and you haven’t rated “${w}”.`)
+    this.economy.tick()
+    this.economy._spend(C.seed, 'farm')
     const t = this.now()
-    Object.assign(c, { crop: info.kind === 'wordseed' ? 'word' : info.crop, word: info.word || null, grown: 0, wetUntil: isRainy(dayKey(t)) ? t + WET_HOURS * HOUR : (c.wetUntil || 0), lastAt: t, ready: false, regrowing: false })
+    Object.assign(c, { crop: String(crop), word: w, grown: 0, wetUntil: isRainy(dayKey(t)) ? t + WET_HOURS * HOUR : (c.wetUntil || 0), lastAt: t, ready: false, regrowing: false })
     this._save()
     return { planted: c.crop }
   }
@@ -168,7 +183,7 @@ export class Valley {
     this.tick()
     const c = this._cell(i)
     if (!c.crop || !c.ready) throw new Error('Not ready yet.')
-    const id = c.crop === 'word' ? `word:${c.word}` : c.crop
+    const id = c.word ? cropItem(c.crop, c.word) : c.crop
     this._add(id)
     this.s.stats.harvested++
     const crop = CROPS[c.crop]
@@ -204,15 +219,14 @@ export class Valley {
     return { id, n, coins }
   }
 
-  // A new word was rated: it drops a seed of itself (whatever you rated it).
-  onNewWord (word) {
-    const w = String(word).toLowerCase()
-    if (!/^[a-z][a-z'-]*$/.test(w)) return null
-    const seeds = Object.keys(this.s.bag).filter((k) => k.startsWith('wordseed:'))
-    if (seeds.length >= WORD_SEEDS_MAX && !this.s.bag[`wordseed:${w}`]) delete this.s.bag[seeds[0]]
-    this._add(`wordseed:${w}`)
-    this.economy.dirty = true
-    return w
+  // Words you've rated that can be grown: matching a search, or your latest.
+  words (query = '') {
+    const q = String(query || '').toLowerCase().trim()
+    const all = this.rated().filter((x) => growable(x.word))
+    if (!q) return all.sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, 12).map((x) => x.word)
+    const starts = all.filter((x) => x.word.startsWith(q)).map((x) => x.word).sort()
+    const within = all.filter((x) => !x.word.startsWith(q) && x.word.includes(q)).map((x) => x.word).sort()
+    return [...starts, ...within].slice(0, 12)
   }
 
   // --- foraging: the woods refill every few hours ---
@@ -338,7 +352,12 @@ export class Valley {
     if (g.married && gained && hash32(`spousegift|${day}`) % 100 < 35) {
       const pool = [...G.loves, ...G.likes].filter((x) => x !== 'page' && x !== STARDUST && !FISH[x]?.legendary)
       gift = pool[hash32(`sg|${day}|${id}`) % pool.length]
-      this._add(gift)
+      // A crop comes grown as a word they love, from the words you've rated.
+      if (CROPS[gift]) {
+        const loved = this.rated().map((x) => x.word).filter((w) => growable(w) && G.word(w) === 'love')
+        gift = loved.length ? cropItem(gift, loved[hash32(`sgw|${day}|${id}`) % loved.length]) : null
+      }
+      if (gift) this._add(gift)
     }
     this._save()
     return { god: id, lines, event, first, gained, gift, giftName: gift ? itemInfo(gift).name : null, hearts: heartsOf(g.points), points: g.points }
@@ -366,7 +385,8 @@ export class Valley {
     if (bday) g.gifts.bday = dayKey(t); else g.gifts.n++
     g.met = true
     this._gain(g, pts)
-    g.known[info.kind === 'word' ? `word:${how}` : item] = how
+    g.known[item] = how
+    if (info.word) g.known[`word:${how}`] = how
     this.s.stats.gifts++
     this._save()
     return { god: id, item, how, birthday: bday, line: bday ? G.react.birthday : G.react[how], points: pts, hearts: heartsOf(g.points) }
@@ -475,8 +495,7 @@ export class Valley {
       news: this.s.news.slice(0, 6),
       stats: this.s.stats,
       activities: ACTIVITIES,
-      crops: Object.fromEntries(Object.entries(CROPS).map(([id, c]) => [id, { name: c.name, color: c.color, leaf: c.leaf, shape: c.shape, hours: c.hours, regrow: c.regrow || 0, sell: c.sell }])),
-      wordCrop: WORD_CROP,
+      crops: Object.fromEntries(Object.entries(CROPS).map(([id, c]) => [id, { name: c.name, color: c.color, leaf: c.leaf, shape: c.shape, hours: c.hours, regrow: c.regrow || 0, sell: c.sell, seed: c.seed, blurb: c.blurb }])),
       coins: this.economy.s.coins,
       newLooks: this.s.newLooks || [],
       looks: VALLEY_COSMETICS.map((c) => ({ kind: c.kind, id: c.id, name: c.name, goal: VALLEY_GOALS[c.valley].text, n: VALLEY_GOALS[c.valley].n, have: this.economy.s.owned.includes(`${c.kind}:${c.id}`), progress: Math.min(VALLEY_GOALS[c.valley].n, this.goalProgress()[c.valley]) }))

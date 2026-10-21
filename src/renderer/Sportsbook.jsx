@@ -214,9 +214,9 @@ function EventCard ({ c, trade, coins, onOpen }) {
         <span className='ev-tag'>{c.tag}</span>
         <span className='ev-close'>{c.status === 'final' ? 'Closed' : `Closes in ${untilText(c.end)}`}</span>
       </div>
-      <b className='ev-q'>{c.question}</b>
+      <b className='ev-q' title={c.question}>{c.question}</b>
       <div className='ev-sides'>
-        {['home', 'away'].map((s) => <div key={s} className={`ev-side ${s} ${c.winner === s ? 'won' : ''}`}><span>{c.sideNames[s]}</span><b>{Math.round(c.chances[s] * 100)}%</b></div>)}
+        {['home', 'away'].map((s) => <div key={s} className={`ev-side ${s} ${c.winner === s ? 'won' : ''}`}><span title={c.sideNames[s]}>{c.sideNames[s]}</span><b>{Math.round(c.chances[s] * 100)}%</b></div>)}
       </div>
       <div className='ev-bar'><i style={{ width: `${c.chances.home * 100}%` }} /></div>
       {c.bet && <span className='sp-yours'>Yours: <Coins n={c.bet.worth} /> <i className={c.bet.worth - c.bet.cost >= 0 ? 'up' : 'down'}>{signed(c.bet.worth - c.bet.cost)}</i></span>}
@@ -323,7 +323,7 @@ function BuyButtons ({ c, trade, coins, amount }) {
     <div className={`sp-buy n${sides.length} ${c.event ? 'ev' : ''}`}>
       {sides.map((side) => (
         <button key={side} className={`btn sp-side ${side}`} disabled={!can} onClick={(e) => { e.stopPropagation(); trade('buy', c.id, side, amount) }}>
-          <b>{sideName(c, side)}</b><span>{Math.round(ch[side] * 100)}%</span><small>buy at {c.quotes[side].ask}</small>
+          <b title={sideName(c, side)}>{sideName(c, side)}</b><span>{Math.round(ch[side] * 100)}%</span><small>buy at {c.quotes[side].ask}</small>
         </button>
       ))}
     </div>
@@ -455,6 +455,43 @@ function GameView ({ id, coins, trade, onBack }) {
             : <p className='lede'>It hasn’t started yet. Plays show up here as they happen.</p>}
         </div>
         {g.fighters ? <FightBox g={g} /> : <ScoreBox g={g} />}
+      </div>
+      {g.stats && <StatsBox g={g} />}
+    </div>
+  )
+}
+
+// The box score: every player's numbers so far.
+const STAT_TABLES = {
+  hoops: [['Players', null, [['PTS', (x) => x.pts], ['FG', (x) => `${x.fgm}–${x.fga}`], ['3PT', (x) => `${x.tpm}–${x.tpa}`], ['FT', (x) => `${x.ftm}–${x.fta}`], ['REB', (x) => x.reb], ['OREB', (x) => x.oreb], ['TO', (x) => x.to]]]],
+  football: [
+    ['Passing', 'passing', [['C/ATT', (x) => `${x.cmp}/${x.att}`], ['YDS', (x) => x.pyds], ['TD', (x) => x.ptd], ['INT', (x) => x.int], ['SACKS', (x) => x.sck]]],
+    ['Rushing', 'rushing', [['CAR', (x) => x.car], ['YDS', (x) => x.ryds], ['AVG', (x) => (x.car ? (x.ryds / x.car).toFixed(1) : '0.0')], ['TD', (x) => x.rtd], ['LONG', (x) => x.rlng]]],
+    ['Receiving', 'receiving', [['REC', (x) => x.rec], ['YDS', (x) => x.cyds], ['AVG', (x) => (x.rec ? (x.cyds / x.rec).toFixed(1) : '0.0')], ['TD', (x) => x.ctd], ['LONG', (x) => x.clng]]],
+    ['Kicking', 'kicking', [['FG', (x) => `${x.fgm}/${x.fga}`], ['XP', (x) => `${x.xpm}/${x.xpa}`]]]
+  ]
+}
+function StatsBox ({ g }) {
+  const [side, setSide] = useState('away')
+  const tables = STAT_TABLES[g.stats.kind]
+  return (
+    <div className='panel sp-stats-box' style={teamVars(g)}>
+      <div className='sp-stats-head'>
+        <h3>Box score</h3>
+        <div className='seg'>{['away', 'home'].map((s) => <button key={s} className={side === s ? 'on' : ''} onClick={() => setSide(s)}><i className={`sp-swatch ${s}`} />{g[s].city} {g[s].name}</button>)}</div>
+      </div>
+      <div className='sp-stat-tables'>
+        {tables.map(([title, key, cols]) => {
+          const rows = key ? g.stats[side][key] : g.stats[side]
+          return (
+            <table key={title} className='sp-stat-table'>
+              <thead><tr><th>{title}</th>{cols.map(([h]) => <th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {rows.length ? rows.map((x) => <tr key={x.who}><td>{x.who}</td>{cols.map(([h, f]) => <td key={h}>{f(x)}</td>)}</tr>) : <tr><td colSpan={cols.length + 1} className='sp-note'>Nothing yet.</td></tr>}
+              </tbody>
+            </table>
+          )
+        })}
       </div>
     </div>
   )

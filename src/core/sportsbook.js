@@ -29,6 +29,63 @@ export function quotes (g, t) {
 }
 const blankBet = () => ({ home: 0, away: 0, draw: 0, cost: 0, homeCost: 0, awayCost: 0, drawCost: 0 })
 
+// Player numbers from the plays so far (basketball and football): who
+// shot, scored and rebounded; who passed, ran and caught, and for how far.
+export function playerStats (g, plays) {
+  const rows = { home: new Map(), away: new Map() }
+  const row = (side, who, blank) => { const m = rows[side]; if (!m.has(who)) m.set(who, { who, ...blank }); return m.get(who) }
+  const other = (s) => (s === 'home' ? 'away' : 'home')
+  if (g.league === 'hoops') {
+    const blank = { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, to: 0 }
+    for (const p of plays) {
+      if (!p.team || !p.who) continue
+      const x = row(p.team, p.who, blank)
+      if (p.kind === 'two' || p.kind === 'three') { x.pts += p.pts; x.fgm++; x.fga++; if (p.kind === 'three') { x.tpm++; x.tpa++ } } else if (p.kind === 'miss') {
+        x.fga++
+        if (p.three) x.tpa++
+        if (p.reb) { const rb = row(p.oreb ? p.team : other(p.team), p.reb, blank); if (p.oreb) rb.oreb++; else rb.dreb++ }
+      } else if (p.kind === 'ft') { x.pts += p.pts; x.ftm += p.pts; x.fta += 2 } else if (p.kind === 'turnover') x.to++
+    }
+    const out = (side) => [...rows[side].values()].map((x) => ({ ...x, reb: x.oreb + x.dreb })).sort((a, b) => b.pts - a.pts || b.reb - a.reb)
+    return { kind: 'hoops', home: out('home'), away: out('away') }
+  }
+  if (g.league === 'gridiron') {
+    const blank = { cmp: 0, att: 0, pyds: 0, ptd: 0, int: 0, sck: 0, car: 0, ryds: 0, rtd: 0, rlng: 0, fum: 0, rec: 0, cyds: 0, ctd: 0, clng: 0, fgm: 0, fga: 0, xpm: 0, xpa: 0 }
+    for (const p of plays) {
+      if (!p.team) continue
+      if (p.kind === 'fg' || p.kind === 'fg-miss') { const k = row(p.team, p.who, blank); k.fga++; if (p.kind === 'fg') k.fgm++; continue }
+      if (p.kind === 'xp') { const k = row(p.team, p.who, blank); k.xpa++; if (p.pts) k.xpm++; continue }
+      const st = p.stat
+      if (!st) continue
+      const td = p.kind === 'td-pass' || p.kind === 'td-rush'
+      if (st.qb) {
+        const q = row(p.team, st.qb, blank)
+        if (st.how === 'sack') { q.sck++; continue }
+        q.att++
+        if (st.how === 'int') { q.int++; continue }
+        if (st.how === 'catch') {
+          q.cmp++; q.pyds += st.yds; if (td) q.ptd++
+          const c = row(p.team, st.rec, blank)
+          c.rec++; c.cyds += st.yds; c.clng = Math.max(c.clng, st.yds); if (td) c.ctd++
+        }
+      } else if (st.rb) {
+        const b = row(p.team, st.rb, blank)
+        if (st.how === 'fumble') { b.car++; b.fum++; continue }
+        b.car++; b.ryds += st.yds; b.rlng = Math.max(b.rlng, st.yds); if (td) b.rtd++
+      }
+    }
+    const pick = (side, test, by) => [...rows[side].values()].filter(test).sort((a, b) => b[by] - a[by])
+    const out = (side) => ({
+      passing: pick(side, (x) => x.att || x.sck, 'pyds'),
+      rushing: pick(side, (x) => x.car, 'ryds'),
+      receiving: pick(side, (x) => x.rec, 'cyds'),
+      kicking: pick(side, (x) => x.fga || x.xpa, 'fgm')
+    })
+    return { kind: 'football', home: out('home'), away: out('away') }
+  }
+  return null
+}
+
 // A fight's numbers so far: landed and thrown, knockdowns, takedowns,
 // submission tries, and each round on the judges' cards.
 // The cards are read out only at the end.
@@ -241,6 +298,7 @@ export class Sportsbook {
       box: { home: order(box.home), away: order(box.away) },
       rosters: g.fight ? null : { home: H.players.map((p) => `${p.name} (${p.pos})`), away: A.players.map((p) => `${p.name} (${p.pos})`) },
       fight: g.fight ? fightView(plays, q.st.status === 'final') : null,
+      stats: playerStats(g, plays),
       strength: { home: H.strength, away: A.strength },
       startChances: outcomes(g, g.start - 1)
     }

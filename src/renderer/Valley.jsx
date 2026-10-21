@@ -38,7 +38,8 @@ export default function Valley () {
   const [fishing, setFishing] = useState(null)
   const [net, setNet] = useState(null)
   const [picked, setPicked] = useState([])
-  const [tool, setTool] = useState('hoe')
+  const [tool, setTool] = useState('hoe') // 'hoe', 'can', 'hand' or 'seed:<crop>'
+  const [seedWord, setSeedWord] = useState('') // the word a seed is planted as
   const [hover, setHover] = useState(null)
   const farmActs = useRef(0)
   const found = useRef(0)
@@ -101,7 +102,13 @@ export default function Valley () {
         out = await act('harvest', i)
         if (out) { toast({ emoji: '🧺', title: `Picked ${out.info.name}`, text: `Worth ${formatCoins(out.info.sell)}.` }); react(true); if (companion) setTimeout(() => wrapUp('farming', 1), 1600) }
       } else if (tool === 'hoe') { out = await act('till', i); if (out?.already) out = null } else if (tool === 'can') out = await act('water', i)
-      else if (tool === 'hand') { if (c.crop) toast({ emoji: '🌿', title: c.crop === 'word' ? `“${c.word}” is growing` : `${v.crops[c.crop].name} is growing`, text: `About ${c.hoursLeft < 1 ? 'less than an hour' : `${Math.ceil(c.hoursLeft)} wet hours`} to go.${c.wet ? ' The soil’s damp.' : ' It could use some water.'}` }) } else out = await act('plant', i, tool)
+      else if (tool === 'hand') { if (c.crop) toast({ emoji: '🌿', title: `${cropName(v, c)} is growing`, text: `About ${c.hoursLeft < 1 ? 'less than an hour' : `${Math.ceil(c.hoursLeft)} wet hours`} to go.${c.wet ? ' The soil’s damp.' : ' It could use some water.'}` }) } else if (tool.startsWith('seed:')) {
+        if (c.crop || c.soil !== 'tilled' || c.decor) { toast({ emoji: '🌱', title: c.crop ? 'Something’s growing there' : 'Till it first', text: c.crop ? 'Pick another square.' : 'Seeds go in tilled soil: use the hoe.' }); return }
+        if (!seedWord) { toast({ emoji: '🔤', title: 'Pick a word to grow', text: 'Any word you’ve rated: type it in under the tools.' }); return }
+        const crop = tool.slice(5)
+        out = await act('plant', i, crop, seedWord)
+        if (out) toast({ emoji: '🌱', title: `Planted “${seedWord}” ${v.crops[crop].name.toLowerCase()}`, text: `−${formatCoins(v.crops[crop].seed)} coins for the seed.` })
+      }
       if (out) farmActs.current++
       return
     }
@@ -172,7 +179,7 @@ export default function Valley () {
               </div>
               <div className='vl-drawer-body'>
                 {drawer === 'bag' && <Bag v={v} act={act} toast={toast} />}
-                {drawer === 'stall' && <Stall v={v} act={act} toast={toast} />}
+                {drawer === 'stall' && <Stall v={v} act={act} toast={toast} pick={(crop) => { setTool(`seed:${crop}`); setDrawer(null); setPlace('field') }} />}
                 {drawer === 'journal' && <Journal v={v} meet={(id) => { const where = WHERE[v.part][id][0]; setDrawer(null); setPlace(where); setTimeout(() => setGod(id), PAN_MS) }} />}
               </div>
             </div>
@@ -180,7 +187,7 @@ export default function Valley () {
           {dialog && <Dialog d={dialog} onClose={() => setDialog(null)} />}
         </div>
       </div>
-      <Controls v={v} place={place} act={act} toast={toast} tool={tool} setTool={setTool} fishing={fishing} setFishing={setFishing} net={net} setNet={setNet} picked={picked} setPicked={setPicked} companion={companion} wrapUp={wrapUp} react={react} farmActs={farmActs} found={found} setDrawer={setDrawer} hover={hover} />
+      <Controls v={v} place={place} act={act} toast={toast} tool={tool} setTool={setTool} seedWord={seedWord} setSeedWord={setSeedWord} fishing={fishing} setFishing={setFishing} net={net} setNet={setNet} picked={picked} setPicked={setPicked} companion={companion} wrapUp={wrapUp} react={react} farmActs={farmActs} found={found} setDrawer={setDrawer} hover={hover} />
       <nav className='vl-places' aria-label='Places in the valley'>
         {PLACE_ORDER.map((p, i) => (
           <button key={p} className={place === p ? 'on' : ''} onClick={() => go(p)} disabled={Boolean(fishing || net) && place !== p} title={`${PLACES[p].name} (${i + 1})`}>
@@ -235,7 +242,7 @@ function View ({ v, place, companion, fishing, net, picked, hover, setHover, onH
     const [p, at, near] = WHERE[v.part][g.id]
     return { id: g.id, place: home ? 'home' : p, at: home ? 0.86 : at, near, bubble: !g.talkedToday ? (g.birthdayToday ? 'bday' : 'talk') : null }
   }), [v, companion])
-  state.current = { field: v.field, fieldW: FIELD_W, fieldH: FIELD_H, crops: v.crops, wordCrop: v.wordCrop, forest: v.forest.items, rainy: v.rainy, gods, companion, fishing, net, bugs: BUGS, stars: v.stars.stars, starsDone: v.stars.done, picked, hover }
+  state.current = { field: v.field, fieldW: FIELD_W, fieldH: FIELD_H, crops: v.crops, forest: v.forest.items, rainy: v.rainy, gods, companion, fishing, net, bugs: BUGS, stars: v.stars.stars, starsDone: v.stars.done, picked, hover }
   // Pan to the place.
   useEffect(() => {
     const to = PLACE_ORDER.indexOf(place) * VW
@@ -283,9 +290,7 @@ function View ({ v, place, companion, fishing, net, picked, hover, setHover, onH
 }
 
 // --- what you can do here ----------------------------------------------------------------
-function Controls ({ v, place, act, toast, tool, setTool, fishing, setFishing, net, setNet, picked, setPicked, companion, wrapUp, react, farmActs, found, setDrawer, hover }) {
-  const seeds = useMemo(() => v.bag.filter((x) => x.kind === 'seed' || x.kind === 'wordseed'), [v.bag])
-  useEffect(() => { if (tool.includes(':') && !seeds.some((s) => s.id === tool)) setTool('hand') }, [seeds, tool, setTool])
+function Controls ({ v, place, act, toast, tool, setTool, seedWord, setSeedWord, fishing, setFishing, net, setNet, picked, setPicked, companion, wrapUp, react, farmActs, found, setDrawer, hover }) {
   const [, tick] = useState(0)
   const netRef = useRef(net)
   netRef.current = net
@@ -322,15 +327,14 @@ function Controls ({ v, place, act, toast, tool, setTool, fishing, setFishing, n
   }
   if (place === 'field') {
     const hc = hover !== null && hover !== undefined ? v.field[hover] : null
-    const hint = !hc ? 'Pick a tool, then click the field. Ripe crops come up with a click, whatever’s in your hand.' : hc.decor ? `A ${hc.decor}: the hoe clears it.` : hc.crop ? (hc.ready ? 'Ready to pick.' : `${hc.crop === 'word' ? `“${hc.word}”` : v.crops[hc.crop].name}: about ${Math.ceil(hc.hoursLeft)} wet hours to go${hc.wet ? '' : ', and the soil’s dry'}.`) : hc.soil === 'tilled' ? (hc.wet ? 'Tilled and damp: plant a seed.' : 'Tilled: plant a seed, and water it.') : 'Grass: till it with the hoe.'
+    const hint = !hc ? 'Pick a tool, then click the field. Ripe crops come up with a click, whatever’s in your hand.' : hc.decor ? `A ${hc.decor}: the hoe clears it.` : hc.crop ? (hc.ready ? `${cropName(v, hc)}: ready to pick.` : `${cropName(v, hc)}: about ${Math.ceil(hc.hoursLeft)} wet hours to go${hc.wet ? '' : ', and the soil’s dry'}.`) : hc.soil === 'tilled' ? (hc.wet ? 'Tilled and damp: plant a seed.' : 'Tilled: plant a seed, and water it.') : 'Grass: till it with the hoe.'
     return (
       <div className='vl-controls'>
         <div className='vl-tools' role='toolbar' aria-label='Tools and seeds'>
           {[['hoe', '⛏️', 'Hoe'], ['can', '💧', 'Can'], ['hand', '✋', 'Hands']].map(([id, e, name]) => <button key={id} className={`vl-tool ${tool === id ? 'on' : ''}`} onClick={() => setTool(id)}>{e}<small>{name}</small></button>)}
-          {seeds.map((s) => <button key={s.id} className={`vl-tool ${tool === s.id ? 'on' : ''}`} onClick={() => setTool(s.id)} title={s.name}><ItemIcon it={s} v={v} /><small>{s.kind === 'wordseed' ? `“${s.word}”` : s.name.replace(/ seeds$/, '')}</small><i>{s.n}</i></button>)}
-          {!seeds.length && <button className='btn small ghost' onClick={() => setDrawer('stall')}>Buy seeds</button>}
+          {Object.entries(v.crops).map(([id, c]) => <button key={id} className={`vl-tool seed ${tool === `seed:${id}` ? 'on' : ''}`} onClick={() => setTool(`seed:${id}`)} title={`${c.name}: ${c.hours} wet hours${c.regrow ? `, then again every ${c.regrow}` : ''}, sells for ${c.sell}`}><ItemIcon it={{ kind: 'crop', crop: id }} v={v} /><small>{c.name.split(' ').pop()}</small><i>{formatCoins(c.seed)}</i></button>)}
         </div>
-        <p className='vl-note'>{hint} {companion && <button className='linkish' onClick={() => wrapUp('farming', Math.min(1, farmActs.current / 8))}>Finish up with {GODS[companion].name}</button>}</p>
+        {tool.startsWith('seed:') ? <SeedWord v={v} crop={tool.slice(5)} word={seedWord} setWord={setSeedWord} /> : <p className='vl-note'>{hint} {companion && <button className='linkish' onClick={() => wrapUp('farming', Math.min(1, farmActs.current / 8))}>Finish up with {GODS[companion].name}</button>}</p>}
       </div>
     )
   }
@@ -389,7 +393,7 @@ function GodBox ({ v, id, act, companion, onClose, setDialog, onCome }) {
   const g = v.gods.find((x) => x.id === id)
   const [gifting, setGifting] = useState(false)
   if (!g) return null
-  const giftable = v.bag.filter((x) => x.kind !== 'seed' && x.kind !== 'wordseed')
+  const giftable = v.bag
   const mark = { love: '❤️', like: '🙂', neutral: '😐', dislike: '🙁', hate: '😖' }
   const talk = async () => { onClose(); const out = await act('talk', id); if (out) setDialog({ god: id, lines: out.lines, event: out.event, note: out.gift ? `${g.name} gave you ${out.giftName}.` : out.gained ? `+${out.gained} friendship` : 'You’ve chatted today already.' }) }
   const give = async (item) => { onClose(); const out = await act('gift', id, item); if (out) setDialog({ god: id, lines: [out.line], note: out.married ? `You and ${g.name} are married! 💍` : out.dating ? `You and ${g.name} are dating 💐` : `${out.points >= 0 ? '+' : ''}${out.points} friendship${out.birthday ? ' (birthday!)' : ''}` }) }
@@ -456,8 +460,8 @@ function ItemIcon ({ it, v }) {
     if (it.kind === 'fish') drawFish(g, it.color, 2, 5, 1, it.legendary)
     else if (it.kind === 'forage') drawForage(g, it.id, 0, 1, 0)
     else if (it.kind === 'bug') drawBug(g, { kind: it.id, color: it.color, wing2: it.wing2 }, 8, 9, 0)
-    else if (it.kind === 'crop' || it.kind === 'word') drawCrop(g, { ready: true, progress: 1, word: it.word }, it.kind === 'word' ? v.wordCrop : v.crops[it.id], 0, 2, 0)
-    else if (it.kind === 'seed' || it.kind === 'wordseed') { const col = it.kind === 'wordseed' ? v.wordCrop.color : v.crops[it.crop]?.color; g.fillStyle = '#c8a070'; g.fillRect(4, 4, 8, 10); g.fillStyle = col || '#888'; g.fillRect(6, 7, 4, 4) } else if (it.id === 'stardust') { g.fillStyle = '#f8e890'; for (const [x, y] of [[8, 3], [4, 8], [11, 9], [7, 12], [9, 7]]) g.fillRect(x, y, 2, 2) } else { g.fillStyle = it.id === 'bouquet' ? '#e86a9a' : '#f0f0f0'; g.fillRect(5, 3, 6, 10); if (it.id === 'quill') { g.fillStyle = '#3a6ad8'; g.fillRect(7, 3, 2, 10) } }
+    else if (it.kind === 'crop' && v.crops[it.crop || it.id]) drawCrop(g, { ready: true, progress: 1 }, v.crops[it.crop || it.id], 0, 2, 0)
+    else if (it.id === 'stardust') { g.fillStyle = '#f8e890'; for (const [x, y] of [[8, 3], [4, 8], [11, 9], [7, 12], [9, 7]]) g.fillRect(x, y, 2, 2) } else { g.fillStyle = it.id === 'bouquet' ? '#e86a9a' : '#f0f0f0'; g.fillRect(5, 3, 6, 10); if (it.id === 'quill') { g.fillStyle = '#3a6ad8'; g.fillRect(7, 3, 2, 10) } }
   }, [it, v])
   return <canvas ref={ref} width={16} height={16} className='vl-icon' aria-hidden='true' />
 }
@@ -539,8 +543,8 @@ function Reel ({ f, setF, act, onDone }) {
 
 // --- the drawers -------------------------------------------------------------------------
 function Bag ({ v, act, toast }) {
-  const groups = [['From the field', ['crop', 'word']], ['From the lake', ['fish']], ['From the woods', ['forage']], ['From the meadow', ['bug']], ['Treasures', ['treasure', 'special']], ['Seeds', ['seed', 'wordseed']]]
-  const sellable = v.bag.filter((x) => x.sell > 0 && !['seed', 'wordseed', 'special'].includes(x.kind))
+  const groups = [['From the field', ['crop']], ['From the lake', ['fish']], ['From the woods', ['forage']], ['From the meadow', ['bug']], ['Treasures', ['treasure', 'special']]]
+  const sellable = v.bag.filter((x) => x.sell > 0 && x.kind !== 'special')
   const total = sellable.reduce((a, x) => a + x.sell * x.n, 0)
   const sell = async (it, n) => { const out = await act('sell', it.id, n); if (out) toast({ emoji: '📦', title: `Shipped ${out.n} × ${it.name}`, text: `+${formatCoins(out.coins)} coins` }) }
   return (
@@ -556,7 +560,7 @@ function Bag ({ v, act, toast }) {
                 <div key={it.id} className='vl-row' title={it.blurb}>
                   <ItemIcon it={it} v={v} />
                   <span className='vl-row-name'><b>{it.name}</b> <small>× {it.n}</small><small className='vl-blurb'>{it.blurb}</small></span>
-                  {it.sell > 0 && !['seed', 'wordseed', 'special'].includes(it.kind)
+                  {it.sell > 0 && it.kind !== 'special'
                     ? <><small className='vl-price'>{formatCoins(it.sell)} each</small><button className='btn small ghost' onClick={() => sell(it, 1)}>Ship 1</button><button className='btn small ghost' onClick={() => sell(it, it.n)}>Ship all</button></>
                     : <><span /><span /><span /></>}
                 </div>
@@ -567,30 +571,67 @@ function Bag ({ v, act, toast }) {
       })}
       {!v.bag.length && <p className='vl-note'>Your bag is empty.</p>}
       {sellable.length > 0 && <p className='vl-note'>Everything you could ship comes to <Coins n={total} />. Keep a few things back as gifts for the gods.</p>}
-      <p className='vl-note'>Every new word you rate drops a seed of itself here, whatever you rated it. Plant it and the word grows.</p>
+      <p className='vl-note'>Crops are grown as words. The gods take them by how they feel about the word, so grow the words they like.</p>
     </div>
   )
 }
 
-function Stall ({ v, act, toast }) {
+function Stall ({ v, act, toast, pick }) {
   const buy = async (it, n) => { const out = await act('buy', it.id, n); if (out) toast({ emoji: '🛒', title: `${n} × ${it.name}`, text: `${formatCoins(it.price * n)} coins.` }) }
   return (
-    <div className='vl-rows'>
-      {v.shop.map((it) => {
-        const crop = it.id.startsWith('seed:') ? v.crops[it.id.slice(5)] : null
-        return (
+    <div className='vl-stall'>
+      <h4>Seeds</h4>
+      <p className='vl-note'>Every seed grows as a word you’ve rated: pick the seed and the word in the field, and you pay as you plant.</p>
+      <div className='vl-rows'>
+        {Object.entries(v.crops).map(([id, c]) => (
+          <div key={id} className='vl-row'>
+            <ItemIcon it={{ kind: 'crop', crop: id }} v={v} />
+            <span className='vl-row-name'><b>{c.name}</b><small className='vl-blurb'>{c.hours} wet hours{c.regrow ? `, then again every ${c.regrow}` : ''} · sells for {formatCoins(c.sell)}</small></span>
+            <b className='vl-price'><Coins n={c.seed} /></b>
+            <button className='btn small' onClick={() => pick(id)}>Plant some</button>
+            <span />
+          </div>
+        ))}
+      </div>
+      <h4>For the gods</h4>
+      <div className='vl-rows'>
+        {v.shop.map((it) => (
           <div key={it.id} className='vl-row'>
             <ItemIcon it={itemInfo(it.id)} v={v} />
-            <span className='vl-row-name'><b>{it.name}</b><small className='vl-blurb'>{crop ? `${crop.hours} wet hours${crop.regrow ? `, then again every ${crop.regrow}` : ''} · sells for ${formatCoins(crop.sell)}` : it.blurb}</small></span>
+            <span className='vl-row-name'><b>{it.name}</b><small className='vl-blurb'>{it.blurb}</small></span>
             <b className='vl-price'><Coins n={it.price} /></b>
             <button className='btn small' disabled={v.coins < it.price} onClick={() => buy(it, 1)}>Buy</button>
-            {crop ? <button className='btn small ghost' disabled={v.coins < it.price * 5} onClick={() => buy(it, 5)}>×5</button> : <span />}
+            <span />
           </div>
-        )
-      })}
+        ))}
+      </div>
     </div>
   )
 }
+
+// The word a seed grows as: any word you've rated.
+function SeedWord ({ v, crop, word, setWord }) {
+  const [q, setQ] = useState(word)
+  const [list, setList] = useState([])
+  useEffect(() => {
+    let live = true
+    const t = setTimeout(() => api('valleyWords', q).then((xs) => { if (live) setList(xs) }).catch(() => {}), 120)
+    return () => { live = false; clearTimeout(t) }
+  }, [q])
+  const c = v.crops[crop]
+  return (
+    <div className='vl-seedword'>
+      <span className='vl-sw-label' title={`${c.name}, grown as a word you’ve rated`}>{c.name.split(' ').pop().replace(/^./, (x) => x.toUpperCase())} of</span>
+      <input className='vl-sw-input' value={q} onChange={(e) => setQ(e.target.value.toLowerCase().replace(/[^a-z'-]/g, ''))} placeholder='a word you’ve rated' aria-label='The word to grow' />
+      <div className='vl-sw-list'>
+        {list.length ? list.slice(0, 8).map((w) => <button key={w} className={`vl-sw ${word === w ? 'on' : ''}`} onClick={() => { setWord(w); setQ(w) }}>{w}</button>) : <small>{q ? 'No rated word like that.' : 'Rate some words first.'}</small>}
+      </div>
+      <span className='vl-sw-pick'><Coins n={c.seed} /></span>
+    </div>
+  )
+}
+
+const cropName = (v, c) => `“${c.word}” ${v.crops[c.crop].name.charAt(0).toLowerCase()}${v.crops[c.crop].name.slice(1)}`
 
 function Journal ({ v, meet }) {
   const s = v.stats

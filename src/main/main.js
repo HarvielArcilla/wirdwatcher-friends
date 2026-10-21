@@ -131,6 +131,7 @@ function handlers () {
       return { out: ww.tables[action](...args), tables: ww.tables.view() }
     },
     valley: () => ww.valley.view(),
+    valleyWords: (q) => ww.valley.words(q),
     valleyAction: (action, ...args) => {
       if (!['till', 'plant', 'water', 'harvest', 'buy', 'sell', 'forage', 'netStart', 'netCatch', 'stars', 'talk', 'gift', 'outing', 'cast', 'reel', 'ackLooks'].includes(action)) throw new Error('Unknown action.')
       const out = ww.valley[action](...args)

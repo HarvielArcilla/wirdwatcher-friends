@@ -32,21 +32,29 @@ test('every god is whole: lines, scenes, reactions, tastes and favourite outings
 })
 
 test('the field: till, plant, water, and crops grow only while the soil is wet', () => {
-  const { v, clock } = app(dryStart())
+  const { a, v, clock } = app(dryStart())
+  a.economy.devAddCoins(1000)
+  a.rate('tranquil', 3)
   const i = v.view().field.findIndex((c) => !c.decor)
-  assert.throws(() => v.plant(i, 'seed:syllabeet'), /Till/)
+  assert.throws(() => v.plant(i, 'syllabeet', 'tranquil'), /Till/)
   v.till(i)
-  v.plant(i, 'seed:syllabeet')
+  assert.throws(() => v.plant(i, 'syllabeet', 'zephyr'), /rated/, 'only words you’ve rated')
+  const before = v.economy.s.coins
+  v.plant(i, 'syllabeet', 'tranquil')
+  assert.equal(before - v.economy.s.coins, CROPS.syllabeet.seed, 'the seed is bought as it’s planted')
+  assert.equal(v.view().bag.length, 0, 'no seeds pile up in the bag')
   clock.t += 6 * H
   assert.equal(v.view().field[i].ready, false, 'dry soil: nothing grows')
   v.water(i)
   clock.t += CROPS.syllabeet.hours * H + 60e3
   assert.equal(v.view().field[i].ready, true)
   const coins = v.economy.s.coins
-  v.harvest(i)
+  const got = v.harvest(i)
+  assert.equal(got.item, 'syllabeet:tranquil')
+  assert.equal(got.info.name, '“tranquil” syllabeet')
   assert.equal(v.view().field[i].crop, undefined)
   assert.equal(v.view().field[i].soil, 'tilled', 'the soil stays tilled')
-  v.sell('syllabeet', 1)
+  v.sell('syllabeet:tranquil', 1)
   assert.equal(v.economy.s.coins - coins, CROPS.syllabeet.sell)
   // Weeds and stones come off with the hoe first.
   const w = v.view().field.findIndex((c) => c.decor)
@@ -54,12 +62,21 @@ test('the field: till, plant, water, and crops grow only while the soil is wet',
   assert.equal(v.view().field.length, FIELD)
 })
 
-test('every new word drops a seed of itself, whatever it was rated', () => {
+test('any rated word can be grown as any crop, and old seeds are cleared out', () => {
   const { a, v } = app(dryStart())
   a.rate('tranquil', 1)
   a.rate('zephyr', 5)
-  const bag = v.view().bag.map((x) => x.id)
-  assert.ok(bag.includes('wordseed:tranquil') && bag.includes('wordseed:zephyr'))
+  assert.equal(v.view().bag.length, 0, 'rating drops nothing')
+  assert.deepEqual(v.words('zep'), ['zephyr'])
+  assert.deepEqual([...v.words()].sort(), ['tranquil', 'zephyr'])
+  // A bag from before: bought seeds come back as coins, word seeds go, grown words stay.
+  const e = a.economy
+  e.s.valley.bag = { 'seed:melon': 2, 'wordseed:moon': 1, 'word:moon': 1, carp: 1 }
+  const coins = e.s.coins
+  const { Valley } = v.constructor === Object ? {} : { Valley: v.constructor }
+  const again = new Valley({ economy: e, now: () => Date.now(), rated: () => [] })
+  assert.deepEqual(again.s.bag, { 'syllabeet:moon': 1, carp: 1 })
+  assert.equal(e.s.coins - coins, CROPS.melon.seed * 2)
 })
 
 test('gods: a chat a day, two gifts a week, an outing a day, dating and marriage', () => {
@@ -68,8 +85,9 @@ test('gods: a chat a day, two gifts a week, an outing a day, dating and marriage
   assert.ok(r1.gained > 0 && r1.lines.length)
   assert.equal(v.talk('vela').gained, 0, 'once a day')
   assert.equal(taste('vela', 'melon'), 'love')
-  assert.equal(taste('vela', 'word:aeiou'), 'love')
-  assert.equal(taste('hush', 'word:knight'), 'love')
+  assert.equal(taste('vela', 'melon:aeiou'), 'love', 'a crop grown as a word: it’s the word that counts')
+  assert.equal(taste('vela', 'melon:strength'), 'dislike')
+  assert.equal(taste('hush', 'syllabeet:knight'), 'love')
   assert.equal(taste('glyph', 'glasswing'), 'love')
   v.s.bag.melon = 5
   v.gift('vela', 'melon')
@@ -130,7 +148,7 @@ test('the woods, the meadow, the stars and the lake', () => {
   }
   v.cast()
   assert.ok(v.reel(true).early)
-  assert.ok(SHOP.length >= 10)
+  assert.ok(SHOP.length >= 2 && Object.keys(CROPS).length >= 8)
 })
 
 test('looks only Wird Valley gives: earned by goals, never sold or in packs', async () => {

@@ -6,8 +6,13 @@
 // Time is real time. Crops grow while their soil is wet (watering keeps it
 // wet for WET_HOURS; rain keeps it wet all day) and never die. The gods can
 // be talked to once a day, given two gifts a week, and asked along on an
-// outing every ten minutes, like in Stardew Valley. Nothing here depends on how you
-// rate words: a new word drops a seed of itself whatever you gave it.
+// outing every ten minutes, like in Stardew Valley.
+//
+// Seeds: every crop can be grown as any word you've rated. You pick the
+// crop and the word and buy the seed as you plant it, so nothing piles up in
+// the bag. What grows is that crop of that word ("“tranquil” vowel melon"),
+// and a god takes it as a gift by how they feel about the word. What you
+// gave the word never matters, only the word itself.
 
 export const HOUR = 3600e3
 export const WET_HOURS = 8
@@ -21,7 +26,6 @@ export const GIFT_POINTS = { love: 80, like: 45, neutral: 20, dislike: -20, hate
 export const BIRTHDAY_MULT = 5
 export const BOUQUET = 'bouquet'
 export const QUILL = 'quill'
-export const WORD_SEEDS_MAX = 60 // word seeds kept at once
 
 // A small, stable hash for days and positions.
 export function hash32 (str) {
@@ -59,9 +63,11 @@ export const CROPS = {
   melon: { name: 'Vowel melon', seed: 90, sell: 260, hours: 13, color: '#6ac85a', leaf: '#3a8a3a', shape: 'melon', blurb: 'Ooh. Aah. Sweet all the way through.' },
   punkin: { name: 'Pun-kin', seed: 120, sell: 360, hours: 18, color: '#e87a2a', leaf: '#4a7a2a', shape: 'melon', blurb: 'Gourd-geous. Pip grew the first one, and won’t stop saying so.' }
 }
-export const WORD_CROP = { hours: 4, color: '#c8a0e8', leaf: '#5a9a5a', shape: 'word' }
-export const wordValue = (w) => 12 + 9 * String(w).replace(/[^a-z]/gi, '').length
-export const cropDone = (p) => (p.crop === 'word' ? WORD_CROP.hours : CROPS[p.crop].hours) * HOUR
+export const cropDone = (p) => CROPS[p.crop].hours * HOUR
+// A word you can grow: lower case letters (and the odd hyphen or apostrophe).
+export const growable = (w) => /^[a-z][a-z'-]{0,30}$/.test(String(w || ''))
+// What grows from a crop's seed planted as a word: 'melon:tranquil'.
+export const cropItem = (crop, word) => `${crop}:${word}`
 
 // --- foraging ----------------------------------------------------------------------------
 export const FORAGE = {
@@ -127,19 +133,24 @@ export function pickFish (r, t, rainy) {
 }
 
 // --- the shop ---------------------------------------------------------------------------
+// Seeds aren't stocked: each is bought as it's planted (see CROPS).
 export const SHOP = [
-  ...Object.entries(CROPS).map(([id, c]) => ({ id: `seed:${id}`, name: `${c.name} seeds`, price: c.seed, blurb: c.blurb })),
   { id: BOUQUET, name: 'Bouquet of letters', price: 400, blurb: 'Give it to a god at 8 hearts to start dating.' },
   { id: QUILL, name: 'Promise quill', price: 5000, blurb: 'Give it to the god you’re dating, at 10 hearts, to ask them to marry you.' }
 ]
 
 // --- items ------------------------------------------------------------------------------
-// Items are ids: 'syllabeet', 'carp', 'dandelion', 'word:tranquil', 'seed:melon', 'bouquet'.
+// Items are ids: 'melon:tranquil' (a crop, grown as a word), 'carp',
+// 'dandelion', 'bouquet'.
 export function itemInfo (id) {
-  if (id.startsWith('word:')) { const w = id.slice(5); return { id, name: `“${w}”`, sell: wordValue(w), kind: 'word', word: w, blurb: 'A word you grew. Some gods are particular about words.' } }
-  if (id.startsWith('wordseed:')) { const w = id.slice(9); return { id, name: `“${w}” seed`, sell: 0, kind: 'wordseed', word: w, blurb: 'Plant it and the word grows.' } }
-  if (id.startsWith('seed:')) { const c = CROPS[id.slice(5)]; return c ? { id, name: `${c.name} seeds`, sell: Math.floor(c.seed / 2), kind: 'seed', crop: id.slice(5), blurb: c.blurb } : null }
-  if (CROPS[id]) return { id, ...CROPS[id], kind: 'crop' }
+  const at = id.indexOf(':')
+  if (at > 0 && CROPS[id.slice(0, at)]) {
+    const crop = id.slice(0, at)
+    const word = id.slice(at + 1)
+    const c = CROPS[crop]
+    return { id, ...c, name: `“${word}” ${c.name.charAt(0).toLowerCase()}${c.name.slice(1)}`, kind: 'crop', crop, word, blurb: `${c.blurb} The gods take it by how they feel about “${word}”.` }
+  }
+  if (CROPS[id]) return { id, ...CROPS[id], kind: 'crop', crop: id }
   if (FISH[id]) return { id, ...FISH[id], kind: 'fish' }
   if (FORAGE[id]) return { id, ...FORAGE[id], kind: 'forage' }
   if (BUGS[id]) return { id, ...BUGS[id], kind: 'bug' }
@@ -460,8 +471,8 @@ export function taste (godId, itemId) {
   const g = GODS[godId]
   const info = itemInfo(itemId)
   if (!g || !info) return 'neutral'
-  if (info.kind === 'word') return g.word(info.word)
-  if (info.kind === 'seed' || info.kind === 'wordseed') return 'neutral'
+  // A crop grown as a word: it's the word they care about.
+  if (info.word) return g.word(info.word)
   for (const k of ['loves', 'likes', 'dislikes', 'hates']) if (g[k].includes(itemId)) return { loves: 'love', likes: 'like', dislikes: 'dislike', hates: 'hate' }[k]
   return 'neutral'
 }
