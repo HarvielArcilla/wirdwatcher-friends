@@ -132,3 +132,25 @@ test('the woods, the meadow, the stars and the lake', () => {
   assert.ok(v.reel(true).early)
   assert.ok(SHOP.length >= 10)
 })
+
+test('looks only Wird Valley gives: earned by goals, never sold or in packs', async () => {
+  const { COSMETICS } = await import('../src/shared/cosmetics.js')
+  const { packPool } = await import('../src/shared/packs.js')
+  const looks = COSMETICS.filter((c) => c.rarity === 'valley')
+  assert.ok(looks.length >= 10)
+  assert.ok(looks.every((c) => c.price === null && !packPool().includes(c)), 'not in the shop or packs')
+  const { v } = app(dryStart())
+  assert.throws(() => v.economy.buyCosmetic('title', 'v-greenthumb'))
+  v.s.stats.harvested = 24
+  v._save()
+  assert.equal(v.economy.owns('title', 'v-greenthumb'), false)
+  v.s.stats.harvested = 25
+  v._save()
+  assert.ok(v.economy.owns('title', 'v-greenthumb'))
+  assert.equal(v.view().newLooks[0].id, 'v-greenthumb')
+  v.ackLooks()
+  assert.equal(v.view().newLooks.length, 0)
+  v.s.gods.kip.married = true
+  v._save()
+  assert.ok(v.economy.owns('confetti', 'v-wedding') && v.economy.owns('title', 'v-headoverheels'))
+})

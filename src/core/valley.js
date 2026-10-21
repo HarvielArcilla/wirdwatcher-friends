@@ -4,6 +4,7 @@
 // rules and the content are in src/shared/valley.js.
 
 import crypto from 'node:crypto'
+import { VALLEY_COSMETICS, VALLEY_GOALS } from '../shared/cosmetics-valley.js'
 import {
   HOUR, WET_HOURS, HEART, MAX_FRIEND, MAX_DATING, MAX_MARRIED, GIFTS_PER_WEEK, TALK_POINTS, GIFT_POINTS, BIRTHDAY_MULT,
   BOUQUET, QUILL, STARDUST, WORD_SEEDS_MAX, CROPS, WORD_CROP, FISH, BUGS, SHOP, GODS, GOD_IDS, ACTIVITIES, FIELD, fieldStart,
@@ -44,7 +45,46 @@ export class Valley {
   }
 
   get s () { return this.economy.s.valley }
-  _save () { this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
+  _save () { this._looks(); this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
+
+  // How far along each Wird Valley goal is.
+  goalProgress () {
+    const s = this.s.stats
+    const gods = Object.values(this.s.gods)
+    const sum = (o) => Object.values(o || {}).reduce((a, x) => a + x, 0)
+    const hearts = gods.map((g) => heartsOf(g.points))
+    return {
+      harvest: s.harvested,
+      butterflies: sum(s.bugs),
+      woods: s.found,
+      fish: sum(s.fish),
+      kinds: Object.keys(s.fish || {}).length,
+      lexifish: s.fish?.lexifish || 0,
+      stars: s.constellations,
+      stars25: s.constellations,
+      outings: s.outings,
+      bestie: Math.max(0, ...hearts),
+      everyone: Math.min(...hearts),
+      dating: gods.some((g) => g.dating || g.married) ? 1 : 0,
+      married: gods.some((g) => g.married) ? 1 : 0
+    }
+  }
+
+  // Looks only the valley gives: granted the moment a goal is met.
+  _looks () {
+    const owned = this.economy.s.owned
+    const p = this.goalProgress()
+    for (const c of VALLEY_COSMETICS) {
+      const key = `${c.kind}:${c.id}`
+      if (owned.includes(key) || !(p[c.valley] >= VALLEY_GOALS[c.valley].n)) continue
+      owned.push(key)
+      this.s.newLooks = [...(this.s.newLooks || []), { kind: c.kind, id: c.id, name: c.name, goal: VALLEY_GOALS[c.valley].text }]
+      this._news(`You earned the ${c.name} look: ${VALLEY_GOALS[c.valley].text.toLowerCase()}.`)
+    }
+  }
+
+  // The screen has shown the new looks.
+  ackLooks () { this.s.newLooks = []; this.economy.dirty = true }
   _add (id, n = 1) { this.s.bag[id] = (this.s.bag[id] || 0) + n; if (this.s.bag[id] <= 0) delete this.s.bag[id] }
   _take (id, n = 1) {
     if (!((this.s.bag[id] || 0) >= n)) throw new Error('You don’t have that.')
@@ -437,7 +477,9 @@ export class Valley {
       activities: ACTIVITIES,
       crops: Object.fromEntries(Object.entries(CROPS).map(([id, c]) => [id, { name: c.name, color: c.color, leaf: c.leaf, shape: c.shape, hours: c.hours, regrow: c.regrow || 0, sell: c.sell }])),
       wordCrop: WORD_CROP,
-      coins: this.economy.s.coins
+      coins: this.economy.s.coins,
+      newLooks: this.s.newLooks || [],
+      looks: VALLEY_COSMETICS.map((c) => ({ kind: c.kind, id: c.id, name: c.name, goal: VALLEY_GOALS[c.valley].text, n: VALLEY_GOALS[c.valley].n, have: this.economy.s.owned.includes(`${c.kind}:${c.id}`), progress: Math.min(VALLEY_GOALS[c.valley].n, this.goalProgress()[c.valley]) }))
     }
   }
 }

@@ -29,8 +29,9 @@ export const KINDS = [
 ]
 
 import { MORE_COSMETICS } from './cosmetics-more.js'
+import { VALLEY_COSMETICS } from './cosmetics-valley.js'
 
-const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level' }
+const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
 const earned = (id, text, badge, hint) => item('title', id, text, null, 'badge', hint, { badge, text })
@@ -248,7 +249,9 @@ export const COSMETICS = [
   item('reactions', 'royal', 'Royal', 5e8, 'legendary', '', { emoji: ['👑', '💎', '🏆', '🎩'] }),
 
   // The bigger wardrobe: drawn from data (see cosmetics-more.js).
-  ...MORE_COSMETICS
+  ...MORE_COSMETICS,
+  // Only from Wird Valley.
+  ...VALLEY_COSMETICS
 ]
 
 export const DEFAULT_LOOK = Object.fromEntries(KINDS.map((k) => [k.id, COSMETICS.find((c) => c.kind === k.id && c.free).id]))

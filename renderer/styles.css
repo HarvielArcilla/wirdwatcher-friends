@@ -2216,3 +2216,11 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .vl-starletters span { position: absolute; transform: translate(-50%, -50%); font-family: var(--font-word); font-weight: 700; font-size: clamp(11px, 1.3vw, 17px); color: rgba(210, 220, 255, .9); text-shadow: 0 0 6px rgba(150, 180, 255, .6); letter-spacing: 0; }
 .vl-starletters span.on { color: #fff6c0; text-shadow: 0 0 8px rgba(255, 240, 160, .9); }
 @keyframes vlfade { to { opacity: 1 } }
+.rarity.r-valley { color: #3a2a1a; background: linear-gradient(90deg, #e8c890, #a8d880); }
+.shop-item.r-valley { background: linear-gradient(160deg, color-mix(in srgb, #7ac85a 12%, var(--panel)), var(--panel) 60%); }
+.vl-looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
+.vl-look { display: grid; gap: 3px; padding: 7px 10px; border-radius: 8px; background: var(--pw2); border: 1px solid var(--edge); color: var(--ink); }
+.vl-look small { color: var(--ink2); font-size: 12px; }
+.vl-look.have { border-color: #7ac85a; background: #eef8e0; }
+.vl-look-bar { height: 5px; border-radius: 3px; background: #e6cfa0; overflow: hidden; }
+.vl-look-bar i { display: block; height: 100%; background: #7ac85a; }

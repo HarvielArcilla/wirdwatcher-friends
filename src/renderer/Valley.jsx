@@ -46,6 +46,16 @@ export default function Valley () {
   const load = useCallback(() => api('valley').then(setV).catch(() => {}), [])
   useEffect(() => { load(); const t = setInterval(load, 20000); return () => clearInterval(t) }, [load])
   useEffect(() => { try { localStorage.setItem('valley-place', place) } catch {} }, [place])
+  // A look only the valley gives, just earned.
+  const looksShown = useRef('')
+  useEffect(() => {
+    const fresh = v?.newLooks || []
+    const key = fresh.map((x) => x.id).join(',')
+    if (!fresh.length || looksShown.current === key) return
+    looksShown.current = key
+    for (const l of fresh) toast({ emoji: '🌾', title: `New look: ${l.name}`, text: `${l.goal}. Wear it from the Shop (it’s in your wardrobe).` })
+    api('valleyAction', 'ackLooks').catch(() => {})
+  }, [v?.newLooks, toast])
 
   const act = useCallback(async (action, ...args) => {
     try {
@@ -599,6 +609,16 @@ function Journal ({ v, meet }) {
               {g.fav && <small>Loves {g.fav.map((a) => v.activities[a].name.toLowerCase()).join(' and ')} · up to +{outingPoints(g.id, g.fav[0], 1)} on an outing</small>}
             </span>
           </button>
+        ))}
+      </div>
+      <h4>Looks only the valley gives</h4>
+      <div className='vl-looks'>
+        {v.looks.map((l) => (
+          <div key={l.id} className={`vl-look ${l.have ? 'have' : ''}`}>
+            <b>{l.have ? '✓ ' : ''}{l.name}</b>
+            <small>{l.goal}</small>
+            {!l.have && l.n > 1 && <span className='vl-look-bar'><i style={{ width: `${(l.progress / l.n) * 100}%` }} /></span>}
+          </div>
         ))}
       </div>
       <h4>The season so far</h4>

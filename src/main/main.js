@@ -127,7 +127,7 @@ function handlers () {
     },
     valley: () => ww.valley.view(),
     valleyAction: (action, ...args) => {
-      if (!['till', 'plant', 'water', 'harvest', 'buy', 'sell', 'forage', 'netStart', 'netCatch', 'stars', 'talk', 'gift', 'outing', 'cast', 'reel'].includes(action)) throw new Error('Unknown action.')
+      if (!['till', 'plant', 'water', 'harvest', 'buy', 'sell', 'forage', 'netStart', 'netCatch', 'stars', 'talk', 'gift', 'outing', 'cast', 'reel', 'ackLooks'].includes(action)) throw new Error('Unknown action.')
       const out = ww.valley[action](...args)
       return { out: out ?? null, valley: ww.valley.view() }
     },
