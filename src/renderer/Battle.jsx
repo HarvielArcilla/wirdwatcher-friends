@@ -123,7 +123,7 @@ function Tally ({ res, beats, i }) {
   )
 }
 
-function Info ({ card, hp, side }) {
+export function Info ({ card, hp, side }) {
   const color = hp > 50 ? 'ok' : hp > 20 ? 'mid' : 'low'
   return (
     <div className={`bt-info ${side}`}>
@@ -137,7 +137,7 @@ function Info ({ card, hp, side }) {
 
 // A fighter is its Leximon card, tier frame, foil and all, standing on its
 // mat. The other side's faces you; yours is nearer and bigger.
-function Mon ({ card, className, front }) {
+export function Mon ({ card, className, front }) {
   return (
     <div className={className}>
       <div className='bt-card'><LexCard c={card} size={front ? 'md' : 'lg'} /></div>
@@ -147,14 +147,14 @@ function Mon ({ card, className, front }) {
 }
 
 // What flies across: hearts for Charm, slashes for Spite, a shockwave for Guard.
-function Projectile ({ from, stance }) {
+export function Projectile ({ from, stance }) {
   if (stance === 'spite') return <div className={`bt-slash at-${from === 'me' ? 'foe' : 'me'}`} aria-hidden='true'><i /><i /><i /></div>
   if (stance === 'guard') return <div className={`bt-wave from-${from}`} aria-hidden='true' />
   return <div className={`bt-hearts from-${from}`} aria-hidden='true'>{[0, 1, 2, 3, 4].map((k) => <i key={k} style={{ animationDelay: `${300 + k * 70}ms`, '--dy': `${(k - 2) * 14}px` }}>💗</i>)}</div>
 }
 
 // The text box writes itself out, like the old games.
-function Typed ({ text }) {
+export function Typed ({ text }) {
   const [n, setN] = useState(0)
   useEffect(() => {
     if (!text) return
@@ -185,5 +185,5 @@ function tone (settings, freqs, dur, type = 'square', gain = 0.08) {
     o.stop(t0 + dur + 0.02)
   } catch {}
 }
-const hitSound = (s) => tone(s, [220, 70], 0.18, 'square', 0.1)
-const faintSound = (s) => tone(s, [520, 110], 0.7, 'triangle', 0.09)
+export const hitSound = (s) => tone(s, [220, 70], 0.18, 'square', 0.1)
+export const faintSound = (s) => tone(s, [520, 110], 0.7, 'triangle', 0.09)

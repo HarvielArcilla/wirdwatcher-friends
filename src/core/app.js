@@ -25,6 +25,7 @@ import { Sportsbook } from './sportsbook.js'
 import { Leximon } from './leximon.js'
 import { Valley } from './valley.js'
 import { Tables } from './tables.js'
+import { DuelHost, DuelClient } from './duel.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
 
@@ -248,6 +249,79 @@ export class WirdApp extends EventEmitter {
     return res
   }
 
+  // --- live Leximon duels ------------------------------------------------------------
+
+  _duelTeam () { return this.leximon.public().team }
+
+  async hostDuel ({ scaled = false } = {}) {
+    await this.leaveDuel()
+    if (!this._duelTeam().length) throw new Error('Put a Leximon on your team first.')
+    const d = new DuelHost({ me: { name: this.identity.name, color: this.identity.color }, team: this._duelTeam(), scaled, settings: this.settings, swarm: this.swarm, lan: this.lan })
+    this._wireDuel(d)
+    await d.start()
+    return this.duelState
+  }
+
+  async joinDuel (code) {
+    await this.leaveDuel()
+    const d = new DuelClient({ code, me: { name: this.identity.name, color: this.identity.color }, team: this._duelTeam(), settings: this.settings, swarm: this.swarm, lan: this.lan })
+    this._wireDuel(d)
+    try {
+      await d.start()
+    } catch (err) {
+      if (this.duelLink === d) { this.duelLink = null; this.duelState = null; this.emit('duel', null) }
+      throw err
+    }
+    return this.duelState
+  }
+
+  _wireDuel (d) {
+    this.duelLink = d
+    this.duelState = null
+    let recorded = false
+    d.on('state', (s) => {
+      if (this.duelLink !== d) return
+      this.duelState = s
+      if (s.phase === 'over' && !recorded && s.state) {
+        recorded = true
+        const me = s.you
+        const foe = me === 'a' ? 'b' : 'a'
+        const draw = s.state.winner === null
+        const won = s.state.winner === me
+        const left = (x) => s.state.sides[x].team.filter((c) => c.hp > 0).length
+        const fair = d.isHost || d.fair()
+        const out = fair
+          ? this.leximon.recordLiveDuel({ won, draw, foe: s.players[foe]?.name, mine: s.players[me]?.team, theirs: s.players[foe]?.team, scaled: s.scaled, ko: `${left(me)}–${left(foe)}` })
+          : null
+        this.game._refreshProfile()
+        this.emit('progress', { source: 'economy', xp: [], badges: [], notes: [fair ? { emoji: draw ? '🤝' : won ? '🏆' : '🎗️', title: draw ? 'A draw!' : won ? `You beat ${s.players[foe]?.name}` : `${s.players[foe]?.name} won`, text: out.learned ? `Your team learned from it${out.ups.length ? `: ${out.ups.map((u) => `${u.word.toUpperCase()} reached level ${u.level}`).join(', ')}` : ''}.` : 'Your team has learned all it can from duels today.' } : { emoji: '⚠️', title: 'That duel didn’t add up', text: 'The other side’s seed didn’t match, so it wasn’t counted.' }] })
+      }
+      this.emit('duel', s)
+    })
+    d.on('closed', ({ reason }) => {
+      if (this.duelLink !== d) return
+      this.duelLink = null
+      this.duelState = null
+      this.emit('duel', null)
+      if (reason) this.emit('duel-closed', reason)
+    })
+  }
+
+  duelAction (action) {
+    if (!this.duelLink) throw new Error('You’re not in a duel.')
+    this.duelLink.act(action)
+    return true
+  }
+
+  async leaveDuel () {
+    const d = this.duelLink
+    if (!d) return
+    this.duelLink = null
+    this.duelState = null
+    await d.leave()
+    this.emit('duel', null)
+  }
+
   // A result that leveled you up carries that level's reward.
   _withLevelReward (res) {
     if (res?.levelUp) res.reward = this.economy.levelReward(res.level.level)
@@ -269,6 +343,7 @@ export class WirdApp extends EventEmitter {
   async stop () {
     this.economy.stop()
     await this.leaveLobby()
+    await this.leaveDuel()
     await this.friends.stop()
     this.store.flush()
   }

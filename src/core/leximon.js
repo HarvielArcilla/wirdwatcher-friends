@@ -226,6 +226,26 @@ export class Leximon {
     return { ...res, ups, left: DUELS_PER_DAY - d.today }
   }
 
+  // A live duel finished (src/core/duel.js). Wins and losses always count;
+  // the team learns from the first few duels each day, like before.
+  recordLiveDuel ({ won, draw = false, foe, mine, theirs, scaled = false, ko = '' }) {
+    const t = this.now()
+    const day = utcDay(t)
+    const d = this.s.duels
+    if (d.day !== day) { d.day = day; d.today = 0 }
+    if (!draw) { if (won) d.wins++; else d.losses++ }
+    const ups = []
+    const learns = d.today < DUELS_PER_DAY
+    if (learns) {
+      d.today++
+      for (const c of this.team()) this._gain(c, won ? DUEL_XP.win : DUEL_XP.loss, ups)
+    }
+    d.history = [{ vs: null, live: true, scaled: Boolean(scaled), name: String(foe || '').slice(0, 40), won: Boolean(won), draw: Boolean(draw), score: ko, at: t, mine: (mine || []).map((c) => c.word), theirs: (theirs || []).map((c) => c.word) }, ...d.history].slice(0, 20)
+    this._save()
+    this.economy.emit('played', 'duel')
+    return { ups, learned: learns, left: Math.max(0, DUELS_PER_DAY - d.today) }
+  }
+
   // For the window.
   view () {
     const t = this.now()

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, Avatar, Coins, useToast, useInterval } from './ui.jsx'
+import { api, Coins, useToast, useInterval } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
-import { STANCES, power, rarityName, DUELS_PER_DAY, TRAIN_MAX_HOURS } from '../shared/leximon.js'
+import { STANCES, power, rarityName, TRAIN_MAX_HOURS } from '../shared/leximon.js'
 import { burst, centerOf } from './effects.js'
-import Battle from './Battle.jsx'
+import LiveDuels from './Duel.jsx'
 
 // The Leximon: words you've caught, your team of three, training and duels.
 // A word's rarity is how you feel about it; everything else is growth.
@@ -109,7 +109,7 @@ export default function Leximon ({ econ, friends, settings }) {
       {v.cards.length > 0 && tab === 'team' && <Team v={v} act={act} econ={econ} />}
       {v.cards.length > 0 && tab === 'dex' && <Dex v={v} act={act} />}
       {v.cards.length > 0 && tab === 'train' && <Training v={v} act={act} econ={econ} />}
-      {tab === 'duels' && <Duels v={v} friends={friends} reload={load} toast={toast} settings={settings} />}
+      {tab === 'duels' && <LiveDuels v={v} toast={toast} settings={settings} />}
     </div>
   )
 }
@@ -218,45 +218,3 @@ function Training ({ v, act, econ }) {
     </>
   )
 }
-
-function Duels ({ v, friends, reload, toast, settings }) {
-  const [profiles, setProfiles] = useState({})
-  const [fight, setFight] = useState(null)
-  useEffect(() => {
-    Promise.all(friends.map((f) => api('friendProfile', f.userId).then((p) => [f.userId, p]).catch(() => [f.userId, null]))).then((all) => setProfiles(Object.fromEntries(all)))
-  }, [friends])
-  const go = async (f) => {
-    try {
-      const res = await api('duel', f.userId)
-      setFight({ res, name: f.name })
-      reload()
-    } catch (err) { toast({ error: true, title: 'Couldn’t duel', text: err.message }) }
-  }
-  if (!friends.length) return <div className='lx-empty'><b>Duels are with friends.</b><p>Add a friend, and when their Leximon has a team you can duel it here, up to {DUELS_PER_DAY} times a day. Win or lose, your team learns from it.</p></div>
-  return (
-    <>
-      <p className='lede'>Pick a friend’s team to duel. Three bouts, word against word: power counts, and so does stance (💗 Charm beats 🗡️ Spite, 🗡️ Spite beats 🛡️ Guard, 🛡️ Guard beats 💗 Charm). {v.duels.perDay - v.duels.today} duels left today.</p>
-      <div className='lx-foes'>
-        {friends.map((f) => {
-          const p = profiles[f.userId]
-          const team = p?.leximon?.team || []
-          return (
-            <div key={f.userId} className='lx-foe'>
-              <div className='lx-foe-head'><Avatar name={f.name} color={f.color} frame={p?.look?.frame} /><b>{f.name}</b>{p?.leximon && <small>{p.leximon.wins}–{p.leximon.losses}</small>}</div>
-              <div className='lx-foe-team'>{team.length ? team.map((c) => <LexCard key={c.word} c={c} size='sm' />) : <small>No team yet{p ? '' : ' (they’ll show up after you’ve been online together)'}.</small>}</div>
-              <button className='btn small primary' disabled={!team.length || !v.team.length || v.duels.today >= v.duels.perDay} onClick={() => go(f)}>{!v.team.length ? 'Build a team first' : 'Duel'}</button>
-            </div>
-          )
-        })}
-      </div>
-      {v.duels.history.length > 0 && (
-        <div className='lx-history'>
-          <h3>Recent duels</h3>
-          {v.duels.history.map((h, i) => <div key={i}><b className={h.won ? 'up' : 'down'}>{h.won ? 'Won' : 'Lost'} {h.score}</b> against {h.name} · {h.mine.join(', ')} vs {h.theirs.join(', ')} <small>{new Date(h.at).toLocaleDateString()}</small></div>)}
-        </div>
-      )}
-      {fight && <Battle res={fight.res} foe={fight.name} settings={settings} onClose={() => setFight(null)} />}
-    </>
-  )
-}
-

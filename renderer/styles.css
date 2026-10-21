@@ -2318,3 +2318,30 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .tb-seat .tag { background: color-mix(in oklab, var(--text) 10%, var(--bg)); color: var(--text); }
 .tb-seat .tag.ok { background: color-mix(in oklab, var(--good) 30%, var(--bg)); }
 .tb-seat .tag.lo { background: color-mix(in oklab, var(--bad) 28%, var(--bg)); }
+
+/* Live Leximon duels */
+.dl-wait { display: grid; justify-items: center; gap: 12px; padding: 30px 0; text-align: center; }
+.dl-row { display: flex; gap: 8px; }
+.dl-mode { margin: 4px 0 6px; }
+.lobby-entry .panel .opt-hint { display: block; margin-bottom: 10px; }
+.dl-team { margin-top: 18px; }
+.dl-team > div { display: flex; gap: 10px; flex-wrap: wrap; }
+.dl-live { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+.dl-battle { width: 100%; }
+.dl-panel { display: grid; gap: 8px; align-content: start; }
+.dl-panel h3 { margin: 6px 0 0; font-size: 14px; color: var(--dim); }
+.dl-moves, .dl-bench { display: grid; gap: 6px; }
+.dl-move, .dl-swap { text-align: left; padding: 9px 12px; border-radius: var(--r-sm); border: 2px solid var(--line); background: var(--panel); cursor: pointer; display: grid; gap: 2px; }
+.dl-move:hover, .dl-swap:hover:not(:disabled) { border-color: var(--accent); }
+.dl-move small, .dl-swap small { color: var(--dim); font-size: 12px; }
+.dl-move.t-charm { border-color: color-mix(in oklab, #e870a0 55%, var(--line)); }
+.dl-move.t-spite { border-color: color-mix(in oklab, #e05050 55%, var(--line)); }
+.dl-move.t-guard { border-color: color-mix(in oklab, #6a9ae0 55%, var(--line)); }
+.dl-swap:disabled { opacity: .45; cursor: default; }
+.dl-note { color: var(--dim); margin: 6px 0; }
+.dl-help { color: var(--faint); font-size: 12px; margin: 4px 0 0; }
+.dl-leave { justify-self: start; margin-top: 6px; }
+.dl-tag { position: absolute; top: 12px; right: 14px; z-index: 5; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: color-mix(in oklab, var(--panel) 80%, transparent); color: var(--dim); }
+.dl-timer { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: color-mix(in oklab, var(--panel) 85%, transparent); }
+@media (max-width: 1000px) { .dl-live { grid-template-columns: 1fr; } }
+.dl-battle .bt-field { height: 360px; }

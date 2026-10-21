@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
 import { rarityFor, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/leximon.js'
+import { newDuel, playTurn, movesFor, validAction, choosers } from '../src/shared/duel.js'
 import { effects } from '../src/shared/economy.js'
 import { tmp, network, until } from './helpers.js'
 
@@ -155,4 +156,88 @@ test('words rated at a lobby table bring wild Leximon too, and they stay a few w
   a.clock.t += 5000
   const res = a.rate(words[i + 3], 3, { source: 'lobby' })
   assert.equal(res.leximon.fled, enc.word, 'gone after the fourth')
+})
+
+test('live duel rules: moves, types, switching, fainting and winning', () => {
+  const card = (word, level, stance, tier = 1) => ({ word, tier, level, rarity: { tier: 0, side: null }, stance })
+  const st = newDuel({ a: [card('tea', 25, 'charm'), card('pie', 5, 'guard')], b: [card('ink', 1, 'spite')] })
+  assert.equal(movesFor(st.sides.a.team[0]).length, 4)
+  assert.equal(st.sides.a.team[0].moves[1].type, 'charm', 'its own move has its stance’s type')
+  assert.ok(st.sides.a.team[0].stat > st.sides.b.team[0].stat, 'levels count')
+  assert.equal(validAction(st, 'a', { kind: 'switch', to: 0 }), false, 'already out')
+  assert.equal(validAction(st, 'a', { kind: 'move', i: 4 }), false)
+  // Charm beats Spite: tea's own move is super effective against ink.
+  let ev = []
+  let guard = 0
+  while (!st.over && guard++ < 20) ev = playTurn(st, { a: { kind: 'move', i: 1 }, b: { kind: 'move', i: 0 } }, 'seed')
+  assert.ok(st.over)
+  assert.equal(st.winner, 'a')
+  assert.ok(ev.some((e) => e.t === 'end'))
+  // The same choices and seed play out the same way.
+  const run = () => { const s = newDuel({ a: [card('tea', 3, 'charm')], b: [card('ink', 3, 'spite')] }); const log = []; while (!s.over) log.push(...playTurn(s, { a: { kind: 'move', i: 2 }, b: { kind: 'move', i: 1 } }, 'x')); return log }
+  assert.deepEqual(run(), run())
+  // A level-scaled duel evens out levels and tiers.
+  const sc = newDuel({ a: [card('tea', 25, 'charm', 3)], b: [card('ink', 1, 'charm')] }, { scaled: true })
+  assert.equal(sc.sides.a.team[0].stat, sc.sides.b.team[0].stat)
+  // After a faint, the player sends out another before the next turn.
+  const f = newDuel({ a: [card('a', 1, 'guard'), card('b', 1, 'guard')], b: [card('z', 75, 'charm', 3)] })
+  playTurn(f, { a: { kind: 'move', i: 0 }, b: { kind: 'move', i: 1 } }, 's')
+  assert.equal(f.need, 'replace')
+  assert.deepEqual(choosers(f), ['a'])
+  assert.ok(validAction(f, 'a', { kind: 'switch', to: 1 }))
+  playTurn(f, { a: { kind: 'switch', to: 1 } }, 's')
+  assert.equal(f.sides.a.active, 1)
+  assert.equal(f.need, 'move')
+})
+
+test('a live duel between two computers, turn by turn', async (t) => {
+  const { make } = await network(t)
+  const a = await make()
+  const b = await make()
+  b.setProfile({ name: 'Pip' })
+  for (const [x, w] of [[a, 'gravy'], [b, 'mango']]) {
+    x.rate(w, 4)
+    x.leximon.s.encounter = { word: w, rarity: { tier: 0, side: null, pct: 0.5 }, at: 0 }
+    x.leximon.catch()
+  }
+  const s = await a.hostDuel({ scaled: true })
+  await b.joinDuel(s.code)
+  await until(() => a.duelState?.phase === 'fighting' && b.duelState?.phase === 'fighting')
+  assert.equal(b.duelState.you, 'b')
+  assert.equal(a.duelState.players.b.name, 'Pip')
+  assert.equal(a.duelState.scaled, true)
+  let guard = 0
+  while (a.duelState.phase === 'fighting' && guard++ < 60) {
+    const turn = a.duelState.state.turn
+    a.duelAction({ kind: 'move', i: 1 })
+    await until(() => b.duelState.waiting.includes('b') || b.duelState.phase === 'over')
+    if (b.duelState.phase === 'over') break
+    b.duelAction({ kind: 'move', i: 2 })
+    await until(() => a.duelState.state.turn > turn || a.duelState.phase === 'over')
+  }
+  await until(() => a.duelState?.phase === 'over' && b.duelState?.phase === 'over')
+  const w = a.duelState.state.winner
+  assert.ok(w === 'a' || w === 'b' || w === null)
+  assert.deepEqual(a.duelState.state, b.duelState.state, 'both see the same duel')
+  await until(() => a.leximon.s.duels.history.length === 1 && b.leximon.s.duels.history.length === 1)
+  assert.equal(a.leximon.s.duels.history[0].live, true)
+  if (w) assert.equal(a.leximon.s.duels.wins + b.leximon.s.duels.wins, 1)
+})
+
+test('leaving a live duel forfeits it', async (t) => {
+  const { make } = await network(t)
+  const a = await make()
+  const b = await make()
+  for (const [x, w] of [[a, 'gravy'], [b, 'mango']]) {
+    x.rate(w, 4)
+    x.leximon.s.encounter = { word: w, rarity: { tier: 0, side: null, pct: 0.5 }, at: 0 }
+    x.leximon.catch()
+  }
+  const s = await a.hostDuel()
+  await b.joinDuel(s.code)
+  await until(() => a.duelState?.phase === 'fighting')
+  await b.leaveDuel()
+  await until(() => a.duelState?.phase === 'over')
+  assert.equal(a.duelState.state.winner, 'a')
+  await until(() => a.leximon.s.duels.wins === 1)
 })

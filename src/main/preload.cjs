@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('ww', {
     lobby: listen('lobby'),
     lobbyEvent: listen('lobby-event'),
     lobbyClosed: listen('lobby-closed'),
+    duel: listen('duel'),
+    duelClosed: listen('duel-closed'),
     update: listen('update')
   }
 })

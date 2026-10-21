@@ -137,6 +137,11 @@ function handlers () {
       return { out: out ?? null, valley: ww.valley.view() }
     },
     duel: (userId) => ww.duelFriend(userId),
+    duelState: () => ww.duelState,
+    hostDuel: (opts) => ww.hostDuel(opts || {}),
+    joinDuel: (code) => ww.joinDuel(code),
+    duelAction: (action) => ww.duelAction(action),
+    leaveDuel: () => ww.leaveDuel(),
     today: () => ww.daily.view(),
     todayAction: (action, ...args) => {
       if (!['claim', 'claimWeekly', 'guess', 'nextClue', 'giveUp'].includes(action)) throw new Error('Unknown action.')
@@ -248,6 +253,8 @@ app.whenReady().then(async () => {
   ww.on('friend-answer', (a) => send('lobby-friend', { kind: 'answer', ...a }))
   ww.on('lobby-event', (e) => send('lobby-event', e))
   ww.on('lobby-closed', (reason) => send('lobby-closed', reason))
+  ww.on('duel', (s) => send('duel', s))
+  ww.on('duel-closed', (reason) => send('duel-closed', reason))
   createWindow()
   app.on('activate', () => { if (!win) createWindow() })
   if (smoke) runSmokeTest()
