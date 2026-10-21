@@ -16,7 +16,7 @@ export const PM_SPREAD = 0.02 // two points either side of the fair chance
 const clampPrice = (x) => Math.min(99, Math.max(1, x))
 
 // The sides you can back: soccer and fights have the draw too.
-export const sidesOf = (g) => (g.league === 'pitch' || g.fight ? ['home', 'draw', 'away'] : ['home', 'away'])
+export const sidesOf = (g) => (!g.event && (g.league === 'pitch' || g.fight) ? ['home', 'draw', 'away'] : ['home', 'away'])
 
 export function quotes (g, t) {
   const st = stateAt(g, t)
@@ -79,7 +79,7 @@ export class Sportsbook {
         continue
       }
       if (t < g.end) continue
-      const tie = g.final.home === g.final.away
+      const tie = !g.event && g.final.home === g.final.away
       // A fight is won however it ends (a knockout can come behind on rounds).
       const winner = g.winner || (tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away')
       // A football tie pays half on both teams; soccer and fights have a draw to back.
@@ -92,7 +92,7 @@ export class Sportsbook {
       this.s.net += gain
       if (gain > 0) this.s.won++; else if (gain < 0) this.s.lost++
       this.s.best = Math.max(this.s.best, gain)
-      this.s.history = [{ id, at: g.end, home: g.home, away: g.away, score: g.final, method: g.method || null, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
+      this.s.history = [{ id, at: g.end, home: g.event ? g.sideNames.home : g.home, away: g.event ? g.sideNames.away : g.away, title: g.question || null, result: g.event ? g.sideNames[g.winner] : null, score: g.final || { home: 0, away: 0 }, method: g.method || null, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
       changed = true
     }
     if (changed) { this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
@@ -116,7 +116,7 @@ export class Sportsbook {
     const t = this.now()
     const q = quotes(g, t)
     if (!q.open) throw new Error('That game is over.')
-    if (t < gameStart(g.league, g.n) - 6 * LEAGUES[g.league].every) throw new Error('That game isn’t open for betting yet.')
+    if (g.event ? t < g.start : t < gameStart(g.league, g.n) - 6 * LEAGUES[g.league].every) throw new Error(g.event ? 'That question isn’t open yet.' : 'That game isn’t open for betting yet.')
     coins = Math.floor(Number(coins) * 100) / 100
     if (!(coins >= 1)) throw new Error('Bet at least 1 coin.')
     if (coins > e.s.coins + 1e-9) throw new Error('You don’t have that many coins.')
@@ -161,13 +161,14 @@ export class Sportsbook {
     this.s.net += gain
     this.s.best = Math.max(this.s.best, gain)
     if (b.home < 1e-6 && b.away < 1e-6 && !(b.draw > 1e-6)) delete this.s.bets[id]
-    this.s.history = [{ id, at: this.now(), home: g.home, away: g.away, side, cost: costShare, pay, gain, how: 'sold' }, ...this.s.history].slice(0, 40)
+    this.s.history = [{ id, at: this.now(), home: g.event ? g.sideNames.home : g.home, away: g.event ? g.sideNames.away : g.away, title: g.question || null, side, cost: costShare, pay, gain, how: 'sold' }, ...this.s.history].slice(0, 40)
     this._commit()
     return { pay, gain }
   }
 
   // A game as a card: teams, score, clock, chance, prices, your bet.
   _card (g, t, full = false) {
+    if (g.event) return this._eventCard(g, t, full)
     const q = quotes(g, t)
     const H = team(g.league, g.home)
     const A = team(g.league, g.away)
@@ -242,6 +243,41 @@ export class Sportsbook {
     }
   }
 
+  // A politics or pop culture question: the chance, when it closes, and how
+  // it came out.
+  _eventCard (g, t, full = false) {
+    const q = quotes(g, t)
+    const b = this.s.bets[g.id] ? { ...blankBet(), ...this.s.bets[g.id] } : null
+    const sides = ['home', 'away']
+    const card = {
+      id: g.id,
+      league: g.league,
+      sport: LEAGUES[g.league].sport,
+      event: true,
+      question: g.question,
+      tag: g.tag,
+      yesNo: g.yesNo,
+      sideNames: g.sideNames,
+      start: g.start,
+      end: g.end,
+      status: q.st.status,
+      winner: q.st.status === 'final' ? g.winner : null,
+      chance: q.p,
+      chances: q.o,
+      sides,
+      quotes: Object.fromEntries(sides.map((side) => [side, q[side]])),
+      open: q.open && t >= g.start,
+      bet: b ? { ...b, worth: q.open ? sides.reduce((a, side) => a + b[side] * q[side].bid, 0) : 0 } : null
+    }
+    if (!full) return card
+    const upto = Math.min(t, g.end)
+    const chart = []
+    const every = Math.max(1, Math.floor(g.steps / 160))
+    for (let k = 0; k <= g.steps && g.start + k * 300000 <= upto; k += every) { const at = g.start + k * 300000; const o = outcomes(g, at); chart.push([at, o.home, o.away]) }
+    if (t >= g.start) chart.push([upto, q.o.home, q.o.away])
+    return { ...card, chart, startChances: outcomes(g, g.start) }
+  }
+
   board (league) {
     if (!LEAGUES[league]) throw new Error('No such league.')
     this.sync()
@@ -249,7 +285,7 @@ export class Sportsbook {
     const sl = slate(league, t)
     const mine = Object.keys(this.s.bets).filter((id) => id.startsWith(`${league}-`) && gameById(id))
     return {
-      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport, every: LEAGUES[league].every },
+      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport, every: LEAGUES[league].every, event: Boolean(LEAGUES[league].dur) },
       at: t,
       live: sl.live.map((n) => this._card(game(league, n), t)),
       upcoming: sl.upcoming.map((n) => this._card(game(league, n), t)),

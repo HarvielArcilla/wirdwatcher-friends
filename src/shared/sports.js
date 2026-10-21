@@ -1,4 +1,4 @@
-// The Wird leagues: basketball and American football between made-up teams
+// The Wird leagues: basketball and American football between the league’s teams
 // from real places, played by words. Every game is worked out from its
 // number alone, so every copy of wirdwatcher sees the same plays at the
 // same moments, live, without talking to anyone. The score is just the sum
@@ -13,6 +13,7 @@
 // THIS IS SPORTS v1. Changing anything that feeds a game rewrites every
 // game ever shown: add a v2 instead.
 
+import { EVENT_LEAGUES, eventGame, eventChance, eventSlate, eventStart } from './events.js'
 export const SPORTS_EPOCH = Date.UTC(2026, 9, 1) // game 0 of each league
 const MIN = 60000
 const SEC = 1000
@@ -116,7 +117,9 @@ export const LEAGUES = {
     ],
     every: 10 * MIN,
     offset: 4 * MIN
-  }
+  },
+  // Politics and pop culture (src/shared/events.js).
+  ...EVENT_LEAGUES
 }
 
 // Two teams' colors for one game: the away team wears its second color if
@@ -150,7 +153,7 @@ export function team (league, code) {
 
 // --- the schedule -------------------------------------------------------------------------
 
-export const gameStart = (league, n) => SPORTS_EPOCH + LEAGUES[league].offset + n * LEAGUES[league].every
+export const gameStart = (league, n) => EVENT_LEAGUES[league] ? eventStart(league, n) : SPORTS_EPOCH + LEAGUES[league].offset + n * LEAGUES[league].every
 export const gameNumberAt = (league, t) => Math.floor((t - SPORTS_EPOCH - LEAGUES[league].offset) / LEAGUES[league].every)
 
 // The schedule: a round-robin season, over and over. Each round is six
@@ -819,6 +822,7 @@ function poissonPmf (lam, k) {
 export const gameId = (league, n) => `${league}-v2-${n}`
 const gameCache = new Map()
 export function game (league, n) {
+  if (EVENT_LEAGUES[league]) return eventGame(league, n)
   const key = `${league}-${n}`
   let g = gameCache.get(key)
   if (!g) {
@@ -830,12 +834,13 @@ export function game (league, n) {
 }
 // Ids carry the schedule's version: games moved when every sport went to
 // the same speed (v2), so a bet on an old id is for a game that's gone.
-export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage)-v2-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
+export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage|vote|pop)-v2-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
 
 // --- watching ----------------------------------------------------------------------------
 
 // How far through the game we are at t: the plays so far and the state.
 export function stateAt (g, t) {
+  if (g.event) return { status: t < g.start ? 'pre' : t >= g.end ? 'final' : 'live', home: 0, away: 0, plays: [], q: 0, clock: 0, last: null }
   if (t < g.start) return { status: 'pre', home: 0, away: 0, plays: [], q: 0, clock: g.countUp ? 0 : g.periodSecs, last: null }
   let i = 0
   // Plays are in time order: find the last one at or before t.
@@ -889,6 +894,7 @@ export function soccerOutcomes (g, st) {
 
 // Each result's chance: { home, away } and, in soccer, draw.
 export function outcomes (g, t, st = stateAt(g, t)) {
+  if (g.event) { const p = eventChance(g, t); return { home: p, away: 1 - p } }
   if (g.league === 'pitch') return soccerOutcomes(g, st)
   if (g.fight) return fightOutcomes(g, st)
   const p = winChance(g, t, st)
@@ -905,6 +911,7 @@ export function clockAt (g, st) {
 }
 
 export function winChance (g, t, st = stateAt(g, t)) {
+  if (g.event) return eventChance(g, t)
   if (g.fight) { const o = fightOutcomes(g, st); return o.home + o.draw / 2 }
   if (g.league === 'pitch') { const o = soccerOutcomes(g, st); return o.home + o.draw / 2 }
   if (st.status === 'final') return st.home > st.away ? 1 : st.home < st.away ? 0 : 0.5
@@ -927,6 +934,7 @@ export function winChance (g, t, st = stateAt(g, t)) {
 
 // What's on: games that are live, the next few, and recent finals.
 export function slate (league, t, { next = 6, past = 6 } = {}) {
+  if (EVENT_LEAGUES[league]) return eventSlate(league, t)
   const n = gameNumberAt(league, t)
   const out = { live: [], upcoming: [], recent: [] }
   for (let k = n - 3; k <= n + next; k++) {

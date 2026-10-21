@@ -222,3 +222,37 @@ test('a bet on a game from the old schedule is refunded', () => {
   assert.equal(a.economy.s.coins - before, 250)
   assert.equal(a.economy.s.sports.history[0].how, 'refunded')
 })
+
+test('politics and pop culture: several open at once, chances come true, and the answer pays', () => {
+  const t = gameStart('vote', 500) + 3600e3
+  for (const lg of ['vote', 'pop']) {
+    const s = slate(lg, t)
+    assert.ok(s.live.length >= 3, `${lg}: several questions open`)
+    const buckets = Array.from({ length: 5 }, () => ({ n: 0, p: 0, w: 0 }))
+    for (let n = 0; n < 1500; n++) {
+      const g = game(lg, n)
+      assert.ok(g.question && g.sideNames.home && g.sideNames.away && g.end > g.start)
+      assert.equal(g, game(lg, n), 'the same question every time')
+      for (const f of [0, 0.5, 0.9]) {
+        const o = outcomes(g, g.start + (g.end - g.start) * f)
+        const b = buckets[Math.min(4, Math.floor(o.home * 5))]; b.n++; b.p += o.home; b.w += g.winner === 'home' ? 1 : 0
+      }
+      assert.equal(outcomes(g, g.end)[g.winner], 1)
+    }
+    for (const b of buckets) assert.ok(Math.abs(b.p / b.n - b.w / b.n) < 0.06, `${lg} predicted ${(b.p / b.n).toFixed(2)} vs happened ${(b.w / b.n).toFixed(2)}`)
+  }
+  const g = game('pop', 700)
+  const clock = { t: g.start - 1000 }
+  const a = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false }, now: () => new Date(clock.t) })
+  a.economy.devAddCoins(1e5)
+  assert.throws(() => a.sports.buy(g.id, 'home', 100), /isn’t open/)
+  clock.t = g.start + 60000
+  const bet = a.sports.buy(g.id, g.winner, 1000)
+  clock.t = g.end + 1
+  a.sports.sync()
+  const h = a.economy.s.sports.history[0]
+  assert.ok(Math.abs(h.pay - Math.floor(bet.shares * PAYOUT * 100) / 100) < 0.02)
+  assert.equal(h.result, g.sideNames[g.winner])
+  const card = a.sports.view(g.id)
+  assert.ok(card.event && card.chart.length > 1 && card.winner === g.winner)
+})

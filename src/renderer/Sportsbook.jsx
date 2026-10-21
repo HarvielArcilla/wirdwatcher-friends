@@ -8,7 +8,7 @@ import { Field } from './Field.jsx'
 // pays 100 coins if its team wins; its price is the chance, in coins.
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
-const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA']]
+const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA'], ['vote', '🗳️ Politics'], ['pop', '🎬 Pop culture']]
 
 // The game clock, live: it runs between plays at the game's speed (the
 // plays decide everything else). Basketball and football count down each
@@ -75,8 +75,8 @@ function Clock ({ c }) {
 const SIDE_ORDER = { home: 2, draw: 1, away: 0 }
 // The two teams' colors, as CSS variables for everything under it.
 const teamVars = (c) => ({ '--hc': c.home?.color || 'var(--accent)', '--ac': c.away?.color || '#4a9ee8' })
-const sideList = (c) => [...(c.sides || ['home', 'away'])].sort((a, b) => SIDE_ORDER[a] - SIDE_ORDER[b])
-const sideName = (c, side) => (side === 'draw' ? 'Draw' : c[side].code)
+const sideList = (c) => (c.event ? ['home', 'away'] : [...(c.sides || ['home', 'away'])].sort((a, b) => SIDE_ORDER[a] - SIDE_ORDER[b]))
+const sideName = (c, side) => (side === 'draw' ? 'Draw' : c.event ? c.sideNames[side] : c[side].code)
 // Under a name: the city, or for a fighter, the nickname and hometown.
 const subName = (t) => (t.nickname ? `“${t.nickname}” · ${t.city}` : t.city)
 const fullName = (c, side) => (c.fighters ? c[side].name : `${c[side].city} ${c[side].name}`)
@@ -106,7 +106,7 @@ export default function Sportsbook ({ coins }) {
   const trade = async (kind, id, side, amount) => {
     try {
       const out = await api('sportsTrade', kind, id, side, amount)
-      if (kind === 'buy') toast({ emoji: '🎟️', title: `${formatCoins(out.shares)} contracts at ${out.price}`, text: `Each pays 100 if they win: ${formatCoins(out.shares * 100)} in all.` })
+      if (kind === 'buy') toast({ emoji: '🎟️', title: `${formatCoins(out.shares)} contracts at ${out.price}`, text: `Each pays 100 if it comes true: ${formatCoins(out.shares * 100)} in all.` })
       else toast({ emoji: '💰', title: 'Sold back', text: `${formatCoins(out.pay)} coins, ${signed(out.gain)}.` })
       load()
       return true
@@ -119,10 +119,12 @@ export default function Sportsbook ({ coins }) {
         {board && <div className='sp-stats'><span><small>Bets</small><b>{board.stats.count}</b></span><span><small>Won–lost</small><b>{board.stats.won}–{board.stats.lost}</b></span><span><small>All told</small><b className={board.stats.net >= 0 ? 'up' : 'down'}>{signed(board.stats.net)}</b></span></div>}
       </div>
       {!board
-        ? <div className='sp-wait'>Loading the {league === 'hoops' ? 'courts' : league === 'ring' ? 'ring' : league === 'cage' ? 'cage' : 'fields'}…</div>
+        ? <div className='sp-wait'>Loading {league === 'hoops' ? 'the courts' : league === 'ring' ? 'the ring' : league === 'cage' ? 'the cage' : league === 'vote' || league === 'pop' ? 'the questions' : 'the fields'}…</div>
         : open
-          ? <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />
-          : (
+          ? (open.startsWith('vote-') || open.startsWith('pop-') ? <EventView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} /> : <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />)
+          : board.league.event
+            ? <EventBoard board={board} coins={coins} trade={trade} onOpen={setOpen} />
+            : (
             <>
               <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight' : board.league.sport === 'mma' ? 'a three-round fight' : board.league.sport === 'soccer' ? 'a match' : 'a game'} every {Math.round(board.league.every / 60000)} minutes, with every clock at twice real time, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
               {board.mine.length > 0 && (
@@ -153,6 +155,150 @@ export default function Sportsbook ({ coins }) {
               )}
             </>
             )}
+    </div>
+  )
+}
+
+// --- politics and pop culture ------------------------------------------------------------
+function untilText (end, now = Date.now()) {
+  const m = Math.max(0, Math.round((end - now) / 60000))
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`
+}
+
+function EventBoard ({ board, coins, trade, onOpen }) {
+  useNow(30000)
+  const mine = board.mine
+  const live = board.live.filter((c) => !c.bet)
+  return (
+    <>
+      <p className='lede sp-lede'>{board.league.name}: new questions open through the day and several run at once. Each one closes at a set time and settles on what happened. Buy an answer at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before it closes.</p>
+      {mine.length > 0 && (
+        <section className='sp-sec'>
+          <h3>Your bets</h3>
+          <div className='sp-cards ev-cards'>{mine.map((c) => <EventCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => onOpen(c.id)} />)}</div>
+        </section>
+      )}
+      <section className='sp-sec'>
+        <h3>Open now {live.length > 0 && <i className='sp-live-dot' />}</h3>
+        {live.length ? <div className='sp-cards ev-cards'>{live.map((c) => <EventCard key={c.id} c={c} trade={trade} coins={coins} onOpen={() => onOpen(c.id)} />)}</div> : <p className='lede'>Nothing open right now. The next questions are below.</p>}
+      </section>
+      <section className='sp-sec'>
+        <h3>Opening soon</h3>
+        <div className='sp-rows'>{board.upcoming.map((c) => <button key={c.id} className='sp-row ev-row' onClick={() => onOpen(c.id)}><span className='sp-when'>{startText(c.start)}</span><span className='sp-match'><b>{c.question}</b></span><span className='sp-odds'>{c.tag}</span></button>)}</div>
+      </section>
+      <section className='sp-sec'>
+        <h3>Recently decided</h3>
+        <div className='sp-rows'>{board.recent.map((c) => <button key={c.id} className='sp-row final ev-row' onClick={() => onOpen(c.id)}><span className='sp-when'>{new Date(c.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><span className='sp-match'><b>{c.question}</b></span><span className='sp-odds ev-result'>{c.sideNames[c.winner]}</span></button>)}</div>
+      </section>
+      {board.history.length > 0 && (
+        <section className='sp-sec'>
+          <h3>Settled</h3>
+          <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.title || `${h.away} / ${h.home}`}</span><small>{h.how === 'sold' ? 'sold early' : h.how === 'refunded' ? 'refunded' : h.result}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
+        </section>
+      )}
+    </>
+  )
+}
+
+function EventCard ({ c, trade, coins, onOpen }) {
+  const [amt, setAmt] = useState('100')
+  const n = Number(amt) || 0
+  return (
+    <div className={`sp-card ev-card ${c.status}`} onClick={onOpen} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
+      <div className='sp-card-top'>
+        <span className='ev-tag'>{c.tag}</span>
+        <span className='ev-close'>{c.status === 'final' ? 'Closed' : `Closes in ${untilText(c.end)}`}</span>
+      </div>
+      <b className='ev-q'>{c.question}</b>
+      <div className='ev-sides'>
+        {['home', 'away'].map((s) => <div key={s} className={`ev-side ${s} ${c.winner === s ? 'won' : ''}`}><span>{c.sideNames[s]}</span><b>{Math.round(c.chances[s] * 100)}%</b></div>)}
+      </div>
+      <div className='ev-bar'><i style={{ width: `${c.chances.home * 100}%` }} /></div>
+      {c.bet && <span className='sp-yours'>Yours: <Coins n={c.bet.worth} /> <i className={c.bet.worth - c.bet.cost >= 0 ? 'up' : 'down'}>{signed(c.bet.worth - c.bet.cost)}</i></span>}
+      {c.open && (
+        <div className='sp-ticket' onClick={(e) => e.stopPropagation()}>
+          <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+          <BuyButtons c={c} trade={trade} coins={coins} amount={n} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EventView ({ id, coins, trade, onBack }) {
+  const [g, setG] = useState(null)
+  const [amt, setAmt] = useState('100')
+  const load = useCallback(() => { api('sportsGame', id).then(setG).catch(() => {}) }, [id])
+  useEffect(() => { load() }, [load])
+  useInterval(load, 20000)
+  useNow(30000)
+  if (!g) return <div className='sp-wait'>Loading…</div>
+  const n = Number(amt) || 0
+  const b = g.bet
+  return (
+    <div className='sp-game'>
+      <button className='btn small ghost sp-back' onClick={onBack}>← All questions</button>
+      <div className='panel ev-head'>
+        <span className='ev-tag'>{g.tag}</span>
+        <h2>{g.question}</h2>
+        <div className='ev-sides big'>
+          {['home', 'away'].map((s) => <div key={s} className={`ev-side ${s} ${g.winner === s ? 'won' : ''}`}><span>{g.sideNames[s]}{g.winner === s ? ' ✓' : ''}</span><b>{Math.round(g.chances[s] * 100)}%</b></div>)}
+        </div>
+        <small className='sp-note'>{g.status === 'pre' ? `Opens at ${startText(g.start)}` : g.status === 'final' ? `Closed ${new Date(g.end).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}: ${g.sideNames[g.winner]}` : `Closes in ${untilText(g.end)} (${new Date(g.end).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })})`}</small>
+      </div>
+      <div className='sp-game-grid'>
+        <div className='panel sp-chart-panel'>
+          <h3>Chance <small>{g.sideNames.home} {Math.round(g.chances.home * 100)}% · {g.sideNames.away} {Math.round(g.chances.away * 100)}%</small></h3>
+          <EventChart g={g} />
+          <small className='sp-note'>Moves as support shifts, and settles toward 0% or 100% as the close gets nearer.</small>
+        </div>
+        <div className='panel sp-trade'>
+          <h3>Bet</h3>
+          {g.open
+            ? (
+              <>
+                <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+                <div className='mk-presets'>{[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setAmt(String(x))}>{formatCoins(x)}</button>)}<button className='btn small ghost' onClick={() => setAmt(String(Math.floor(coins * 0.1)))}>10%</button></div>
+                <BuyButtons c={g} trade={trade} coins={coins} amount={n} />
+                {n > 0 && <small className='sp-note'>{['home', 'away'].map((s) => `${g.sideNames[s]} pays ${formatCoins((n / g.quotes[s].ask) * 100)}`).join(' · ')}</small>}
+              </>
+              )
+            : <p className='lede'>{g.status === 'final' ? 'This question has closed.' : 'This question isn’t open yet.'}</p>}
+          {b && (
+            <div className='sp-pos'>
+              <h4>Your contracts</h4>
+              {['home', 'away'].filter((s) => b[s] > 0).map((s) => (
+                <div key={s} className='sp-pos-row'>
+                  <span><b>{formatCoins(b[s])}</b> on {g.sideNames[s]} <small>paid <Coins n={b[`${s}Cost`]} /></small></span>
+                  {g.open && <button className='btn small' onClick={() => trade('sell', g.id, s, 'all')}>Sell for {formatCoins(b[s] * g.quotes[s].bid)}</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EventChart ({ g }) {
+  const pts = g.chart
+  if (pts.length < 2) return <div className='sp-chart empty'><span>{Math.round(g.chances.home * 100)}%</span></div>
+  const t0 = g.start
+  const t1 = g.end
+  const x = (t) => ((t - t0) / (t1 - t0)) * 100
+  const line = pts.map(([t, h]) => `${x(t)},${100 - h * 100}`).join(' ')
+  return (
+    <div className='sp-chart'>
+      <svg viewBox='0 0 100 100' preserveAspectRatio='none' aria-label='The chance over time'>
+        <line x1='0' x2='100' y1='50' y2='50' className='mid' vectorEffect='non-scaling-stroke' />
+        <polyline points={line} fill='none' className='home-line ev-line' strokeWidth='2' vectorEffect='non-scaling-stroke' />
+      </svg>
+      <span className='sp-axis top'>100%</span>
+      <span className='sp-axis bottom'>0%</span>
+      <span className='sp-key'><i className='home ev-key' />{g.sideNames.home}</span>
     </div>
   )
 }
@@ -271,7 +417,7 @@ function GameView ({ id, coins, trade, onBack }) {
         <div className='panel sp-chart-panel'>
           <h3>Chance to win <small>{sideList(g).map((s) => `${sideName(g, s)} ${Math.round(g.chances[s] * 100)}%`).join(' · ')}</small></h3>
           <WinChart g={g} />
-          <small className='sp-note'>{g.fighters ? 'From the fight so far: the rest of it played out a hundred and sixty ways under the same rules (the damage each fighter has taken, how tired they are, and the judges’ cards so far, which stay secret), counting who wins in each. The gap between the lines is the chance of a draw.' : g.sport === 'soccer' ? 'From the score and the minutes left: the goals each side should still score, at their rates, and every way that could end. The gap between the lines is the chance of a draw.' : `From the score and the time left${g.sport === 'football' ? ', plus who has the ball and where' : ''}: the lead, and what the stronger team should still add, against how much can still swing.`} {g.fighters ? '' : ' It’s calibrated against thousands of simulated games.'}</small>
+          <small className='sp-note'>{g.fighters ? 'From the fight so far: the damage each fighter has taken, how tired they are, and the judges’ cards so far (which stay secret). The gap between the lines is the chance of a draw.' : g.sport === 'soccer' ? 'From the score and the minutes left: the goals each side should still score, at their rates, and every way that could end. The gap between the lines is the chance of a draw.' : `From the score and the time left${g.sport === 'football' ? ', plus who has the ball and where' : ''}: the lead, and what the stronger team should still add, against how much can still swing.`} {g.fighters ? '' : ' It’s checked against thousands of the league’s games.'}</small>
         </div>
         <div className='panel sp-trade'>
           <h3>Bet</h3>
@@ -381,7 +527,7 @@ function FightBox ({ g }) {
             </table>
             <h4>Judges’ cards {f.rounds && <small>{g.home.code}–{g.away.code}</small>}</h4>
             {!f.rounds
-              ? <small className='sp-note'>Kept secret until the fight is over, as in a real fight.</small>
+              ? <small className='sp-note'>Kept secret until the fight is over.</small>
               : f.rounds.length
                 ? <div>{f.rounds.map((r) => <div key={r.round} className='sp-box-row'><span>Round {r.round}</span><span className='sp-tags'><small>{r.cards}</small><i className='sp-tag'>{r.team ? g[r.team].code : 'Even'}</i></span></div>)}</div>
                 : <small className='sp-note'>It ended before the judges were needed.</small>}
