@@ -125,6 +125,11 @@ function handlers () {
       ww.leximon[action](...args)
       return ww.leximon.view()
     },
+    tables: () => ww.tables.view(),
+    tablesAction: (action, ...args) => {
+      if (!['roulette', 'wheel', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble'].includes(action)) throw new Error('Unknown action.')
+      return { out: ww.tables[action](...args), tables: ww.tables.view() }
+    },
     valley: () => ww.valley.view(),
     valleyAction: (action, ...args) => {
       if (!['till', 'plant', 'water', 'harvest', 'buy', 'sell', 'forage', 'netStart', 'netCatch', 'stars', 'talk', 'gift', 'outing', 'cast', 'reel', 'ackLooks'].includes(action)) throw new Error('Unknown action.')

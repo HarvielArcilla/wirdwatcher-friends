@@ -87,6 +87,20 @@ export class Words {
   get size () { return this.list.length }
   has (form) { return this.index.has(form) }
 
+  // A word spelled by exactly these letters (sorted, lower case), for the
+  // word bonus in Word Blackjack. Words of 4 to 9 letters.
+  byLetters (sorted) {
+    if (!this._anagrams) {
+      this._anagrams = new Map()
+      for (const [form] of this.list) {
+        if (form.length < 4 || form.length > 9 || !/^[a-z]+$/.test(form)) continue
+        const key = [...form].sort().join('')
+        if (!this._anagrams.has(key)) this._anagrams.set(key, form)
+      }
+    }
+    return this._anagrams.get(sorted) || null
+  }
+
   // Everything the app shows about a word.
   lookup (form) {
     const i = this.index.get(String(form || '').toLowerCase())

@@ -24,6 +24,7 @@ import { Derivatives } from './derivatives.js'
 import { Sportsbook } from './sportsbook.js'
 import { Leximon } from './leximon.js'
 import { Valley } from './valley.js'
+import { Tables } from './tables.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
 
@@ -60,6 +61,7 @@ export class WirdApp extends EventEmitter {
     this.market.derivs = this.derivs
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
+    this.tables = new Tables({ economy: this.economy, byLetters: (k) => this.words.byLetters(k) })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
@@ -167,6 +169,7 @@ export class WirdApp extends EventEmitter {
         market: st.gain,
         slots: e.slots.net || 0,
         flips: e.flips.net || 0,
+        tables: this.tables.net(),
         stakes: e.stakes.net || 0,
         sports: e.sports.net || 0,
         bankruptcy: e.credit.discharged || 0,
