@@ -125,7 +125,7 @@ export class WirdApp extends EventEmitter {
   // Open prediction-market bets, sold back to the house.
   _sellBets () {
     this.sports.sync()
-    for (const [id, b] of Object.entries(this.economy.s.sports.bets)) for (const side of ['home', 'away']) if (b[side] > 0) { try { this.sports.sell(id, side, 'all') } catch {} }
+    for (const [id, b] of Object.entries(this.economy.s.sports.bets)) for (const side of ['home', 'away', 'draw']) if (b[side] > 0) { try { this.sports.sell(id, side, 'all') } catch {} }
   }
 
   // Every way your coins are used, in one place: what you have and where it

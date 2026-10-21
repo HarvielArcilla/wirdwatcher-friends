@@ -1872,7 +1872,7 @@ html.calm .mk-quote b.flash-up, html.calm .mk-quote b.flash-down { animation: no
 .pf-part small.up, .pf-part small.down { grid-column: 3; text-align: right; font-size: 11.5px; font-weight: 600; }
 .pf-part.debt b { color: var(--bad); }
 .pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
-.pf-list.wide { grid-column: 1 / -1; }
+.pf-stack { display: grid; gap: 16px; }
 .pf-list h3, .pf-flows h3 { margin: 0 0 8px; font-size: 14px; }
 .pf-flows h3 small { color: var(--faint); font-weight: 500; font-size: 12px; margin-left: 6px; }
 .pf-list table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -1990,3 +1990,30 @@ html.calm .sp-feed li:first-child { animation: none; }
 .sp-box-team summary { cursor: pointer; color: var(--dim); font-size: 12px; }
 .sp-box-team details small { color: var(--dim); font-size: 12px; line-height: 1.5; }
 @media (max-width: 900px) { .sp-game-grid { grid-template-columns: 1fr; } .sp-row { grid-template-columns: 1fr; } .sp-board { grid-template-columns: 1fr; } }
+
+/* Prediction market: three-way bars, both lines, the field */
+.sp-chance .draw { background: color-mix(in oklab, var(--text) 30%, var(--panel-raise)); }
+.sp-buy.n3 { grid-template-columns: 1fr 1fr 1fr; }
+.sp-buy.n3 .btn.sp-side { grid-template-columns: 1fr; grid-template-rows: auto auto auto; text-align: center; padding: 6px 4px; }
+.sp-buy.n3 .btn.sp-side b { grid-row: auto; font-size: 13.5px; }
+.btn.sp-side.draw { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text) 35%, transparent); }
+.sp-chart .home-line { stroke: var(--accent); }
+.sp-chart .away-line { stroke: #4a9ee8; }
+.sp-key { position: absolute; right: 4px; top: 0; font-size: 11px; color: var(--dim); display: flex; gap: 6px; align-items: center; }
+.sp-key i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
+.sp-key i.home { background: var(--accent); } .sp-key i.away { background: #4a9ee8; margin-left: 6px; }
+.fbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 10px; font-weight: 700; color: var(--dim); letter-spacing: .04em; }
+.fbar-track { position: relative; height: 8px; border-radius: 99px; background: color-mix(in oklab, var(--good) 18%, var(--panel-raise)); }
+.fbar.big .fbar-track { height: 10px; }
+.fbar-end.away { color: #4a9ee8; } .fbar-end.home { color: var(--accent); }
+.fbar-tick { position: absolute; top: 2px; bottom: 2px; width: 1px; background: color-mix(in oklab, var(--text) 18%, transparent); }
+.fbar-tick.mid { background: color-mix(in oklab, var(--text) 35%, transparent); top: 0; bottom: 0; }
+.fbar-gain { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, #e8c42a 35%, transparent); border-radius: 2px; }
+.fbar-ball { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--panel); box-shadow: 0 0 0 2px #4a9ee8; transition: left .6s ease; display: grid; place-items: center; }
+.fbar-ball.home { box-shadow: 0 0 0 2px var(--accent); }
+.fbar-ball b { font-size: 11px; line-height: 1; margin-top: -1px; color: var(--text); }
+.fbar.big .fbar-ball { width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+html.calm .fbar-ball { transition: none; }
+
+.sp-bfield { width: 240px; max-width: 100%; margin-top: 2px; }
+.sp-field-panel { display: none; }

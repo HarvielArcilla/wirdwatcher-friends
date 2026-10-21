@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
-import { game, stateAt, winChance, gameStart, team, LEAGUES, slate } from '../src/shared/sports.js'
+import { game, stateAt, winChance, outcomes, clockAt, gameStart, team, LEAGUES, slate } from '../src/shared/sports.js'
 import { quotes, PAYOUT } from '../src/core/sportsbook.js'
 import { tmp } from './helpers.js'
 
 test('games are the same everywhere, and the score is the sum of the plays', () => {
-  for (const lg of ['hoops', 'gridiron']) {
+  for (const lg of ['hoops', 'gridiron', 'pitch']) {
     for (let n = 0; n < 300; n++) {
       const g = game(lg, n)
       assert.equal(g.start, gameStart(lg, n))
@@ -19,7 +19,17 @@ test('games are the same everywhere, and the score is the sum of the plays', () 
         assert.ok(p.at >= last, 'plays in time order'); last = p.at
       }
       assert.deepEqual(g.final, { home, away })
+      // Between plays the clock runs in step with real time, so it can be shown live.
+      const speed = clockAt(g, stateAt(g, g.start + 1)).speed
+      for (let k = 1; k < g.plays.length; k++) {
+        const a = g.plays[k - 1]
+        const b = g.plays[k]
+        if (a.q !== b.q || ['period-end', 'half-time', 'final'].includes(a.kind) || b.kind === 'final') continue
+        assert.ok(Math.abs(Math.abs(b.clock - a.clock) - ((b.at - a.at) / 1000) * speed) <= 1.01, `${lg} clock in step`)
+      }
       if (lg === 'hoops') assert.notEqual(home, away, 'basketball always has a winner')
+      // Every point has a scorer (a safety goes to the defense).
+      for (const p of g.plays) if (p.pts && p.kind !== 'ft') assert.ok(p.who, `${lg} ${p.kind} has a scorer`)
       assert.ok(g.home !== g.away)
     }
   }
@@ -80,4 +90,43 @@ test('betting: buy at the ask, sell at the bid, winners paid 100 a contract', ()
   assert.throws(() => a.sports.buy(game('hoops', 2002).id, 'home', 10), /bankrupt/)
   assert.ok(slate('gridiron', clock.t).upcoming.length > 0)
   assert.ok(LEAGUES.hoops.teams.length === 12)
+})
+
+test('soccer: three results, chances that add up and come true, and the draw pays', () => {
+  const buckets = Array.from({ length: 5 }, () => ({ n: 0, p: 0, w: 0 }))
+  let draws = 0
+  for (let n = 0; n < 1500; n++) {
+    const g = game('pitch', n)
+    const res = g.final.home > g.final.away ? 'home' : g.final.home < g.final.away ? 'away' : 'draw'
+    if (res === 'draw') draws++
+    for (const f of [0, 0.3, 0.6, 0.9]) {
+      const o = outcomes(g, g.start + (g.end - g.start) * f)
+      assert.ok(Math.abs(o.home + o.draw + o.away - 1) < 1e-9)
+      for (const k of ['home', 'draw', 'away']) { const b = buckets[Math.min(4, Math.floor(o[k] * 5))]; b.n++; b.p += o[k]; b.w += k === res ? 1 : 0 }
+    }
+    assert.equal(outcomes(g, g.end)[res], 1)
+  }
+  for (const b of buckets) assert.ok(Math.abs(b.p / b.n - b.w / b.n) < 0.04, `predicted ${(b.p / b.n).toFixed(2)} vs happened ${(b.w / b.n).toFixed(2)}`)
+  assert.ok(draws / 1500 > 0.15 && draws / 1500 < 0.32, 'draws happen, like real football')
+  // The clock runs between plays at the game's speed.
+  const g = game('pitch', 10)
+  const mid = stateAt(g, g.start + 5 * 60000)
+  const k = clockAt(g, mid)
+  assert.ok(k.running && k.countUp && k.speed === 3)
+
+  // Betting on the draw.
+  let n = 0
+  while (game('pitch', n).final.home !== game('pitch', n).final.away) n++
+  const d = game('pitch', n)
+  const clock = { t: d.start + 60000 }
+  const a = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false }, now: () => new Date(clock.t) })
+  a.economy.devAddCoins(1e5)
+  const q = quotes(d, clock.t)
+  const bet = a.sports.buy(d.id, 'draw', 1000)
+  assert.equal(bet.price, q.draw.ask)
+  a.sports.buy(d.id, 'home', 500)
+  clock.t = d.end + 1
+  a.sports.sync()
+  const h = a.economy.s.sports.history[0]
+  assert.ok(Math.abs(h.pay - Math.floor(bet.shares * PAYOUT * 100) / 100) < 0.02, 'the draw pays 100 a contract, the team nothing')
 })

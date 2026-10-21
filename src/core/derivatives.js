@@ -16,7 +16,7 @@ import { priceAt, quoteTime, splitFactor, hash32, sectorOf, sectorIndex, SECTORS
 import {
   RATE, YEAR_MS, LIQUIDATION_FEE, mark, marginCallAt, nextBell, optionQuote, futureQuote, futurePrice, expiries, futureExpiries,
   isListedExpiry, strikes, atmVol, initialMargin, maxFutureLeverage, maxMarginLeverage, longBorrowRate, shortBorrowRate,
-  maintenanceRatio, shortOptionRequirement, blackScholes, ETFS, etfById, etfQuote, etfSeries
+  maintenanceRatio, shortOptionRequirement, blackScholes, ETFS, etfById, etfQuote, etfSeries, SECTOR_BASKET_SIZE
 } from '../shared/derivatives.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -372,18 +372,19 @@ export class Derivatives {
     } else if (e.track === 'all') {
       words = []
     } else {
-      words = byHash(everyday.filter((w) => this.market.profile(w)?.sector === e.track)).slice(0, 10)
+      words = byHash(everyday.filter((w) => this.market.profile(w)?.sector === e.track)).slice(0, SECTOR_BASKET_SIZE)
     }
     const out = { words, profiles: words.map((w) => this.market.profile(w)).filter(Boolean) }
     this._held.set(e.id, out)
     return out
   }
 
-  _etfQuote (e, t) { return etfQuote(e, t, e.track === 'basket' ? this._holdings(e).profiles : null) }
+  _basketOf (e) { return e.track === 'all' || e.k !== 1 ? null : this._holdings(e).profiles }
+  _etfQuote (e, t) { return etfQuote(e, t, this._basketOf(e)) }
 
   etfs () {
     const t = this.now()
-    return ETFS.map((e) => {
+    return ETFS.filter((e) => !e.retired || this.m.etfs[e.id]?.shares > 0).map((e) => {
       const q = this._etfQuote(e, t)
       const h = this.m.etfs[e.id]
       const value = h ? h.shares * q.sell : 0
@@ -400,7 +401,7 @@ export class Derivatives {
     const DAY = 864e5
     const span = { day: DAY, week: 7 * DAY, month: 30 * DAY, year: 365 * DAY }[range] || 30 * DAY
     const hold = this._holdings(e)
-    const basket = e.track === 'basket' ? hold.profiles : null
+    const basket = this._basketOf(e)
     const nav = (x) => etfQuote(e, x, basket).nav
     const now = nav(t)
     const back = (d) => now / nav(t - d * DAY) - 1
@@ -449,6 +450,7 @@ export class Derivatives {
   buyEtf (id, coins) {
     const e = etfById(id)
     if (!e) throw new Error('No such fund.')
+    if (e.retired) throw new Error('That fund has closed. You can still sell it.')
     const q = this._etfQuote(e, this.now())
     const paid = this._pay(Math.floor(Number(coins) * 100) / 100)
     const h = this.m.etfs[id] || { shares: 0, cost: 0 }

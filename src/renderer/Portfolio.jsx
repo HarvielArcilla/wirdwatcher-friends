@@ -60,7 +60,7 @@ export default function Portfolio ({ onPick }) {
         </div>
       </section>
 
-      <div className='pf-grid'>
+      <div className='pf-stack'>
         <section className='panel pf-list'>
           <h3>Shares</h3>
           {p.shares.length
@@ -83,7 +83,7 @@ export default function Portfolio ({ onPick }) {
               )
             : <p className='lede'>No funds yet.</p>}
         </section>
-        <section className='panel pf-list wide'>
+        <section className='panel pf-list'>
           <h3>Open positions</h3>
           {p.positions.length
             ? (

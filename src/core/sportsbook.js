@@ -9,18 +9,24 @@
 // backwards can't bet (the games are known in advance; that's how every copy
 // agrees on them).
 
-import { LEAGUES, game, gameById, stateAt, winChance, slate, team, gameStart } from '../shared/sports.js'
+import { LEAGUES, game, gameById, stateAt, outcomes, clockAt, slate, team, gameStart } from '../shared/sports.js'
 
 export const PAYOUT = 100
 export const PM_SPREAD = 0.02 // two points either side of the fair chance
 const clampPrice = (x) => Math.min(99, Math.max(1, x))
 
+// The sides you can back: soccer has the draw too.
+export const sidesOf = (g) => (g.league === 'pitch' ? ['home', 'draw', 'away'] : ['home', 'away'])
+
 export function quotes (g, t) {
   const st = stateAt(g, t)
-  const p = winChance(g, t, st)
+  const o = outcomes(g, t, st)
   const q = (chance) => ({ chance, ask: clampPrice(Math.ceil((chance + PM_SPREAD) * PAYOUT)), bid: clampPrice(Math.floor((chance - PM_SPREAD) * PAYOUT)) })
-  return { st, p, home: q(p), away: q(1 - p), open: st.status !== 'final' }
+  const out = { st, p: o.home, o, open: st.status !== 'final' }
+  for (const side of sidesOf(g)) out[side] = q(o[side])
+  return out
 }
+const blankBet = () => ({ home: 0, away: 0, draw: 0, cost: 0, homeCost: 0, awayCost: 0, drawCost: 0 })
 
 export class Sportsbook {
   constructor ({ economy, now }) {
@@ -48,8 +54,10 @@ export class Sportsbook {
       const g = gameById(id)
       if (!g || t < g.end) continue
       const tie = g.final.home === g.final.away
-      const per = (side) => (tie ? PAYOUT / 2 : (side === 'home') === (g.final.home > g.final.away) ? PAYOUT : 0)
-      const pay = Math.floor((b.home * per('home') + b.away * per('away')) * 100) / 100
+      const winner = tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away'
+      // A football tie pays half on both teams; soccer has a draw to back.
+      const per = (side) => (g.league !== 'pitch' && tie ? PAYOUT / 2 : side === winner ? PAYOUT : 0)
+      const pay = Math.floor(((b.home || 0) * per('home') + (b.away || 0) * per('away') + (b.draw || 0) * per('draw')) * 100) / 100
       delete this.s.bets[id]
       this.economy.s.coins += pay
       this.economy.note('got', 'sports', pay)
@@ -76,8 +84,8 @@ export class Sportsbook {
     e.tick()
     e._casinoOpen()
     this.sync()
-    if (side !== 'home' && side !== 'away') throw new Error('Pick a team.')
     const g = this._game(id)
+    if (!sidesOf(g).includes(side)) throw new Error('Pick a side.')
     const t = this.now()
     const q = quotes(g, t)
     if (!q.open) throw new Error('That game is over.')
@@ -91,7 +99,7 @@ export class Sportsbook {
     const shares = Math.floor((coins / price) * 1e6) / 1e6
     e.s.coins -= coins
     e.note('spent', 'sports', coins)
-    const b = this.s.bets[id] || { home: 0, away: 0, cost: 0, homeCost: 0, awayCost: 0 }
+    const b = { ...blankBet(), ...(this.s.bets[id] || {}) }
     b[side] += shares
     b[`${side}Cost`] += coins
     b.cost += coins
@@ -125,7 +133,7 @@ export class Sportsbook {
     const gain = pay - costShare
     this.s.net += gain
     this.s.best = Math.max(this.s.best, gain)
-    if (b.home < 1e-6 && b.away < 1e-6) delete this.s.bets[id]
+    if (b.home < 1e-6 && b.away < 1e-6 && !(b.draw > 1e-6)) delete this.s.bets[id]
     this.s.history = [{ id, at: this.now(), home: g.home, away: g.away, side, cost: costShare, pay, gain, how: 'sold' }, ...this.s.history].slice(0, 40)
     this._commit()
     return { pay, gain }
@@ -136,8 +144,10 @@ export class Sportsbook {
     const q = quotes(g, t)
     const H = team(g.league, g.home)
     const A = team(g.league, g.away)
-    const b = this.s.bets[g.id] || null
-    const worth = b ? (q.open ? b.home * q.home.bid + b.away * q.away.bid : 0) : 0
+    const b = this.s.bets[g.id] ? { ...blankBet(), ...this.s.bets[g.id] } : null
+    const sides = sidesOf(g)
+    const worth = b && q.open ? sides.reduce((a, side) => a + b[side] * q[side].bid, 0) : 0
+    const last = q.st.last
     const card = {
       id: g.id,
       league: g.league,
@@ -151,31 +161,44 @@ export class Sportsbook {
       clock: q.st.clock,
       periods: g.periods,
       last: q.st.last ? { text: q.st.last.text, team: q.st.last.team, kind: q.st.last.kind } : null,
-      ball: g.league === 'gridiron' && q.st.status === 'live' && q.st.last?.pos ? { side: q.st.last.pos, yl: q.st.last.yl, down: q.st.last.down, togo: q.st.last.togo } : null,
+      ball: q.st.status !== 'live' || !last?.pos
+        ? null
+        : g.league === 'gridiron'
+          ? { side: last.pos, yl: last.yl, down: last.down, togo: last.togo }
+          : g.league === 'pitch' && last.x !== undefined ? { side: last.pos, x: last.x } : null,
+      clockInfo: clockAt(g, q.st),
+      added: g.league === 'pitch' ? (q.st.plays.slice().reverse().find((p) => p.kind === 'added' && p.q === q.st.q)?.added || null) : null,
       chance: q.p,
-      quotes: { home: q.home, away: q.away },
+      chances: q.o,
+      sides,
+      quotes: Object.fromEntries(sides.map((side) => [side, q[side]])),
       open: q.open && t >= g.start - 6 * LEAGUES[g.league].every,
       bet: b ? { ...b, worth } : null
     }
     if (!full) return card
     // Everything so far: plays (newest first), the chance after each, a box score.
     const plays = q.st.plays
-    const chart = [[g.start, winChance(g, g.start - 1)]]
+    // The chance of each team winning over the game (soccer's draw is the gap).
+    const point = (at) => { const o = outcomes(g, at); return [at, o.home, o.away] }
+    const chart = [point(g.start - 1)]
     const box = { home: {}, away: {} }
     for (const p of plays) {
-      if (p.team && p.who && p.pts) box[p.team][p.who] = (box[p.team][p.who] || 0) + p.pts
+      if (p.kind === 'safety' && p.team) { const d = p.team === 'home' ? 'away' : 'home'; box[d]['Safety (defense)'] = (box[d]['Safety (defense)'] || 0) + 2 } else if (p.team && p.pts) {
+        const who = p.who || 'Team'
+        box[p.team][who] = (box[p.team][who] || 0) + p.pts
+      }
     }
     const step = Math.max(1, Math.floor(plays.length / 160))
-    for (let i = 0; i < plays.length; i += step) chart.push([plays[i].at, winChance(g, plays[i].at)])
-    if (plays.length) chart.push([plays[plays.length - 1].at, q.p])
+    for (let i = 0; i < plays.length; i += step) chart.push(point(plays[i].at))
+    if (plays.length) chart.push([plays[plays.length - 1].at, q.o.home, q.o.away])
     return {
       ...card,
-      plays: plays.slice(-120).reverse().map((p) => ({ at: p.at, q: p.q, clock: p.clock, team: p.team, text: p.text, pts: p.pts, kind: p.kind, home: p.home, away: p.away })),
+      plays: plays.slice(-120).reverse().map((p) => ({ at: p.at, q: p.q, clock: p.clock, team: p.team, text: p.text, pts: p.pts, kind: p.kind, home: p.home, away: p.away, x: p.x, yl: p.yl, pos: p.pos })),
       chart,
       box: { home: Object.entries(box.home).sort((a, b) => b[1] - a[1]), away: Object.entries(box.away).sort((a, b) => b[1] - a[1]) },
       rosters: { home: H.players.map((p) => `${p.name} (${p.pos})`), away: A.players.map((p) => `${p.name} (${p.pos})`) },
       strength: { home: H.strength, away: A.strength },
-      startChance: winChance(g, g.start - 1)
+      startChances: outcomes(g, g.start - 1)
     }
   }
 
@@ -207,7 +230,7 @@ export class Sportsbook {
       const g = gameById(id)
       if (!g) continue
       const q = quotes(g, t)
-      v += q.open ? b.home * q.home.bid + b.away * q.away.bid : 0
+      if (q.open) for (const side of sidesOf(g)) v += (b[side] || 0) * q[side].bid
     }
     return v
   }

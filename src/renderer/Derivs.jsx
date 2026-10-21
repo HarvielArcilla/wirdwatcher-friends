@@ -339,8 +339,7 @@ export function Funds ({ coins, toast, onChange, onPick }) {
   if (!list) return null
   const groups = [
     ['The whole market', 'Every sector, plain, geared or upside down.', list.filter((f) => f.track === 'all')],
-    ['Baskets', 'Real words, held equally: the fund is exactly how they do.', list.filter((f) => f.track === 'basket')],
-    ['Sectors', 'A topic at a time. Every word in a sector shares its moves.', list.filter((f) => f.track !== 'all' && f.track !== 'basket')]
+    ['Sectors', 'Thirty words of a topic, held equally. Words in a sector lean the same way a little.', list.filter((f) => f.track !== 'all')]
   ]
   const tile = (f) => (
     <button key={f.id} className={`dv-fund ${open === f.id ? 'open' : ''} ${f.k !== 1 ? 'geared' : ''} ${f.shares > 0 ? 'held' : ''}`} onClick={() => setOpen(open === f.id ? null : f.id)} aria-expanded={open === f.id}>
@@ -409,7 +408,7 @@ function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
           </div>
         </div>
         <div className='dv-fd-side'>
-          <small className='dv-fd-blurb'>{f.blurb || (f.sectorName ? `Tracks the ${f.sectorName.toLowerCase()} index: the waves every word in the sector rides.` : '')} {(f.fee * 100).toFixed(2)}% a year in fees.{geared ? ` Resets daily, so over weeks it drifts from ${f.k}× the market.` : ''}</small>
+          <small className='dv-fd-blurb'>{f.blurb || (f.sectorName ? `Thirty everyday ${f.sectorName.toLowerCase()} words, held equally: the fund is how they do.` : '')} {(f.fee * 100).toFixed(2)}% a year in fees.{geared ? ` Resets daily, so over weeks it drifts from ${f.k}× the market.` : ''}</small>
           <div className='mk-amt'>
             <input className='field' inputMode='decimal' placeholder='Coins to spend' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && num(amt) >= 1) trade('buy', num(amt)) }} />
             <button className='btn primary' disabled={!(num(amt) >= 1) || num(amt) > coins} onClick={() => trade('buy', num(amt))}>Buy</button>
@@ -428,7 +427,7 @@ function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
             </div>
           )}
           <table className='dv-fd-table'>
-            <thead><tr><th>{f.track === 'all' ? 'Sector' : f.track === 'basket' ? 'Holds' : 'Some of its words'}</th><th>Week</th><th>Price</th><th>Today</th><th>With the fund</th></tr></thead>
+            <thead><tr><th>{f.track === 'all' ? 'Sector' : 'Holds'}</th><th>Week</th><th>Price</th><th>Today</th><th>With the fund</th></tr></thead>
             <tbody>
               {f.holdings.map((h) => (
                 <tr key={h.word || h.name}>
@@ -441,7 +440,7 @@ function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
               ))}
             </tbody>
           </table>
-          {f.track !== 'basket' && f.track !== 'all' && <small className='dv-fd-note'>A sector fund tracks the sector’s index. Each word’s price is its own waves plus the sector’s, so its words lean the same way on the same days.</small>}
+          {f.track !== 'all' && <small className='dv-fd-note'>Each word’s price is mostly its own, with a little of its sector’s mood mixed in, so a sector’s words lean the same way on the same days without moving in lockstep.</small>}
         </div>
       )}
     </div>

@@ -75,6 +75,16 @@ export const LEAGUES = {
     ],
     every: 60 * MIN,
     offset: 15 * MIN
+  },
+  pitch: {
+    id: 'pitch', name: 'Word Football Club League', short: 'WFC', sport: 'soccer', emoji: '⚽',
+    teams: [
+      ['LON', 'London', 'Lexemes'], ['MAN', 'Manchester', 'Monosyllables'], ['MAD', 'Madrid', 'Modifiers'], ['BAR', 'Barcelona', 'Barbarisms'],
+      ['MIL', 'Milan', 'Malapropisms'], ['MUN', 'Munich', 'Mnemonics'], ['PAR', 'Paris', 'Paragraphs'], ['LIS', 'Lisbon', 'Lisps'],
+      ['AMS', 'Amsterdam', 'Ampersands'], ['DUB', 'Dublin', 'Digraphs'], ['GLA', 'Glasgow', 'Glyphs'], ['TOR', 'Toronto', 'Tildes']
+    ],
+    every: 40 * MIN,
+    offset: 5 * MIN
   }
 }
 
@@ -90,9 +100,9 @@ export function team (league, code) {
   const idx = L.teams.findIndex((t) => t[0] === code)
   const pool = PLAYER_WORDS.filter((_, i) => i % L.teams.length === idx)
   const names = [...pool].sort((a, b) => hashStr(`${key}|${a}`) - hashStr(`${key}|${b}`))
-  const roles = L.sport === 'basketball' ? ['G', 'G', 'F', 'F', 'C', 'G', 'F', 'C'] : ['QB', 'RB', 'WR', 'WR', 'TE', 'K', 'LB', 'CB']
+  const roles = L.sport === 'basketball' ? ['G', 'G', 'F', 'F', 'C', 'G', 'F', 'C'] : L.sport === 'soccer' ? ['FW', 'FW', 'MF', 'MF', 'MF', 'DF', 'DF', 'GK'] : ['QB', 'RB', 'WR', 'WR', 'TE', 'K', 'LB', 'CB']
   const players = roles.map((pos, i) => ({ name: `${INITIALS[Math.floor(r() * INITIALS.length)]}. ${names[i % names.length]}`, pos, skill: 0.75 + r() * 0.5 }))
-  const t = { code, city: row[1], name: row[2], full: `${row[1]} ${row[2]}`, strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : 6), players }
+  const t = { code, city: row[1], name: row[2], full: `${row[1]} ${row[2]}`, strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : L.sport === 'soccer' ? 2.5 : 6), players }
   teamCache.set(key, t)
   return t
 }
@@ -274,6 +284,7 @@ function simFoot (n) {
       let text = ''
       let stop = true
       let turnover = false
+      let who = null // who'd score if this goes in
       if (passing) {
         const qb = p(pos, 0)
         const x = r()
@@ -281,6 +292,7 @@ function simFoot (n) {
           const rec = p(pos, pickOf(r, [2, 2, 3, 3, 4, 1]))
           gain = Math.max(1, Math.round(5.5 + Math.abs(normal(r)) * 8.5 + (r() < 0.06 ? 20 + r() * 40 : 0) + e * 1.2))
           text = `${qb.name} to ${rec.name}: ${rec.name.split(' ')[1]} ${pickOf(r, CATCHES)}`
+          who = rec.name
           stop = r() < 0.3
         } else { text = `${qb.name}’s pass falls incomplete`; gain = 0 }
       } else {
@@ -288,6 +300,7 @@ function simFoot (n) {
         if (r() < 0.012) { turnover = true; text = `${rb.name} fumbles, and the defense recovers` } else {
           gain = Math.round(3.3 + normal(r) * 4.2 + (r() < 0.025 ? 18 + r() * 45 : 0) + e * 0.7)
           text = `${rb.name} ${pickOf(r, RUNS)}`
+          who = rb.name
           stop = false
         }
       }
@@ -303,9 +316,9 @@ function simFoot (n) {
       const before = yl
       yl += gain
       if (yl >= 100) {
-        add(q, clock, pos, `${text} for a touchdown! (${100 - before} yards)`, 6, 'td')
+        add(q, clock, pos, `${text} for a touchdown! (${100 - before} yards)`, 6, 'td', who)
         const xp = r() < 0.94
-        add(q, clock, pos, `${p(pos, 5).name} ${xp ? 'adds the extra point' : 'misses the extra point'}`, xp ? 1 : 0, 'xp')
+        add(q, clock, pos, `${p(pos, 5).name} ${xp ? 'adds the extra point' : 'misses the extra point'}`, xp ? 1 : 0, 'xp', p(pos, 5).name)
         if (ot) { ended = true; break }
         kickoff(q, clock, pos)
         continue
@@ -322,7 +335,7 @@ function simFoot (n) {
       add(q, clock, pos, `${text}${gain ? ` for ${Math.abs(gain) === 1 ? 'a yard' : `${Math.abs(gain)} yards`}${gain < 0 ? ' lost' : ''}` : passing ? '' : ' for no gain'}`, 0, passing ? 'pass' : 'run')
       if (gain >= togo) { down = 1; togo = Math.min(10, 100 - yl) } else { down++; togo -= gain; if (down > 4) { pos = other(pos); yl = 100 - yl; down = 1; togo = 10; plays[plays.length - 1].text += ': turnover on downs' } }
     }
-    plays.push({ at: Math.round(real), q, clock: 0, team: null, text: q < 4 ? `End of quarter ${q}` : q === 4 ? 'End of regulation' : 'End of overtime', pts: 0, kind: 'period-end', home: score.home, away: score.away, pos, yl, down, togo })
+    plays.push({ at: Math.round(real), q, clock: Math.max(0, Math.round(clock)), team: null, text: q < 4 ? `End of quarter ${q}` : q === 4 ? 'End of regulation' : 'End of overtime', pts: 0, kind: 'period-end', home: score.home, away: score.away, pos, yl, down, togo })
   }
   const first = r() < 0.5 ? 'home' : 'away'
   for (let q = 1; q <= 4; q++) { playPeriod(q, 15 * 60); real += q === 2 ? 3 * MIN : 30 * SEC }
@@ -333,24 +346,162 @@ function simFoot (n) {
   return { league: 'gridiron', n, id: `gridiron-${n}`, start, end, home, away, plays, form, periods: 4, periodSecs: 15 * 60, final: { ...score } }
 }
 
+
+// --- soccer --------------------------------------------------------------------------------
+//
+// Two halves of 45 minutes at three times real speed (fifteen real minutes
+// a half), two minutes at half time, and a few minutes of added time at the
+// end of each half. Goals come at a steady rate set by the two teams (so the
+// chances, worked out from the minutes left, are exact); everything else is
+// the game around them: the ball moving up and down, chances, saves,
+// corners, fouls and cards. The ball's position is x from 0 (the away
+// team's goal, on the left) to 100 (the home team's goal).
+
+export const SOCCER_SPEED = 3
+const HALF = 45 * 60
+const PASSES = ['plays it into midfield', 'switches the play', 'carries it forward', 'finds a teammate in space', 'plays a one-two', 'drives down the wing', 'threads a pass forward']
+const BACK = ['recycles it to the back', 'plays it back to the keeper', 'keeps it in midfield']
+const SHOTS_SAVED = ['shoots, and the keeper saves', 'tests the keeper from distance', 'forces a diving save', 'heads it at the keeper']
+const SHOTS_WIDE = ['shoots wide', 'curls it just over', 'drags a shot past the post', 'heads it over the bar', 'blazes it into the stands']
+const GOALS = ['fires it into the bottom corner', 'heads it in', 'slots it past the keeper', 'curls it into the top corner', 'taps it in at the back post', 'smashes it in from the edge of the box', 'chips the keeper']
+
+// Goals a team should score over a full match, against this opponent.
+export function soccerRate (g, side) {
+  const H = team('pitch', g.home)
+  const A = team('pitch', g.away)
+  const edge = side === 'home' ? H.strength - A.strength + 0.25 : A.strength - H.strength
+  return 1.3 * Math.exp(0.16 * edge)
+}
+
+function simSoccer (n) {
+  const { home, away } = matchup('pitch', n)
+  const H = team('pitch', home)
+  const A = team('pitch', away)
+  const r = rng(hashStr(`game|v1|pitch|${n}`))
+  const start = gameStart('pitch', n)
+  const g0 = { home, away }
+  const per = { home: soccerRate(g0, 'home') / (2 * HALF), away: soccerRate(g0, 'away') / (2 * HALF) }
+  const score = { home: 0, away: 0 }
+  const plays = []
+  let real = start
+  let x = 50
+  let poss = r() < 0.5 ? 'home' : 'away'
+  const T = (s) => (s === 'home' ? H : A)
+  const other = (s) => (s === 'home' ? 'away' : 'home')
+  const toward = (s) => (s === 'away' ? 1 : -1) // away attacks to the right, home to the left
+  const attackingThird = (s, x0) => (s === 'away' ? x0 > 70 : x0 < 30)
+  const player = (s, attack) => {
+    const ps = T(s).players
+    const w = ps.map((p) => (attack ? { FW: 4, MF: 2, DF: 0.6, GK: 0 }[p.pos] : { FW: 1, MF: 2, DF: 2, GK: 0.5 }[p.pos]) * p.skill)
+    let v = r() * w.reduce((a, b) => a + b, 0)
+    for (let i = 0; i < w.length; i++) { v -= w[i]; if (v <= 0) return ps[i] }
+    return ps[0]
+  }
+  const add = (half, clock, side, text, pts, kind, who) => {
+    if (pts) score[side] += pts
+    plays.push({ at: Math.round(real), q: half, clock: Math.round(clock), team: side, text, pts, kind, who: who || null, home: score.home, away: score.away, pos: poss, x: Math.round(x), added: null })
+  }
+  const playHalf = (half) => {
+    const from = (half - 1) * HALF
+    const added = 60 * (1 + Math.floor(r() * (half === 1 ? 3 : 5))) // 1–3 minutes, then 1–5
+    const to = from + HALF + added
+    let clock = from
+    x = 50
+    poss = half === 1 ? poss : other(poss)
+    plays.push({ at: Math.round(real), q: half, clock, team: poss, text: half === 1 ? 'Kick-off!' : 'The second half is under way', pts: 0, kind: 'period', home: score.home, away: score.away, pos: poss, x, added: null })
+    let announced = false
+    while (clock < to) {
+      const dt = Math.min(to - clock, 25 + r() * 35)
+      clock += dt
+      real += (dt * SEC) / SOCCER_SPEED
+      if (!announced && clock >= from + HALF) {
+        announced = true
+        plays.push({ at: Math.round(real), q: half, clock: Math.round(clock), team: null, text: `${added / 60} minute${added === 60 ? '' : 's'} added on`, pts: 0, kind: 'added', home: score.home, away: score.away, pos: poss, x: Math.round(x), added })
+      }
+      // Goals: a steady rate for each side.
+      const gh = r() < per.home * dt
+      const ga = r() < per.away * dt
+      if (gh || ga) {
+        const side = gh && ga ? (r() < 0.5 ? 'home' : 'away') : gh ? 'home' : 'away'
+        poss = side
+        x = side === 'away' ? 92 + r() * 6 : 2 + r() * 6
+        const scorer = player(side, true)
+        let assist = player(side, true)
+        if (assist === scorer) assist = null
+        add(half, clock, side, `GOAL! ${scorer.name} ${pickOf(r, GOALS)}${assist ? ` (assist: ${assist.name})` : ''}`, 1, 'goal', scorer.name)
+        x = 50
+        poss = other(side)
+        continue
+      }
+      // Everything else.
+      const v = r()
+      if (v < 0.42) {
+        // The other side wins it back.
+        poss = other(poss)
+        x = Math.max(4, Math.min(96, x - toward(poss) * (5 + r() * 15)))
+        const p = player(poss, false)
+        add(half, clock, poss, `${p.name} wins it back`, 0, 'tackle')
+      } else if (v < 0.72) {
+        x = Math.max(4, Math.min(96, x + toward(poss) * (8 + r() * 22)))
+        const p = player(poss, false)
+        add(half, clock, poss, `${p.name} ${pickOf(r, PASSES)}`, 0, 'pass')
+      } else if (v < 0.8) {
+        x = Math.max(4, Math.min(96, x - toward(poss) * (5 + r() * 12)))
+        add(half, clock, poss, `${player(poss, false).name} ${pickOf(r, BACK)}`, 0, 'pass')
+      } else if (v < 0.9) {
+        // A chance that doesn't go in.
+        x = poss === 'away' ? 78 + r() * 16 : 6 + r() * 16
+        const p = player(poss, true)
+        const k = r()
+        if (k < 0.4) { add(half, clock, poss, `${p.name} ${pickOf(r, SHOTS_SAVED)}`, 0, 'save', p.name); if (r() < 0.35) add(half, clock, poss, `Corner to ${T(poss).name}`, 0, 'corner') } else if (k < 0.85) { add(half, clock, poss, `${p.name} ${pickOf(r, SHOTS_WIDE)}`, 0, 'wide', p.name); x = poss === 'away' ? 95 : 5; poss = other(poss) } else { add(half, clock, poss, `${p.name}’s shot is blocked`, 0, 'blocked', p.name) }
+      } else if (v < 0.95) {
+        const foul = player(other(poss), false)
+        const card = r() < 0.22
+        add(half, clock, other(poss), `Foul by ${foul.name}${card ? ': yellow card' : ''}. Free kick to ${T(poss).name}`, 0, card ? 'card' : 'foul', foul.name)
+      } else if (v < 0.98) {
+        const p = player(poss, true)
+        add(half, clock, poss, `${p.name} is caught offside`, 0, 'offside', p.name)
+        poss = other(poss)
+      } else {
+        add(half, clock, poss, `${T(poss).name} keep the ball and slow it down`, 0, 'pass')
+      }
+    }
+    plays.push({ at: Math.round(real), q: half, clock: Math.round(clock), team: null, text: half === 1 ? 'Half time' : 'Full time', pts: 0, kind: half === 1 ? 'half-time' : 'period-end', home: score.home, away: score.away, pos: poss, x: 50, added })
+  }
+  playHalf(1)
+  real += 2 * MIN
+  playHalf(2)
+  const end = plays[plays.length - 1].at
+  const draw = score.home === score.away
+  plays.push({ at: end, q: 2, clock: plays[plays.length - 1].clock, team: null, text: draw ? `Final: a ${score.home}–${score.away} draw` : `Final: ${score.home > score.away ? H.full : A.full} win ${Math.max(score.home, score.away)}–${Math.min(score.home, score.away)}`, pts: 0, kind: 'final', home: score.home, away: score.away })
+  return { league: 'pitch', n, id: `pitch-${n}`, start, end, home, away, plays, periods: 2, periodSecs: HALF, countUp: true, final: { ...score } }
+}
+
+// Poisson, for goals still to come.
+function poissonPmf (lam, k) {
+  let p = Math.exp(-lam)
+  for (let i = 1; i <= k; i++) p *= lam / i
+  return p
+}
+
 const gameCache = new Map()
 export function game (league, n) {
   const key = `${league}-${n}`
   let g = gameCache.get(key)
   if (!g) {
-    g = league === 'hoops' ? simHoops(n) : simFoot(n)
+    g = league === 'hoops' ? simHoops(n) : league === 'pitch' ? simSoccer(n) : simFoot(n)
     if (gameCache.size > 400) gameCache.clear()
     gameCache.set(key, g)
   }
   return g
 }
-export const gameById = (id) => { const m = /^(hoops|gridiron)-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
+export const gameById = (id) => { const m = /^(hoops|gridiron|pitch)-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
 
 // --- watching ----------------------------------------------------------------------------
 
 // How far through the game we are at t: the plays so far and the state.
 export function stateAt (g, t) {
-  if (t < g.start) return { status: 'pre', home: 0, away: 0, plays: [], q: 0, clock: g.periodSecs, last: null }
+  if (t < g.start) return { status: 'pre', home: 0, away: 0, plays: [], q: 0, clock: g.countUp ? 0 : g.periodSecs, last: null }
   let i = 0
   // Plays are in time order: find the last one at or before t.
   let lo = 0
@@ -376,7 +527,49 @@ export const EDGE_SCALE = { hoops: 1.14, gridiron: 1.91 } // points a strength p
 
 // The chance the home team wins at time t, from the score and the clock
 // (and, in football, the ball). Ties in football count half.
+// Soccer: the chance of each result, from the goals each side should still
+// score in the time left (plus added time still expected).
+export function soccerOutcomes (g, st) {
+  if (st.status === 'final') return st.home > st.away ? { home: 1, draw: 0, away: 0 } : st.home < st.away ? { home: 0, draw: 0, away: 1 } : { home: 0, draw: 1, away: 0 }
+  const half = st.status === 'pre' ? 1 : st.q
+  const clock = st.status === 'pre' ? 0 : st.clock
+  // Regulation left, plus what added time should still bring.
+  const regLeft = Math.max(0, half * HALF - clock) + (half === 1 ? HALF : 0)
+  const addedLeft = half === 1 ? 2 * 60 + 3 * 60 : (clock < 2 * HALF ? 3 * 60 : Math.max(20, 3 * 60 - (clock - 2 * HALF)))
+  const left = (regLeft + (half === 1 ? 2 * 60 : 0) + addedLeft) / (2 * HALF)
+  const lh = soccerRate(g, 'home') * left
+  const la = soccerRate(g, 'away') * left
+  const out = { home: 0, draw: 0, away: 0 }
+  for (let a = 0; a <= 10; a++) {
+    const pa = poissonPmf(lh, a)
+    for (let b = 0; b <= 10; b++) {
+      const p = pa * poissonPmf(la, b)
+      const d = st.home + a - (st.away + b)
+      if (d > 0) out.home += p; else if (d < 0) out.away += p; else out.draw += p
+    }
+  }
+  const total = out.home + out.draw + out.away
+  return { home: out.home / total, draw: out.draw / total, away: out.away / total }
+}
+
+// Each result's chance: { home, away } and, in soccer, draw.
+export function outcomes (g, t, st = stateAt(g, t)) {
+  if (g.league === 'pitch') return soccerOutcomes(g, st)
+  const p = winChance(g, t, st)
+  return { home: p, away: 1 - p }
+}
+
+// How the clock is running at t, for showing it live between plays: the
+// game clock moves at `speed` game seconds a real second while running.
+export function clockAt (g, st) {
+  const k = st.last?.kind
+  const running = st.status === 'live' && k !== 'period-end' && k !== 'half-time' && k !== 'final'
+  const speed = g.league === 'hoops' ? HOOPS_SPEED : g.league === 'pitch' ? SOCCER_SPEED : FOOT_SPEED
+  return { running, at: st.last?.at || g.start, speed, countUp: Boolean(g.countUp), clock: st.clock }
+}
+
 export function winChance (g, t, st = stateAt(g, t)) {
+  if (g.league === 'pitch') { const o = soccerOutcomes(g, st); return o.home + o.draw / 2 }
   if (st.status === 'final') return st.home > st.away ? 1 : st.home < st.away ? 0 : 0.5
   const H = team(g.league, g.home)
   const A = team(g.league, g.away)

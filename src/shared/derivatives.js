@@ -352,14 +352,13 @@ export const ETFS = [
   { id: 'WSHT', name: 'Whole Market Short', emoji: '🐻', track: 'all', k: -1, fee: 0.0095, blurb: 'The opposite of the market’s daily move.' },
   { id: 'WSH3', name: 'Whole Market Short 3×', emoji: '🕳️', track: 'all', k: -3, fee: 0.0095, blurb: 'Three times the opposite, reset each day.' },
   ...SECTOR_FUNDS,
-  // Baskets of real words (picked from the word list; see core/derivatives.js),
-  // equally weighted, so the fund is exactly how its words do.
-  { id: 'BLUE', name: 'Blue Chips', emoji: '🧱', track: 'basket', pick: 'blue', k: 1, fee: 0.002, blurb: 'The 25 steadiest everyday words.' },
-  { id: 'WILD', name: 'Wild Ones', emoji: '🎢', track: 'basket', pick: 'wild', k: 1, fee: 0.006, blurb: 'The 25 wildest obscure words.' },
-  { id: 'LONG', name: 'Long Words', emoji: '📏', track: 'basket', pick: 'long', k: 1, fee: 0.004, blurb: '25 everyday words of eleven letters or more.' },
-  { id: 'TINY', name: 'Tiny Words', emoji: '🐜', track: 'basket', pick: 'tiny', k: 1, fee: 0.004, blurb: '25 everyday words of four letters or fewer.' },
-  { id: 'PALI', name: 'Palindromes', emoji: '🪞', track: 'basket', pick: 'pali', k: 1, fee: 0.005, blurb: 'Words that read the same backwards.' },
-  { id: 'TWIN', name: 'Double Letters', emoji: '👯', track: 'basket', pick: 'twin', k: 1, fee: 0.004, blurb: '25 everyday words with a letter twice in a row.' }
+  // Retired before release (2.3.1 builds only): still sellable if held.
+  { id: 'BLUE', name: 'Blue Chips', emoji: '🧱', track: 'basket', pick: 'blue', k: 1, fee: 0.002, retired: true },
+  { id: 'WILD', name: 'Wild Ones', emoji: '🎢', track: 'basket', pick: 'wild', k: 1, fee: 0.006, retired: true },
+  { id: 'LONG', name: 'Long Words', emoji: '📏', track: 'basket', pick: 'long', k: 1, fee: 0.004, retired: true },
+  { id: 'TINY', name: 'Tiny Words', emoji: '🐜', track: 'basket', pick: 'tiny', k: 1, fee: 0.004, retired: true },
+  { id: 'PALI', name: 'Palindromes', emoji: '🪞', track: 'basket', pick: 'pali', k: 1, fee: 0.005, retired: true },
+  { id: 'TWIN', name: 'Double Letters', emoji: '👯', track: 'basket', pick: 'twin', k: 1, fee: 0.004, retired: true }
 ]
 export const etfById = (id) => ETFS.find((e) => e.id === id)
 
@@ -375,6 +374,9 @@ function trackLevel (track, t) {
 // inverse funds compound k × each day's move, plus the cash they hold
 // (1 − k) earning RATE, less fees, resetting at 00:00 UTC.
 const navDays = new Map() // id -> [nav at the start of each day since the open]
+export const SECTOR_BASKETS_FROM = Date.UTC(2026, 9, 22)
+export const SECTOR_BASKET_SIZE = 30
+
 // A basket's level: the geometric mean of its words' growth since the open.
 export function basketLevel (profiles, t) {
   if (!profiles?.length) return 1
@@ -388,6 +390,13 @@ export function etfNav (etf, t, basket = null) {
   t = quoteTime(Math.max(MARKET_OPEN, t))
   const yrs = (t - MARKET_OPEN) / YEAR_MS
   if (etf.track === 'basket') return 100 * basketLevel(basket, t) * Math.exp(-etf.fee * yrs)
+  // Sector funds hold their sector's words (from SECTOR_BASKETS_FROM; before
+  // that they tracked the sector index), carried on from the price they had
+  // then, so nothing jumps.
+  if (etf.k === 1 && etf.track !== 'all' && basket?.length && t >= SECTOR_BASKETS_FROM) {
+    const base = etfNav(etf, SECTOR_BASKETS_FROM - QUOTE_MS)
+    return base * (basketLevel(basket, t) / basketLevel(basket, SECTOR_BASKETS_FROM)) * Math.exp(-etf.fee * (t - SECTOR_BASKETS_FROM) / YEAR_MS)
+  }
   if (etf.k === 1) return 100 * (trackLevel(etf.track, t) / trackLevel(etf.track, MARKET_OPEN)) * Math.exp(-etf.fee * yrs)
   const d = Math.floor((t - MARKET_OPEN) / DAY)
   let days = navDays.get(etf.id)
