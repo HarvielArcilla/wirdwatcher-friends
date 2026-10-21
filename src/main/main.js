@@ -101,6 +101,7 @@ function handlers () {
     friendProfile: (id) => g.friendProfile(id),
     makeFriendCode: () => ww.friends.makeCode(),
     cancelFriendCode: () => ww.friends.cancelCode(),
+    currentFriendCode: () => ww.friends.currentCode(),
     redeemFriendCode: (code) => ww.friends.redeem(code),
     removeFriend: (id) => ww.friends.remove(id),
     hostLobby: (options) => ww.hostLobby(options),

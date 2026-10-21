@@ -147,11 +147,11 @@ export default function Valley () {
           <View v={v} place={place} companion={companion} fishing={fishing} net={net} picked={picked} hover={hover} setHover={setHover} onHit={onHit} />
           {place === 'hill' && v.stars.stars && (
           // The letters, as sharp text over the pixel sky.
-          <div className='vl-starletters' key={`stars-${place}`} aria-hidden='true'>
-            {v.stars.stars.map((s, i) => <span key={i} className={picked.includes(i) || v.stars.done ? 'on' : ''} style={{ left: `${((20 + s.x * (VW - 40)) / VW) * 100}%`, top: `${((10 + s.y * 100 - 9) / VH) * 100}%` }}>{s.letter}</span>)}
-          </div>
-        )}
-        {cheer && companion && <div className='vl-cheer'><b>{GODS[companion].name}</b>{cheer.text}</div>}
+            <div className='vl-starletters' key={`stars-${place}`} aria-hidden='true'>
+              {v.stars.stars.map((s, i) => <span key={i} className={picked.includes(i) || v.stars.done ? 'on' : ''} style={{ left: `${((20 + s.x * (VW - 40)) / VW) * 100}%`, top: `${((10 + s.y * 100 - 9) / VH) * 100}%` }}>{s.letter}</span>)}
+            </div>
+          )}
+          {cheer && companion && <div className='vl-cheer'><b>{GODS[companion].name}</b>{cheer.text}</div>}
           {fishing && <Reel f={fishing} setF={setFishing} act={act} onDone={reeled} />}
           {god && <GodBox v={v} id={god} act={act} companion={companion} onClose={() => setGod(null)} setDialog={setDialog} onCome={() => { setCompanion(god); setGod(null) }} />}
           {drawer && (

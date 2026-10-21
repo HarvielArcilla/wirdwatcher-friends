@@ -120,6 +120,11 @@ function App () {
     const offs = [
       window.ww.on.friends((f) => { setFriends(f); api('modes').then(setModes) }),
       window.ww.on.friendRecords(() => api('modes').then(setModes)),
+      // A friend code used (or failing) while you were anywhere in the app.
+      window.ww.on.friendCode((e) => {
+        if (e.friend) { toast({ emoji: '🤝', title: `You and ${e.friend.name} are friends`, text: 'Your ratings will swap whenever you’re both online.' }); refreshTop() }
+        if (e.error) toast({ error: true, title: 'Adding a friend didn’t work', text: e.error })
+      }),
       window.ww.on.progress((p) => {
         celebrate(toast, p); refreshTop()
         if (p.source === 'lobby' && p.leximon?.encounter) setLobbyWild(p.leximon.encounter)

@@ -192,6 +192,13 @@ export class Friends extends EventEmitter {
     return { code, expiresAt }
   }
 
+  // The code being shown right now, if there is one, so the screen can show
+  // it again after you've been elsewhere in the app.
+  currentCode () {
+    const p = this.pairing
+    return p && Date.now() < p.expiresAt ? { code: p.code, expiresAt: p.expiresAt } : null
+  }
+
   async cancelCode () {
     const p = this.pairing
     if (!p) return

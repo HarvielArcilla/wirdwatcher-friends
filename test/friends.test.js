@@ -21,10 +21,12 @@ test('two people become friends with a code and swap ratings while online', asyn
 
   const { code } = await alice.friends.makeCode()
   assert.match(code, /^WW(-[0-9A-Z]{5}){4}$/)
+  assert.equal(alice.friends.currentCode().code, code, 'the code stays on show while it waits')
   const friend = await bob.friends.redeem(code.toLowerCase())
   assert.equal(friend.name, 'Alice')
   await until(() => alice.friends.list().length === 1)
   assert.equal(alice.friends.list()[0].name, 'Bob')
+  assert.equal(alice.friends.currentCode(), null, 'and goes once it has been used')
 
   // Catching up on what was rated before.
   await until(() => bob.store.friendsOn('cat').length === 1)

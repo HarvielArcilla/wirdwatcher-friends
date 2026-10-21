@@ -12,11 +12,10 @@ export default function Friends ({ friends, openWord, refreshTop, playMode, prof
   const [open, setOpen] = useState(null)
   useInterval(() => tick((x) => x + 1), code ? 1000 : 0)
 
-  useEffect(() => window.ww.on.friendCode((e) => {
-    if (e.friend) { toast({ emoji: '🤝', title: `You and ${e.friend.name} are friends`, text: 'Your ratings will swap whenever you’re both online.' }); setCode(null); refreshTop() }
-    if (e.expired) setCode(null)
-    if (e.error) toast({ error: true, title: 'Adding a friend didn’t work', text: e.error })
-  }), [toast, refreshTop])
+  // A code made earlier is still waiting: show it again. (What happens when
+  // it's used is announced app-wide, wherever you are.)
+  useEffect(() => { api('currentFriendCode').then((c) => { if (c) setCode(c) }).catch(() => {}) }, [])
+  useEffect(() => window.ww.on.friendCode((e) => { if (e.friend || e.expired) setCode(null) }), [])
 
   const make = async () => {
     try { setCode(await api('makeFriendCode')) } catch (err) { toast({ error: true, title: 'Couldn’t make a code', text: err.message }) }
