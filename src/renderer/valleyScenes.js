@@ -1,4 +1,4 @@
-// Word Valley, seen through your own eyes: six places side by side on one
+// Wird Valley, seen through your own eyes: six places side by side on one
 // long landscape (home, the field, the meadow, the woods, the lake, the
 // hill), drawn in pixels at 320×180 each. The sky and the far hills run
 // across all of them, so moving from one to the next is a pan along the
@@ -47,16 +47,21 @@ function drawSky (g, cam, now, h, rainy) {
       g.fillRect(Math.round(x), y, 1, 1)
     }
   }
-  // The sun by day, the moon by night.
+  // The sun by day, the moon by night: each crosses the sky through its
+  // hours, and drifts with the sky (as the stars do) as you pan.
+  const sky = cam * 0.05
   if (!rainy) {
     if (h >= 6 && h <= 20) {
       const t = (h - 6) / 14
-      const x = lerp(20, VW - 20, t); const y = 70 - Math.sin(t * Math.PI) * 55
+      const x = lerp(20, VW - 20, t) - sky; const y = 70 - Math.sin(t * Math.PI) * 55
       g.fillStyle = h > 17 ? '#f8b860' : '#fff4c0'; g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fill()
       g.fillStyle = 'rgba(255,240,200,.25)'; g.beginPath(); g.arc(x, y, 14, 0, Math.PI * 2); g.fill()
-    } else {
-      g.fillStyle = '#f0f0e0'; g.beginPath(); g.arc(250, 30, 7, 0, Math.PI * 2); g.fill()
-      g.fillStyle = skyAt(h)[0]; g.beginPath(); g.arc(253, 28, 6, 0, Math.PI * 2); g.fill()
+    }
+    if (h >= 19 || h < 7) {
+      const t = ((h - 19 + 24) % 24) / 12
+      const x = lerp(20, VW - 20, t) - sky; const y = 72 - Math.sin(t * Math.PI) * 52
+      g.fillStyle = `rgba(240,240,224,${Math.min(1, n * 1.4)})`; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill()
+      g.fillStyle = skyAt(h)[0]; g.globalAlpha = Math.min(1, n * 1.4); g.beginPath(); g.arc(x + 3, y - 2, 6, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1
     }
   }
   // Clouds drifting along the whole valley.
@@ -319,7 +324,6 @@ const SCENES = {
         g.fillStyle = on ? '#fff6c0' : `rgba(255,255,255,${0.75 + 0.25 * Math.sin(now / 400 + i)})`
         g.beginPath(); g.arc(p.sx, p.sy, on ? 3 : 2.2, 0, Math.PI * 2); g.fill()
         if (on) { g.fillStyle = 'rgba(255,246,192,.25)'; g.beginPath(); g.arc(p.sx, p.sy, 6, 0, Math.PI * 2); g.fill() }
-        g.fillStyle = on ? '#fff6c0' : 'rgba(205,215,255,.9)'; g.font = '8px monospace'; g.textAlign = 'center'; g.fillText(p.letter, p.sx, p.sy - 5)
         hits.push({ kind: 'star', i, x: p.sx - 8, y: p.sy - 12, w: 16, h: 18 })
       })
     }

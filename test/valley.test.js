@@ -78,7 +78,9 @@ test('gods: a chat a day, two gifts a week, an outing a day, dating and marriage
   // Outings: favourites count for more, and one a day.
   const o = v.outing('vela', 'stars', 1)
   assert.ok(o.fav && o.points === outingPoints('vela', 'stars', 1) && o.points > outingPoints('vela', 'farming', 1))
-  assert.throws(() => v.outing('vela', 'fishing', 1), /already/)
+  assert.throws(() => v.outing('vela', 'fishing', 1), /rest/)
+  clock.t += 11 * 60e3
+  assert.ok(v.outing('vela', 'fishing', 1).points > 0, 'again after ten minutes')
   v.economy.s.coins = 1e6
   v.buy('bouquet', 1)
   assert.throws(() => v.gift('vela', 'bouquet'), /8 hearts/)
@@ -116,7 +118,9 @@ test('the woods, the meadow, the stars and the lake', () => {
   const word = starsTonight(clock.t).word
   assert.throws(() => v.stars('NOPE'), /not quite/)
   assert.equal(v.stars(word).item, 'stardust')
-  assert.throws(() => v.stars(word), /tomorrow/)
+  assert.throws(() => v.stars(word), /Another rises/)
+  clock.t += 10 * 60e3
+  assert.notEqual(starsTonight(clock.t).night, starsTonight(clock.t - 10 * 60e3).night, 'a new constellation every ten minutes')
   // Fishing.
   for (let i = 0; i < 20; i++) {
     const c = v.cast()

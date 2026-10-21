@@ -1,12 +1,12 @@
-// Word Valley: a quiet place to be outdoors. Fish, farm a field, forage
+// Wird Valley: a quiet place to be outdoors. Fish, farm a field, forage
 // in the woods, catch butterflies, look at the stars, and get to know the
 // word gods along the way. Plain data and rules, shared by the core
 // (src/core/valley.js) and the screen (src/renderer/Valley.jsx).
 //
 // Time is real time. Crops grow while their soil is wet (watering keeps it
 // wet for WET_HOURS; rain keeps it wet all day) and never die. The gods can
-// be talked to once a day, given two gifts a week, and asked along on one
-// outing a day, like in Stardew Valley. Nothing here depends on how you
+// be talked to once a day, given two gifts a week, and asked along on an
+// outing every ten minutes, like in Stardew Valley. Nothing here depends on how you
 // rate words: a new word drops a seed of itself whatever you gave it.
 
 export const HOUR = 3600e3
@@ -417,8 +417,9 @@ export const FIELD = FIELD_W * FIELD_H
 export const fieldStart = () => Array.from({ length: FIELD }, (_, i) => { const h = hash32(`field|${i}`) % 100; return { soil: 'grass', decor: h < 12 ? 'weed' : h < 17 ? 'stone' : null } })
 
 // The woods refill every few hours with a handful of things to find.
-export const FOREST_HOURS = 3
-export const forestWindow = (t) => Math.floor(t / (FOREST_HOURS * HOUR))
+// Most things in the valley come round again every ten minutes.
+export const RESET_MS = 10 * 60e3
+export const forestWindow = (t) => Math.floor(t / RESET_MS)
 export function forestRound (t) {
   const w = forestWindow(t)
   const r = rng(hash32(`forest|${w}`))
@@ -432,7 +433,7 @@ export function forestRound (t) {
     const kind = y > 0.82 ? 'shell' : kinds[Math.floor(r() * 6)]
     items.push({ id: `${w}-${i}`, x, y, kind, hide: 0.3 + r() * 0.5 })
   }
-  return { window: w, until: (w + 1) * FOREST_HOURS * HOUR, items }
+  return { window: w, until: (w + 1) * RESET_MS, items }
 }
 
 // Tonight's constellation: a word, its letters as stars.
@@ -440,8 +441,9 @@ const STAR_WORDS = ['LANTERN', 'MEADOW', 'ORBIT', 'QUILL', 'RIVER', 'EMBER', 'WI
 export const isNight = (t) => partOfDay(t) === 'night'
 // The night a time belongs to (after midnight still counts as the night before).
 export const nightKey = (t) => dayKey(t - 6 * HOUR)
+// A new constellation rises every ten minutes after dark.
 export function starsTonight (t) {
-  const night = nightKey(t)
+  const night = `${nightKey(t)}|${Math.floor(t / RESET_MS)}`
   const r = rng(hash32(`stars|${night}`))
   const word = STAR_WORDS[Math.floor(r() * STAR_WORDS.length)]
   const pts = []

@@ -5,7 +5,7 @@ import { GODS, BUGS, FIELD_W, FIELD_H, WHERE, itemInfo, outingPoints } from '../
 import { spriteDataUrl, drawCrop, drawFish, drawForage, drawBug } from './valleyArt.js'
 import { drawValley, fieldGeo, VW, VH, PLACE_ORDER } from './valleyScenes.js'
 
-// Word Valley, through your own eyes: six places along one valley (home,
+// Wird Valley, through your own eyes: six places along one valley (home,
 // the field, the meadow, the woods, the lake, the hill). Moving between
 // them pans along the landscape. Each place has something to do, and the
 // word gods are out and about: talk to them where you find them, give them
@@ -136,7 +136,7 @@ export default function Valley () {
   return (
     <div className='valley'>
       <div className='vl-top'>
-        <b className='vl-title'>Word Valley</b>
+        <b className='vl-title'>Wird Valley</b>
         <span className='vl-when'>{new Date(v.at).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })} · {{ morning: '🌅 Morning', day: '☀️ Afternoon', evening: '🌇 Evening', night: '🌙 Night' }[v.part]}{v.rainy ? ' · 🌧️ Rain' : ''}</span>
         <span className='grow' />
         {companion && <span className='vl-with'><img src={spriteDataUrl(companion, 2)} alt='' /> Out with <b>{GODS[companion].name}</b> <button className='linkish' onClick={() => setCompanion(null)}>say goodbye</button></span>}
@@ -145,7 +145,13 @@ export default function Valley () {
       <div className='vl-stage'>
         <div className='vl-frame'>
           <View v={v} place={place} companion={companion} fishing={fishing} net={net} picked={picked} hover={hover} setHover={setHover} onHit={onHit} />
-          {cheer && companion && <div className='vl-cheer'><b>{GODS[companion].name}</b>{cheer.text}</div>}
+          {place === 'hill' && v.stars.stars && (
+          // The letters, as sharp text over the pixel sky.
+          <div className='vl-starletters' key={`stars-${place}`} aria-hidden='true'>
+            {v.stars.stars.map((s, i) => <span key={i} className={picked.includes(i) || v.stars.done ? 'on' : ''} style={{ left: `${((20 + s.x * (VW - 40)) / VW) * 100}%`, top: `${((10 + s.y * 100 - 9) / VH) * 100}%` }}>{s.letter}</span>)}
+          </div>
+        )}
+        {cheer && companion && <div className='vl-cheer'><b>{GODS[companion].name}</b>{cheer.text}</div>}
           {fishing && <Reel f={fishing} setF={setFishing} act={act} onDone={reeled} />}
           {god && <GodBox v={v} id={god} act={act} companion={companion} onClose={() => setGod(null)} setDialog={setDialog} onCome={() => { setCompanion(god); setGod(null) }} />}
           {drawer && (
@@ -261,7 +267,7 @@ function View ({ v, place, companion, fishing, net, picked, hover, setHover, onH
       onClick={(e) => { const h = find(...at(e)); if (h) onHitRef.current(h) }}
       onMouseMove={(e) => { if (place !== 'field') return; const [sx, sy] = at(e); setHover(fieldGeo(PLACE_ORDER.indexOf(place) * VW - cam.current.x).cellAt(sx, sy)) }}
       onMouseLeave={() => setHover(null)}
-      aria-label={`Word Valley: ${PLACES[place].name}`}
+      aria-label={`Wird Valley: ${PLACES[place].name}`}
     />
   )
 }
@@ -352,10 +358,10 @@ function Controls ({ v, place, act, toast, tool, setTool, fishing, setFishing, n
       <div className='vl-controls'>
         <p className='vl-note'>
           {!v.night
-            ? 'You can see the whole valley from up here. Come back after 9 in the evening: a new constellation rises every night, and it spells a word.'
+            ? 'You can see the whole valley from up here. Come back after 9 in the evening: constellations rise every ten minutes after dark, and each one spells a word.'
             : v.stars.done
-              ? 'You’ve traced tonight’s constellation. A new one rises tomorrow night.'
-              : <>Tonight’s constellation is a word. Click its stars in order to spell it: <b className='vl-spell'>{word || '…'}</b> {picked.length > 0 && <button className='linkish' onClick={() => setPicked([])}>start over</button>}</>}
+              ? 'You’ve traced this one. Another rises within ten minutes.'
+              : <>This constellation is a word. Click its stars in order to spell it: <b className='vl-spell'>{word || '…'}</b> {picked.length > 0 && <button className='linkish' onClick={() => setPicked([])}>start over</button>}</>}
         </p>
       </div>
     )
@@ -401,7 +407,7 @@ function GodBox ({ v, id, act, companion, onClose, setDialog, onCome }) {
               <button className='btn' onClick={talk}>💬 {g.talkedToday ? 'Chat again' : 'Chat'}</button>
               <button className='btn' onClick={() => setGifting(true)}>🎁 Give a gift</button>
               {!g.outingToday && companion !== id && <button className='btn' onClick={onCome}>🧺 Come along with me?</button>}
-              {g.outingToday && <small className='vl-note'>You’ve been out together today.</small>}
+              {g.outingToday && <small className='vl-note'>Back from an outing together: ask again in {Math.ceil(g.outingIn / 60000)} min.</small>}
               <button className='btn ghost' onClick={onClose}>Goodbye</button>
             </div>
             )}
@@ -604,9 +610,9 @@ function Journal ({ v, meet }) {
       <h4>How it works</h4>
       <ul className='vl-list'>
         <li>The gods move around the valley through the day. A speech bubble means they haven’t heard from you yet today: click them to chat, give a gift, or ask them along.</li>
-        <li>Chat once a day, give two gifts a week (one more on a birthday, worth five times as much), and go on one outing a day with each. Their favourite things to do count for more.</li>
+        <li>Chat once a day, give two gifts a week (one more on a birthday, worth five times as much), and go on an outing with each every ten minutes. Their favourite things to do count for more.</li>
         <li>At 8 hearts, a bouquet from the seed stall starts dating. At 10, a promise quill asks them to marry you.</li>
-        <li>Crops grow while the soil is damp: watering lasts eight hours and rain waters everything. Nothing ever wilts. The woods refill every three hours, and a new constellation rises every night after 9.</li>
+        <li>Crops grow while the soil is damp: watering lasts eight hours and rain waters everything. Nothing ever wilts. The woods refill every ten minutes, and after 9 in the evening a new constellation rises every ten minutes.</li>
         <li>Use ← and → (or 1 to 6) to move along the valley.</li>
       </ul>
     </div>

@@ -136,7 +136,7 @@ function Clues ({ c, act, friends, toast, settings }) {
         <div className='td-friends'>
           <h3>Friends today</h3>
           {friends.map((f) => (
-            <div key={f.userId}><Avatar name={f.name} color={f.color} size={24} /><b>{f.name}</b><span>{!f.done ? 'not yet' : f.solved ? `${f.points} pts · ${f.clue} clue${f.clue === 1 ? '' : 's'}${f.wrong ? `, ${f.wrong} miss${f.wrong === 1 ? '' : 'es'}` : ''}` : 'stumped'}</span></div>
+            <div key={f.userId} className='td-friend'><Avatar name={f.name} color={f.color} size={24} /><b title={f.name}>{f.name}</b><span className='td-pts'>{f.done && f.solved ? `${f.points} pts` : ''}</span><span className='td-how'>{!f.done ? 'not yet' : f.solved ? `${f.clue} clue${f.clue === 1 ? '' : 's'}${f.wrong ? `, ${f.wrong} miss${f.wrong === 1 ? '' : 'es'}` : ''}` : 'stumped'}</span></div>
           ))}
           {!played.length && <small>Nobody else has played yet{done ? '' : ' (their results show once you’ve been online together)'}.</small>}
         </div>

@@ -1,4 +1,4 @@
-// Word Valley on this computer: the field, the bag, the gods' friendship,
+// Wird Valley on this computer: the field, the bag, the gods' friendship,
 // and the outdoor minigames (fishing, foraging, butterflies, stargazing).
 // Kept inside economy.json (as s.valley) so it saves with the coins. The
 // rules and the content are in src/shared/valley.js.
@@ -8,7 +8,7 @@ import {
   HOUR, WET_HOURS, HEART, MAX_FRIEND, MAX_DATING, MAX_MARRIED, GIFTS_PER_WEEK, TALK_POINTS, GIFT_POINTS, BIRTHDAY_MULT,
   BOUQUET, QUILL, STARDUST, WORD_SEEDS_MAX, CROPS, WORD_CROP, FISH, BUGS, SHOP, GODS, GOD_IDS, ACTIVITIES, FIELD, fieldStart,
   cropDone, dayKey, weekKey, isRainy, partOfDay, itemInfo, taste, isBirthday, heartsOf, pickFish, pickBug, BUG_ROUND_MS,
-  forestRound, starsTonight, isNight, outingPoints, hash32
+  forestRound, starsTonight, isNight, outingPoints, hash32, RESET_MS
 } from '../shared/valley.js'
 
 const STEP = 15 * 60e3 // growth is worked out in quarter hours
@@ -33,7 +33,7 @@ export class Valley {
     this.economy = economy
     this.now = now
     this.random = random
-    // An early build kept a walkable farm as s.farm; Word Valley starts fresh.
+    // An early build kept a walkable farm as s.farm; Wird Valley starts fresh.
     delete economy.s.farm
     const v = { ...blankValley(), ...(economy.s.valley || {}) }
     v.stats = { ...blankValley().stats, ...(v.stats || {}) }
@@ -224,7 +224,7 @@ export class Valley {
     const t = this.now()
     if (!isNight(t)) throw new Error('The stars come out after 9 in the evening.')
     const tonight = starsTonight(t)
-    if (this.s.stars.night === tonight.night && this.s.stars.done) throw new Error('You’ve traced tonight’s constellation. Come back tomorrow night.')
+    if (this.s.stars.night === tonight.night && this.s.stars.done) throw new Error('You’ve traced this one. Another rises within ten minutes.')
     if (String(word).toUpperCase() !== tonight.word) throw new Error('That’s not quite it.')
     this.s.stars = { night: tonight.night, done: true }
     this._add(STARDUST)
@@ -339,9 +339,9 @@ export class Valley {
     const g = this._god(id)
     const G = GODS[id]
     if (!ACTIVITIES[activity]) throw new Error('No such outing.')
-    const day = dayKey(this.now())
-    if (g.outing === day) throw new Error(`You’ve already been out with ${G.name} today.`)
-    g.outing = day
+    const t = this.now()
+    if (typeof g.outing === 'number' && t - g.outing < RESET_MS) throw new Error(`${G.name} needs a little rest. Ask again in ${Math.ceil((g.outing + RESET_MS - t) / 60000)} min.`)
+    g.outing = t
     g.met = true
     const pts = outingPoints(id, activity, Number(quality) || 0)
     this._gain(g, pts)
@@ -401,7 +401,8 @@ export class Valley {
         progress: (g.points % HEART) / HEART,
         maxHearts: this._cap(g) / HEART,
         talkedToday: g.talked === day,
-        outingToday: g.outing === day,
+        outingToday: typeof g.outing === 'number' && t - g.outing < RESET_MS,
+        outingIn: typeof g.outing === 'number' ? Math.max(0, g.outing + RESET_MS - t) : 0,
         giftsLeft: g.gifts.week === week ? Math.max(0, GIFTS_PER_WEEK - g.gifts.n) : GIFTS_PER_WEEK,
         dating: g.dating,
         married: g.married,

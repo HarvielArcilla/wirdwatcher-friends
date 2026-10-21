@@ -1,4 +1,4 @@
-// Pixel art for the Word Farm, drawn in code: the word gods and the farmer
+// Pixel art for Wird Valley, drawn in code: the word gods and the farmer
 // as 16×24 sprites (written as the left half and mirrored, plus whatever's
 // in their hands), and the tiles, crops, fish and things on the ground.
 

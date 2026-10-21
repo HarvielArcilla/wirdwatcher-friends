@@ -9,8 +9,8 @@ import { money, untilText } from './Derivs.jsx'
 const pct = (x, d = 1) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(d)}%`
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
 const COLORS = { cash: 'var(--accent)', shares: '#4a9ee8', funds: '#3fbf9a', margin: '#e8a03a', future: '#a66bd8', option: '#e8648f', bets: '#6bc0e8', stakes: '#8a93a0', debt: 'var(--bad)' }
-const SPENT = { wirdhouse: '🏠 Wirdhouse', cosmetics: '🛍️ Shop', packs: '🃏 Card packs', leximon: '🧬 Leximon', sports: '🏟️ Prediction bets', farm: '🌱 Word Valley seeds and gifts', other: 'Other' }
-const GOT = { income: '📝 Ratings and the wirdhouse', rewards: '🎁 Levels, quests and Daily Clues', sports: '🏟️ Prediction bets paid', farm: '🌾 Word Valley harvests and finds', dev: '🛠️ Dev coins' }
+const SPENT = { wirdhouse: '🏠 Wirdhouse', cosmetics: '🛍️ Shop', packs: '🃏 Card packs', leximon: '🧬 Leximon', sports: '🏟️ Prediction bets', farm: '🌱 Wird Valley seeds and gifts', other: 'Other' }
+const GOT = { income: '📝 Ratings and the wirdhouse', rewards: '🎁 Levels, quests and Daily Clues', sports: '🏟️ Prediction bets paid', farm: '🌾 Wird Valley harvests and finds', dev: '🛠️ Dev coins' }
 
 export default function Portfolio ({ onPick }) {
   const [p, setP] = useState(null)
