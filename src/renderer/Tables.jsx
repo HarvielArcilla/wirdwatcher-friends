@@ -273,3 +273,119 @@ export function Blackjack ({ coins, hold, toast }) {
     </div>
   )
 }
+
+// --- the lobby tables ------------------------------------------------------------------------
+// Letter Roulette and Word Blackjack around a lobby table: everyone against
+// the house, sharing the spin or the dealer. See src/core/lobby.js.
+
+// On the felt: the wheel, or the dealer's tiles.
+export function LobbyTableCenter ({ c, phase, res, name }) {
+  const [spinning, setSpinning] = useState(false)
+  const pocket = res?.pocket ?? null
+  useEffect(() => {
+    if (pocket === null) return
+    setSpinning(true)
+    const t = setTimeout(() => setSpinning(false), SPIN_MS)
+    return () => clearTimeout(t)
+  }, [pocket, res?.key])
+  if (c.style === 'roulette') {
+    const bettors = Object.values(c.bets || {}).filter(Boolean).length
+    return (
+      <div className='tb-lobby-center'>
+        <div className='tb-lobby-wheel'><LetterWheel pocket={pocket} spinning={spinning} /></div>
+        <div className='tsub'>
+          {phase === 'betting' && `Place your bets. ${bettors} in so far.`}
+          {phase === 'drawing' && 'No more bets…'}
+          {phase === 'reveal' && (res?.void ? 'Nobody bet this time.' : spinning ? 'Spinning…' : <>It’s <b className={`tb-letter ${res.color}`}>{res.letter}</b></>)}
+        </div>
+      </div>
+    )
+  }
+  const dealer = phase === 'reveal' ? res?.dealer : c.dealer
+  return (
+    <div className='tb-lobby-center'>
+      <div className='tsub'>Dealer{phase === 'reveal' && res?.dealerTotal ? <> · <b>{res.dealerTotal}</b>{res.dealerTotal > 21 ? ' bust!' : ''}</> : null}</div>
+      <div className='tb-tiles center'>{dealer ? dealer.map((l, i) => <Tile key={i} l={l} small />) : <span className='tsub'>{phase === 'betting' ? 'Stakes first. The dealer draws to 20 and wins ties.' : phase === 'drawing' ? 'Dealing…' : res?.void ? 'Nobody played this hand.' : ''}</span>}</div>
+    </div>
+  )
+}
+
+// Under a seat: their bet, their tiles, what they won.
+export function LobbySeatTable ({ c, phase, res, id }) {
+  const bet = c.bets?.[id]
+  const net = phase === 'reveal' ? res?.net?.[id] : undefined
+  const hand = phase === 'reveal' ? res?.hands?.[id] : c.hands?.[id]
+  return (
+    <span className='tb-seat'>
+      {hand && <span className='tb-seat-tiles'>{hand.tiles.map((l, i) => <Tile key={i} l={l} small />)}<b className={hand.total > 21 ? 'down' : ''}>{hand.total}</b></span>}
+      {bet === null && phase !== 'reveal' && <span className='tag'>sitting out</span>}
+      {bet && net === undefined && <span className='tag'>{c.style === 'roulette' ? `bet ${formatCoins(bet.total)}` : `stake ${formatCoins(bet.total)}${bet.doubled ? ' ×2' : ''}`}</span>}
+      {net !== undefined && <span className={`tag ${net > 0 ? 'ok' : net < 0 ? 'lo' : ''}`}>{net > 0 ? `won ${formatCoins(net)}` : net < 0 ? `lost ${formatCoins(-net)}` : 'even'}{hand?.word ? ` · ${hand.word.toUpperCase()}` : ''}</span>}
+    </span>
+  )
+}
+
+// The bottom bar: your bet, or your hand.
+export function LobbyTableControls ({ c, phase, act, coins, waiting, name, toast }) {
+  const [stake, setStake] = useState('100')
+  const mine = c.mine || {}
+  const n = Math.floor(Number(stake) || 0)
+  const left = [...waiting].map(name).join(', ') || 'nobody'
+  if (phase === 'betting' && c.style === 'blackjack') {
+    if (mine.bet !== undefined) return <div className='rate-help' style={{ textAlign: 'center' }}><span className='prompt'>{mine.bet ? <>You’re in for <b>{formatCoins(mine.bet.total)}</b>.</> : 'Sitting this hand out.'}</span><span>Waiting on {left}</span></div>
+    return (
+      <div className='tb-actions center'>
+        <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
+        {[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{formatCoins(x)}</button>)}
+        <button className='btn primary' onClick={() => act('tableBet', { stake: n })} disabled={!(n >= 1) || n > coins}>Deal me in</button>
+        <button className='btn ghost' onClick={() => act('tableBet', { skip: true })}>Sit out</button>
+      </div>
+    )
+  }
+  if (phase === 'betting') {
+    if (mine.bet !== undefined) return <div className='rate-help' style={{ textAlign: 'center' }}><span className='prompt'>{mine.bet ? <>Your bets are down: <b>{formatCoins(mine.bet.total)}</b>.</> : 'Sitting this spin out.'}</span><span>Waiting on {left}</span></div>
+    return <div className='rate-help' style={{ textAlign: 'center' }}><span className='prompt'>Place your bets on the board at the right.</span><span>Waiting on {left}</span></div>
+  }
+  if (phase === 'drawing') return <span className='rate-help'>{c.style === 'roulette' ? 'No more bets. Everyone’s seed goes in…' : 'Shuffling everyone’s bags…'}</span>
+  if (phase === 'playing') {
+    const h = mine.hand
+    if (!h) return <span className='rate-help'>You’re not in this hand. Waiting on {left}.</span>
+    if (h.done) return <div className='rate-help' style={{ textAlign: 'center' }}><span className='prompt'>{h.total > 21 ? 'Bust.' : <>Standing on <b>{h.total}</b>.</>}</span><span>Waiting on {left}</span></div>
+    return (
+      <div className='tb-actions center'>
+        <span className='tb-total'>Your hand: <b>{h.total}</b></span>
+        <button className='btn' onClick={() => act('tableMove', 'hit')}>Draw a tile</button>
+        <button className='btn' onClick={() => act('tableMove', 'double')} disabled={h.moves > 0 || (mine.bet?.total || 0) > coins}>Double</button>
+        <button className='btn primary' onClick={() => act('tableMove', 'stand')}>Stand</button>
+      </div>
+    )
+  }
+  return null
+}
+
+// The roulette board in the side panel, while the betting's open.
+export function LobbyRouletteBets ({ c, act, coins }) {
+  const [bets, setBets] = useState([])
+  const [chip, setChip] = useState(100)
+  useEffect(() => setBets([]), [c.key])
+  if (c.mine?.bet !== undefined) {
+    const b = c.mine.bet
+    return <div className='sect'><h3>Your bets</h3><p className='opt-hint'>{b ? b.bets.map((x) => `${betLabel(x)} ${formatCoins(x.amount)}`).join(' · ') : 'Sitting this spin out.'}</p></div>
+  }
+  const total = bets.reduce((a, b) => a + b.amount, 0)
+  return (
+    <div className='sect tb-side'>
+      <h3>Place your bets</h3>
+      <Chips chip={chip} setChip={setChip} coins={coins} />
+      <RouletteBoard bets={bets} setBets={setBets} chip={chip} disabled={false} />
+      <div className='tb-actions'>
+        <span className='tb-total'>{bets.length ? <>On the table: <Coins n={total} /></> : 'Click to place chips.'}</span>
+        <button className='btn ghost small' onClick={() => setBets([])} disabled={!bets.length}>Clear</button>
+      </div>
+      <div className='tb-actions'>
+        <button className='btn primary' onClick={() => act('tableBet', { bets })} disabled={!bets.length || total > coins}>Bets down</button>
+        <button className='btn ghost' onClick={() => act('tableBet', { skip: true })}>Sit out</button>
+      </div>
+    </div>
+  )
+}

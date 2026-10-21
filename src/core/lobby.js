@@ -56,7 +56,20 @@
 //            every wrong guess (never under 10); the first to get it gets 20
 //            more. Chat can't give the word away.
 //
-// Grand Jury and Clues have nothing to rate, so they save no ratings.
+//   roulette betting → (drawing) → reveal                       Letter Roulette
+//            Everyone bets against the house on the same spin, with the rules
+//            in src/shared/tables.js. Bets are on show as they're placed.
+//   blackjack betting → (drawing) → playing → reveal             Word Blackjack
+//            Everyone puts in a stake, then plays their own hand against the
+//            one dealer: each seat draws from its own bag of tiles.
+//            At both tables each app pays for its own bets and works out its
+//            own winnings (see Tables in src/core/tables.js); the host never
+//            moves anyone's coins. The outcome comes from a seed sent by
+//            every player (hashed with their bet, shown at the reveal), so
+//            nobody can steer it. Scores are coins won or lost.
+//
+// Grand Jury, Clues and the tables have nothing to rate, so they save no
+// ratings.
 //
 // Stakes (options.stake): in any mode with points, players can buy in for
 // the host's stake before a game. Highest score takes the pot (ties split).
@@ -80,13 +93,17 @@ import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
 import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
 import { STAKES, splitPot } from '../shared/stakes.js'
+import { POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS, handTotal, bjResult, bjPayout, wordInTiles, BJ_TARGET } from '../shared/tables.js'
+import { goodCommit, goodSeed, tableOutcome, playHand } from './tables.js'
 
 // How long a player who lost their connection keeps their seat while their
 // computer reconnects.
 export const SEAT_GRACE_MS = 45000
 
-const PROTOCOL = 4 // 4: Grand Jury, Clues and stakes (2.2)
-export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues']
+const PROTOCOL = 5 // 4: Grand Jury, Clues and stakes (2.2); 5: the tables
+export const LOBBY_STYLES = ['classic', 'highlow', 'hotseat', 'hive', 'jury', 'clues', 'roulette', 'blackjack']
+export const TABLE_STYLES = ['roulette', 'blackjack']
+const isTable = (style) => TABLE_STYLES.includes(style)
 export const LOBBY_DEFAULTS = { rounds: 10, mode: 'everyday', timer: 0, style: 'classic', stake: 0 }
 export const LOBBY_STAKES = STAKES
 const STAKE_ACK_MS = 8000
@@ -97,8 +114,8 @@ export const REACTIONS = ['😂', '😮', '🔥', '💀', '🤔', '❤️', '�
 
 // Grand Jury and Clues start each round in 'preparing' while the host asks
 // the players' apps for what it needs; that isn't one of these steps.
-const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'], jury: ['voting'], clues: ['clues'] }
-const ACTIVE = ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues']
+const PHASES = { classic: ['rating'], highlow: ['rating', 'guessing'], hotseat: ['picking', 'rating'], hive: ['choosing', 'rating'], jury: ['voting'], clues: ['clues'], roulette: ['betting'], blackjack: ['betting', 'playing'] }
+const ACTIVE = ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues', 'betting', 'playing']
 export const JURY_MIN = 3
 export const CLUE_SECS = 10 // between clues
 export const CLUE_FINAL_SECS = 15 // after the last one
@@ -187,10 +204,11 @@ export class LobbyHost extends EventEmitter {
   // isn't in the word list. settings: the Settings object. provide(kind,
   // args): the host's own answers to what Grand Jury and Clues ask every
   // player's app (see LobbyClient).
-  constructor ({ me, dealer, lookup = () => null, provide = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
+  constructor ({ me, dealer, lookup = () => null, provide = () => null, byLetters = () => null, settings, swarm = {}, lan = {}, code = newLobbyCode(), options = {} }) {
     super()
     this.code = code
     this.provide = provide
+    this.byLetters = byLetters
     this.pending = new Map() // request id -> { from, done }
     this.me = me
     this.dealer = dealer
@@ -300,6 +318,8 @@ export class LobbyHost extends EventEmitter {
       case 'choose': return this._choose(id, msg.word)
       case 'vote': return this._vote(id, msg.accused)
       case 'clueGuess': return this._clueGuess(id, msg.text)
+      case 'tableBet': return this._tableBet(id, msg)
+      case 'tableMove': return this._tableMove(id, msg.move)
       case 'stakeIn': {
         if (this.phase !== 'waiting' && this.phase !== 'results') return
         p.stakeIn = Boolean(msg.in) && Number(msg.amount) === this.options.stake && this.options.stake > 0
@@ -454,6 +474,105 @@ export class LobbyHost extends EventEmitter {
 
   // Asks one player's app for something (the host answers its own). Settles
   // with null if they're gone or take too long.
+  // --- the tables ---
+
+  // A bet (or sitting the round out, with no bet), with the hash of the
+  // player's seed. One per round; the player's app has already taken the coins.
+  _tableBet (id, msg) {
+    const c = this.current
+    if (this.phase !== 'betting' || !c || !c.roster.includes(id) || c.bets.has(id)) return
+    if (msg.skip) { c.bets.set(id, null); this._maybeAdvance(); if (this.phase === 'betting') this._changed(); return }
+    if (!goodCommit(msg.commit)) return
+    if (c.style === 'roulette') {
+      const bets = (Array.isArray(msg.bets) ? msg.bets : []).slice(0, 12).map((b) => ({ kind: String(b?.kind), pick: b?.pick == null ? null : String(b.pick).slice(0, 24), amount: Math.floor(Number(b?.amount)) }))
+      if (!bets.length || bets.some((b) => !(b.amount >= 1) || !ROULETTE_KINDS.includes(b.kind) || !rouletteBet(b.kind, b.pick))) return
+      c.bets.set(id, { bets, total: bets.reduce((a, b) => a + b.amount, 0), commit: msg.commit })
+    } else {
+      const stake = Math.floor(Number(msg.stake))
+      if (!(stake >= 1) || stake > 1e15) return
+      c.bets.set(id, { stake, total: stake, commit: msg.commit })
+    }
+    this._maybeAdvance()
+    if (this.phase === 'betting') this._changed()
+  }
+
+  // Betting's over: every player with a bet shows their seed, and the seeds
+  // decide the round.
+  async _drawTable (c) {
+    clearTimeout(this._timer)
+    this.phase = 'drawing'
+    c.endsAt = null
+    this._changed()
+    const bettors = [...c.bets].filter(([id, b]) => b && this.order.includes(id)).map(([id]) => id)
+    const got = await Promise.all(bettors.map((id) => this._request(id, 'seed', { key: c.key })))
+    if (this.current !== c || this.phase !== 'drawing') return
+    c.seeds = {}
+    c.commits = {}
+    bettors.forEach((id, i) => { if (goodSeed(got[i])) { c.seeds[id] = got[i]; c.commits[id] = c.bets.get(id).commit } })
+    // A bet without its seed doesn't play (that player's app gets it back).
+    for (const id of bettors) if (!c.seeds[id]) c.bets.set(id, null)
+    c.out = Object.keys(c.seeds).length ? tableOutcome(c.style, { seeds: c.seeds, commits: c.commits }, c.key) : null
+    if (c.style === 'roulette' || !c.out) return this._reveal()
+    // Blackjack: everyone with a stake plays their hand.
+    c.hands = new Map()
+    for (const id of Object.keys(c.seeds)) {
+      const bag = c.out.bag(id)
+      c.hands.set(id, { bag, moves: [], tiles: playHand(bag, []), done: false })
+    }
+    for (const h of c.hands.values()) if (handTotal(h.tiles) >= BJ_TARGET) h.done = true
+    this.phase = 'playing'
+    c.next = new Set()
+    this._startTimer()
+    if (!this._waitingOn().length) return this._reveal()
+    this._changed()
+  }
+
+  _tableMove (id, move) {
+    const c = this.current
+    const h = c?.hands?.get(id)
+    if (this.phase !== 'playing' || !h || h.done || !['hit', 'stand', 'double'].includes(move)) return
+    if (move === 'double' && h.moves.length) return
+    h.moves.push(move)
+    h.tiles = playHand(h.bag, h.moves)
+    if (move !== 'hit' || handTotal(h.tiles) >= BJ_TARGET) h.done = true
+    if (move === 'double') { const b = c.bets.get(id); b.total = b.stake * 2; b.doubled = true }
+    this._maybeAdvance()
+    this._changed()
+  }
+
+  // The round's result at a table: what everyone was paid, as each of their
+  // apps will work it out.
+  _tableResult (c) {
+    const base = { style: c.style, key: c.key, seeds: c.seeds || {}, commits: c.commits || {}, rated: [] }
+    const paid = {}
+    const net = {}
+    const bets = {}
+    if (!c.out) return { ...base, paid, net, bets, void: true }
+    if (c.style === 'roulette') {
+      const pocket = c.out.pocket
+      for (const id of Object.keys(c.seeds)) {
+        const b = c.bets.get(id)
+        bets[id] = b.bets
+        paid[id] = b.bets.reduce((a, x) => a + roulettePayout(x, pocket), 0)
+        net[id] = paid[id] - b.total
+      }
+      return { ...base, pocket, letter: POCKETS[pocket], color: pocketColor(pocket), bets, paid, net }
+    }
+    const dealer = c.out.dealer
+    const hands = {}
+    const moves = {}
+    for (const [id, h] of c.hands) {
+      const b = c.bets.get(id)
+      const result = bjResult(h.tiles, dealer)
+      const word = result === 'win' ? wordInTiles(h.tiles, this.byLetters) : null
+      paid[id] = bjPayout(b.total, result, word)
+      net[id] = paid[id] - b.total
+      moves[id] = h.moves
+      hands[id] = { tiles: h.tiles, total: handTotal(h.tiles), stake: b.total, doubled: Boolean(b.doubled), result, word }
+    }
+    return { ...base, dealer, dealerTotal: handTotal(dealer), hands, moves, paid, net }
+  }
+
   _request (pid, kind, args) {
     if (pid === this.hostId) {
       try { return Promise.resolve(this.provide(kind, args) ?? null) } catch { return Promise.resolve(null) }
@@ -565,6 +684,8 @@ export class LobbyHost extends EventEmitter {
       case 'choosing': return live.filter((id) => c.assign.has(id) && !c.picks.has(id))
       case 'voting': return live.filter((id) => !c.votes.has(id))
       case 'clues': return live.filter((id) => !c.solved.has(id))
+      case 'betting': return live.filter((id) => !c.bets.has(id))
+      case 'playing': return live.filter((id) => c.hands?.has(id) && !c.hands.get(id).done)
       default: return []
     }
   }
@@ -583,6 +704,12 @@ export class LobbyHost extends EventEmitter {
     const phases = PHASES[c.style]
     const at = phases.indexOf(this.phase)
     if (at < 0) return
+    if (isTable(c.style)) {
+      // Out of time: anyone who hasn't bet sits this one out, and any hand
+      // still open stands.
+      if (this.phase === 'betting') { for (const id of c.roster) if (!c.bets.has(id)) c.bets.set(id, null); this._drawTable(c).catch((err) => { netlog('lobby (hosting)', 'drawing failed', err.message); if (this.current === c) this._nextRound() }); return }
+      if (this.phase === 'playing') { for (const h of c.hands.values()) h.done = true; return this._reveal() }
+    }
     if (c.style === 'hotseat') {
       // No seat, no round. A picker who ran out of time (or left) gets the
       // first word picked for them.
@@ -719,7 +846,7 @@ export class LobbyHost extends EventEmitter {
   }
 
   // Stakes are only for modes with points.
-  stakeNow () { return this.options.style !== 'classic' ? this.options.stake : 0 }
+  stakeNow () { return this.options.style !== 'classic' && !isTable(this.options.style) ? this.options.stake : 0 }
 
   // Asks each player who bought in to hold their stake, then starts.
   async _collect (stake, buying) {
@@ -839,6 +966,8 @@ export class LobbyHost extends EventEmitter {
       const raters = derange(roster)
       const assign = new Map(roster.map((id, i) => [id, { rater: raters[i], target: round1(0.3 + crypto.randomInt(43) / 10) }]))
       Object.assign(c, { assign, picks: new Map(), toRate: new Map() })
+    } else if (isTable(style)) {
+      Object.assign(c, { key: `${this.hostId}:${this.game || 0}:${this.round + 1}`, bets: new Map(), seeds: null, commits: null, hands: null, out: null })
     } else if (style === 'jury' || style === 'clues') {
       if (style === 'jury') Object.assign(c, { votes: new Map(), defendant: null, word: null })
       this.round++
@@ -871,7 +1000,10 @@ export class LobbyHost extends EventEmitter {
     const perfect = {}
     const flawless = (id, label, bonus) => { give(id, bonus); (perfect[id] = perfect[id] || []).push({ label, bonus }) }
     let result
-    if (c.style === 'classic' || c.style === 'highlow') {
+    if (isTable(c.style)) {
+      result = this._tableResult(c)
+      for (const [id, n] of Object.entries(result.net)) give(id, n)
+    } else if (c.style === 'classic' || c.style === 'highlow') {
       const verdict = roundVerdict(ratings)
       const vals = Object.values(ratings)
       const hi = Math.max(...vals)
@@ -1000,6 +1132,8 @@ export class LobbyHost extends EventEmitter {
   choose (word) { this._act(this.hostId, { type: 'choose', word }) }
   vote (accused) { this._act(this.hostId, { type: 'vote', accused }) }
   clueGuess (text) { this._act(this.hostId, { type: 'clueGuess', text }) }
+  tableBet (b) { this._act(this.hostId, { type: 'tableBet', ...b }) }
+  tableMove (move) { this._act(this.hostId, { type: 'tableMove', move }) }
   stakeIn (s) { this._act(this.hostId, { type: 'stakeIn', ...s }) }
   stakeAck (key) { this._act(this.hostId, { type: 'stakeAck', key }) }
   next () { this._act(this.hostId, { type: 'next' }) }
@@ -1061,6 +1195,14 @@ export class LobbyHost extends EventEmitter {
           charge: c.charge ?? null,
           mine: { vote: c.votes.get(forId) || null, defendant: c.defendant === forId }
         })
+      } else if (isTable(c.style)) {
+        // Bets are on show as they're placed. During play, the dealer's
+        // second tile stays face down.
+        const bets = {}
+        for (const [id, b] of c.bets) bets[id] = b ? (c.style === 'roulette' ? { bets: b.bets, total: b.total } : { stake: b.stake, total: b.total, doubled: Boolean(b.doubled) }) : null
+        const hands = {}
+        if (c.hands) for (const [id, h] of c.hands) hands[id] = { tiles: h.tiles, total: handTotal(h.tiles), done: h.done, moves: h.moves.length }
+        Object.assign(current, { key: c.key, bets, hands, dealer: c.out?.dealer && this.phase === 'playing' ? [c.out.dealer[0], '?'] : null, mine: { bet: c.bets.get(forId) ?? undefined, hand: hands[forId] || null } })
       } else if (c.style === 'clues' && c.clues) {
         const done = c.solved.get(forId)
         const over = this.phase === 'reveal'
@@ -1189,6 +1331,22 @@ export function summarize (history, players, style = 'classic') {
     for (const h of history) for (const [id, n] of Object.entries(h.tally || {})) if (id !== h.defendant) blamed.set(id, (blamed.get(id) || 0) + n)
     const usual = [...blamed].sort((a, b) => b[1] - a[1])[0]
     if (usual?.[1] >= 2) awards.push({ emoji: '🚨', title: 'Usual suspect', player: usual[0], detail: `${name(usual[0])} drew ${usual[1]} votes for things they didn’t do` })
+  }
+  if (style === 'roulette' || style === 'blackjack') {
+    const nets = new Map()
+    let big = null
+    for (const h of history) {
+      for (const [id, n] of Object.entries(h.net || {})) {
+        nets.set(id, (nets.get(id) || 0) + n)
+        if (n > 0 && (!big || n > big.n)) big = { id, n, letter: h.letter, word: h.hands?.[id]?.word }
+      }
+    }
+    const ranked = [...nets].sort((a, b) => b[1] - a[1])
+    if (ranked[0]?.[1] > 0) awards.push({ emoji: '🤑', title: 'Up the most', player: ranked[0][0], detail: `${name(ranked[0][0])}, ${ranked[0][1].toLocaleString()} coins ahead` })
+    if (big) awards.push({ emoji: '💰', title: 'Biggest win', player: big.id, detail: `${name(big.id)}, ${big.n.toLocaleString()} coins${big.letter ? ` on ${big.letter}` : big.word ? ` with ${big.word.toUpperCase()}` : ''}` })
+    const words = history.flatMap((h) => Object.entries(h.hands || {}).filter(([, x]) => x.word).map(([id, x]) => ({ id, word: x.word })))
+    if (words.length) awards.push({ emoji: '📝', title: 'Spelled it out', player: words[0].id, detail: words.map((w) => `${name(w.id)}: ${w.word.toUpperCase()}`).slice(0, 4).join(', ') })
+    if (ranked.length > 1 && ranked[ranked.length - 1][1] < 0) awards.push({ emoji: '🎲', title: 'Kept the house happy', player: ranked[ranked.length - 1][0], detail: `${name(ranked[ranked.length - 1][0])}, ${Math.abs(ranked[ranked.length - 1][1]).toLocaleString()} coins down` })
   }
   if (style === 'clues') {
     const solves = history.flatMap((h) => Object.entries(h.solved || {}).map(([id, s]) => ({ id, word: h.word, ...s })))
@@ -1325,7 +1483,7 @@ export class LobbyClient extends EventEmitter {
       this.emit('event', msg.event)
     } else if (msg.type === 'friend' && typeof msg.from === 'string') {
       this.emit('friend', { kind: msg.kind, from: msg.from, hello: msg.hello || null })
-    } else if (msg.type === 'request' && typeof msg.id === 'string' && ['case', 'lookup', 'sample', 'hold'].includes(msg.kind)) {
+    } else if (msg.type === 'request' && typeof msg.id === 'string' && ['case', 'lookup', 'sample', 'hold', 'seed'].includes(msg.kind)) {
       let data = null
       try { data = this.provide(msg.kind, msg.args && typeof msg.args === 'object' ? msg.args : {}) ?? null } catch {}
       this.send?.({ type: 'answer', id: msg.id, data })
@@ -1347,6 +1505,8 @@ export class LobbyClient extends EventEmitter {
   choose (word) { this.send?.({ type: 'choose', word }) }
   vote (accused) { this.send?.({ type: 'vote', accused }) }
   clueGuess (text) { this.send?.({ type: 'clueGuess', text }) }
+  tableBet (b) { this.send?.({ type: 'tableBet', ...b }) }
+  tableMove (move) { this.send?.({ type: 'tableMove', move }) }
   stakeIn (s) { this.send?.({ type: 'stakeIn', ...s }) }
   stakeAck (key) { this.send?.({ type: 'stakeAck', key }) }
   next () { this.send?.({ type: 'next' }) }

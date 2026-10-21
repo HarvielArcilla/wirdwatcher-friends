@@ -2292,3 +2292,29 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 @media (max-width: 860px) { .tb-game { grid-template-columns: 1fr; } .tb-letters { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .tb-cell.hit { outline: 3px solid var(--accent); outline-offset: 1px; animation: tb-hit 1s ease-in-out 2; }
 @keyframes tb-hit { 50% { filter: brightness(1.5); } }
+/* Letter Roulette and Word Blackjack at a lobby table */
+.tb-lobby-center { display: grid; justify-items: center; gap: 6px; }
+.tb-lobby-wheel { width: 200px; }
+.tb-lobby-wheel .tb-wheelwrap { max-width: 200px; }
+.tb-letter { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 700; }
+.tb-letter.red { background: #b8322e; } .tb-letter.black { background: #23232c; } .tb-letter.green { background: #23794a; }
+.tb-tiles.center { justify-content: center; min-height: 36px; }
+.tb-seat { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 3px; }
+.tb-seat-tiles { display: inline-flex; gap: 2px; align-items: center; }
+.tb-seat-tiles .tb-tile.small { width: 22px; height: 24px; font-size: 12px; box-shadow: 0 2px 0 #b8975a; }
+.tb-seat-tiles .tb-tile.small sub { font-size: 7px; right: 2px; bottom: 0; }
+.tb-seat-tiles b { margin-left: 4px; font-size: 13px; }
+.tb-seat-tiles b.down { color: var(--bad); }
+.tb-actions.center { justify-content: center; }
+.tb-side .tb-chips { gap: 5px; }
+.tb-side .tb-chip { width: 42px; height: 42px; font-size: 10px; border-width: 3px; }
+.tb-side .tb-board { padding: 8px; border-width: 4px; }
+.tb-side .tb-letters { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.tb-side .tb-outside { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.tb-side .tb-cell { min-height: 30px; font-size: 13px; }
+.tb-side .tb-wordbet { grid-template-columns: 1fr; }
+.tb-side .tb-actions { margin-top: 8px; }
+.seat .pts.neg { color: var(--bad); }
+.tb-seat .tag { background: color-mix(in oklab, var(--text) 10%, var(--bg)); color: var(--text); }
+.tb-seat .tag.ok { background: color-mix(in oklab, var(--good) 30%, var(--bg)); }
+.tb-seat .tag.lo { background: color-mix(in oklab, var(--bad) 28%, var(--bg)); }

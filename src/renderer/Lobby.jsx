@@ -5,6 +5,7 @@ import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 import { titleText, packEmoji } from '../shared/cosmetics.js'
 import { WildWord } from './Leximon.jsx'
+import { LobbyTableCenter, LobbySeatTable, LobbyTableControls, LobbyRouletteBets } from './Tables.jsx'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player and a card on the felt in front of each seat. What happens
@@ -16,15 +17,19 @@ export const STYLES = [
   { id: 'hotseat', name: 'Hot seat', emoji: '🔥', blurb: 'One player is in the seat; the next picks a word for them from three. Everyone predicts the seat’s rating.' },
   { id: 'hive', name: 'Hive mind', emoji: '🐝', blurb: 'You get a secret target and a rater. Find a word you think they’ll rate near your target.' },
   { id: 'jury', name: 'Grand Jury', emoji: '⚖️', blurb: 'One of you is secretly on trial for a rating you really gave. Vote on who did it, then argue about it. 3 or more players.' },
-  { id: 'clues', name: 'Clues', emoji: '🧩', blurb: 'Guess a hidden word from its blanks and what the table rated it. Clues keep coming, and every clue and wrong guess costs points.' }
+  { id: 'clues', name: 'Clues', emoji: '🧩', blurb: 'Guess a hidden word from its blanks and what the table rated it. Clues keep coming, and every clue and wrong guess costs points.' },
+  { id: 'roulette', name: 'Letter Roulette', emoji: '🎡', blurb: 'Everyone bets on the same spin of the letter wheel, against the house. Bet on letters, colours or whole words. Scores are coins won or lost.' },
+  { id: 'blackjack', name: 'Word Blackjack', emoji: '🀄', blurb: 'One dealer, a hand of letter tiles each. Get closer to 21 than the dealer; spell a word of four letters or more and a win pays double.' }
 ]
+const TABLES = ['roulette', 'blackjack']
+const signedCoins = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString()}`
 const coins = (n) => (n >= 1e6 ? `${n / 1e6}M` : n >= 1e3 ? `${n / 1e3}K` : String(n))
 const cluePoints = (clue, wrong) => Math.max(10, 100 - 12 * clue - 10 * wrong)
 const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0]
 
-export default function Lobby ({ lobby, choices, me, active, events, settings, wild, clearWild }) {
+export default function Lobby ({ lobby, choices, me, coins, active, events, settings, wild, clearWild }) {
   if (!lobby) return <Entry />
-  return <Table lobby={lobby} choices={choices} active={active} events={events} settings={settings} wild={wild} clearWild={clearWild} />
+  return <Table lobby={lobby} choices={choices} coins={coins} active={active} events={events} settings={settings} wild={wild} clearWild={clearWild} />
 }
 
 function Entry () {
@@ -82,7 +87,7 @@ const typingIn = (el) => Boolean(el && ((el.tagName === 'INPUT' && !el.readOnly)
 
 const list = (xs) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
-function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
+function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, wild, clearWild }) {
   const toast = useToast()
   const [text, setText] = useState('')
   const [, tick] = useState(0)
@@ -106,6 +111,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
   const res = c?.result
   const style = c?.style || lobby.options.style
   const phase = lobby.phase
+  const casino = TABLES.includes(style) // Letter Roulette or Word Blackjack
   const mine = c?.mine || {}
   const waiting = new Set(lobby.waitingOn || [])
   const iMustAct = waiting.has(you)
@@ -284,7 +290,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
 
   // What each seat's card shows at the reveal, and a note under the number.
   const cardFor = (p) => {
-    if (!res) return null
+    if (!res || casino) return null
     if (style === 'hotseat') {
       if (p.id === res.seat) return res.r === null ? null : { v: res.r, note: 'the seat' }
       const pr = res.predictions[p.id]
@@ -324,13 +330,13 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
           <span className='round'>
             <span className='mode-chip'>{styleOf(style).emoji} {styleOf(style).name}</span>
             {phase === 'waiting' && ' Waiting for players'}
-            {c && phase !== 'results' && phase !== 'waiting' && <> Word <b>{lobby.round}</b> of {lobby.options.rounds}</>}
+            {c && phase !== 'results' && phase !== 'waiting' && <> {casino ? (style === 'roulette' ? 'Spin' : 'Hand') : 'Word'} <b>{lobby.round}</b> of {lobby.options.rounds}</>}
             {phase === 'results' && ' Game over'}
           </span>
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {left !== null && phase !== 'reveal' && <span className='round'><b>{Math.ceil(left / 1000)}</b>s</span>}
             {word && <button className='btn small ghost' onClick={() => setDetails((v) => !v)} title='Definitions and more (D)'>{details ? 'Hide word details' : 'Word details'}</button>}
-            {lobby.isHost && ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues'].includes(phase) && <button className='btn small ghost' onClick={() => act('advance')}>{phase === 'clues' ? (c?.final ? 'Reveal now' : 'Next clue') : phase === 'rating' || phase === 'guessing' || phase === 'voting' ? 'Reveal now' : 'Move on'}</button>}
+            {lobby.isHost && ['rating', 'guessing', 'picking', 'choosing', 'voting', 'clues', 'betting', 'playing'].includes(phase) && <button className='btn small ghost' onClick={() => act('advance')}>{phase === 'clues' ? (c?.final ? 'Reveal now' : 'Next clue') : phase === 'betting' ? 'No more bets' : phase === 'playing' ? 'Everyone stands' : phase === 'rating' || phase === 'guessing' || phase === 'voting' ? 'Reveal now' : 'Move on'}</button>}
             {lobby.isHost && phase === 'reveal' && <button className='btn small ghost' onClick={() => act('advance')}>Skip waiting</button>}
             {lobby.isHost && c && phase !== 'results' && <button className='btn small ghost' onClick={() => act('backToLobby')}>End game</button>}
             {potLive && <span className='pot-chip' title={`${pot.members.length} players put in ${pot.stake.toLocaleString()} coins each. Highest score takes it.`}><CoinDot /> Pot <b>{pot.status === 'collecting' ? '…' : (pot.stake * pot.members.length).toLocaleString()}</b></span>}
@@ -351,7 +357,9 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
           )}
           <div className='felt' />
           <div className='felt-center'>
-            <Center lobby={lobby} c={c} res={res} style={style} phase={phase} mine={mine} you={you} name={name} Name={Name} act={act} setPeek={setPeek} total={total} waiting={waiting} toast={toast} guess={guess} />
+            {casino && c && ['betting', 'drawing', 'playing', 'reveal'].includes(phase)
+              ? <LobbyTableCenter c={c} phase={phase} res={res} name={name} />
+              : <Center lobby={lobby} c={c} res={res} style={style} phase={phase} mine={mine} you={you} name={name} Name={Name} act={act} setPeek={setPeek} total={total} waiting={waiting} toast={toast} guess={guess} />}
           </div>
 
           {Array.from({ length: n }, (_, i) => {
@@ -367,7 +375,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
             // In hive mind a card is lit by how well its chooser aimed.
             const cardHi = style === 'hive' ? Boolean(face && res?.best?.includes(face.picker)) : null
             const cardLo = style === 'hive' ? Boolean(face && res?.worst?.includes(face.picker)) : null
-            const showCard = inRound && phase !== 'waiting' && phase !== 'results' && phase !== 'preparing' && !(style === 'hotseat' && phase === 'picking')
+            const showCard = !casino && inRound && phase !== 'waiting' && phase !== 'results' && phase !== 'preparing' && !(style === 'hotseat' && phase === 'picking')
             const hi = res?.highest?.includes(p.id)
             const lo = res?.lowest?.includes(p.id)
             const best = res?.best?.includes(p.id)
@@ -397,7 +405,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
                   </span>
                   <span className='slvl'>
                     {c && phase !== 'results' && p.role ? ({ seat: 'in the hot seat', picker: 'picking', defendant: 'the defendant' })[p.role] : titleText(p.look?.title) || `Level ${p.level}`}
-                    {phase !== 'waiting' && scored && <b className='pts'> · {p.score} pts</b>}
+                    {phase !== 'waiting' && scored && <b className={`pts ${casino && p.score < 0 ? 'neg' : ''}`}> · {casino ? `${signedCoins(p.score)} coins` : `${p.score} pts`}</b>}
                   </span>
                   <span className='seat-tags'>
                     {p.away && <span className='tag away'>reconnecting…</span>}
@@ -414,6 +422,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
                     {phase === 'reveal' && style === 'jury' && res?.tally?.[p.id] > 0 && <span className={`tag ${p.id === res.defendant ? 'hi' : 'lo'}`}>{res.tally[p.id]} vote{res.tally[p.id] === 1 ? '' : 's'}</span>}
                     {phase === 'reveal' && p.next && <span className='tag ok'>ready</span>}
                   </span>
+                  {casino && inRound && phase !== 'waiting' && phase !== 'results' && <LobbySeatTable c={c} phase={phase} res={res} id={p.id} />}
                   {juryVote && <span className='guess-line'>voted <b className={juryVote === res.defendant ? 'hit' : 'miss'}>{name(juryVote)}</b></span>}
                   {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
                 </div>
@@ -449,6 +458,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
                 </form>
                 )
           )}
+          {casino && c && ['betting', 'drawing', 'playing'].includes(phase) && <LobbyTableControls c={c} phase={phase} act={act} coins={myCoins} waiting={waiting} name={name} toast={toast} />}
           {phase === 'buyin' && <span className='rate-help'>Collecting the stakes…</span>}
           {phase === 'preparing' && <span className='rate-help'>{style === 'jury' ? 'The court is choosing a case…' : 'Picking a word most of you have rated…'}</span>}
           {phase === 'rating' && !rating && c && <span className='rate-help'>{style === 'hive' ? 'Nobody chose a word for you to rate this time.' : 'Next word, you’re in.'} Waiting on {[...waiting].map(name).join(', ')}.</span>}
@@ -464,7 +474,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
           {phase === 'reveal' && (
             <div className='rate-help' style={{ textAlign: 'center' }}>
               {style === 'jury' && res && <JuryTalk res={res} name={name} Name={Name} you={you} />}
-              <span>{me?.next ? <>Waiting on {list(notReady.map(name))}{lobby.isHost && <> <button className='btn small ghost' onClick={() => act('advance')}>Go on without them</button></>}</> : <><Kbd>Enter</Kbd> when you’re ready for the next word{style === 'classic' ? ', after you’ve talked it over' : ''}</>}</span>
+              <span>{me?.next ? <>Waiting on {list(notReady.map(name))}{lobby.isHost && <> <button className='btn small ghost' onClick={() => act('advance')}>Go on without them</button></>}</> : <><Kbd>Enter</Kbd> when you’re ready for the next {casino ? (style === 'roulette' ? 'spin' : 'hand') : 'word'}{style === 'classic' ? ', after you’ve talked it over' : ''}</>}</span>
               <span>{nextCount} of {total} ready</span>
             </div>
           )}
@@ -503,6 +513,7 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
           </div>
         )}
         {phase === 'results' && lobby.history.length > 0 && <Rounds history={lobby.history} name={name} you={you} open />}
+        {style === 'roulette' && phase === 'betting' && c?.roster.includes(you) && <LobbyRouletteBets c={c} act={act} coins={myCoins} />}
         {phase === 'choosing' && <HiveFinder mine={mine} name={name} act={act} setPeek={setPeek} waiting={waiting} you={you} />}
         {style === 'hive' && phase === 'reveal' && res?.entries && <HiveRound res={res} name={name} Name={Name} />}
         {details && word && <WordDetails w={word} onClose={() => setDetails(false)} />}
@@ -517,11 +528,11 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
               ))}
             </div>
             <div className='opts' style={{ marginTop: 12 }}>
-              <label>Words from
+              {!TABLES.includes(lobby.options.style) && <label>Words from
                 <select className='field' value={lobby.options.mode} onChange={(e) => act('configure', { mode: e.target.value })}>
                   {choices.modes.map((m) => <option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
                 </select>
-              </label>
+              </label>}
               <label>Rounds
                 <div className='seg'>{choices.rounds.map((x) => <button key={x} className={lobby.options.rounds === x ? 'on' : ''} onClick={() => act('configure', { rounds: x })}>{x}</button>)}</div>
               </label>
@@ -529,10 +540,10 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
                 <div className='seg'>{choices.timers.map((x) => <button key={x} className={lobby.options.timer === x ? 'on' : ''} onClick={() => act('configure', { timer: x })}>{x ? `${x}s` : 'None'}</button>)}</div>
                 {lobby.options.timer > 0 && lobby.options.style === 'hive' && <small className='opt-hint'>Finding a word gets {lobby.options.timer * 3}s.</small>}
               </label>
-              <label>Stakes
+              {!TABLES.includes(lobby.options.style) && <label>Stakes
                 <div className='seg'>{choices.stakes.map((x) => <button key={x} disabled={lobby.options.style === 'classic' && x > 0} className={lobby.options.stake === x && (x === 0 || lobby.options.style !== 'classic') ? 'on' : ''} onClick={() => act('configure', { stake: x })}>{x ? coins(x) : 'None'}</button>)}</div>
                 <small className='opt-hint'>{lobby.options.style === 'classic' ? 'Classic has no points, so nothing to stake on.' : lobby.stake ? `Players who buy in put ${lobby.stake.toLocaleString()} coins each in the pot. Highest score takes it; ties split. Leaving mid-game leaves your stake behind.` : 'Players can buy in to a pot of coins. Highest score takes it.'}</small>
-              </label>
+              </label>}
             </div>
           </div>
         )}
@@ -540,13 +551,13 @@ function Table ({ lobby, choices, active, events, settings, wild, clearWild }) {
           <div className='sect'>
             <h3>{styleOf(lobby.options.style).emoji} {styleOf(lobby.options.style).name}</h3>
             <p className='opt-hint' style={{ margin: '0 0 6px' }}>{styleOf(lobby.options.style).blurb}</p>
-            <div className='rate-help'><span>{choices.modes.find((m) => m.id === lobby.options.mode)?.name || 'Shuffle'}, {lobby.options.rounds} words, {lobby.options.timer ? `${lobby.options.timer}s timer` : 'no timer'}{lobby.stake ? `, ${lobby.stake.toLocaleString()} coin stakes` : ''}</span></div>
+            <div className='rate-help'><span>{TABLES.includes(lobby.options.style) ? `${lobby.options.rounds} ${lobby.options.style === 'roulette' ? 'spins' : 'hands'}` : `${choices.modes.find((m) => m.id === lobby.options.mode)?.name || 'Shuffle'}, ${lobby.options.rounds} words`}, {lobby.options.timer ? `${lobby.options.timer}s timer` : 'no timer'}{lobby.stake ? `, ${lobby.stake.toLocaleString()} coin stakes` : ''}</span></div>
           </div>
         )}
         {scored && phase !== 'waiting' && (
           <div className='sect'>
             <h3>Scores</h3>
-            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{p.score}</b></div>)}</div>
+            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{casino ? signedCoins(p.score) : p.score}</b></div>)}</div>
           </div>
         )}
         {phase !== 'results' && phase !== 'waiting' && lobby.history.length > (phase === 'reveal' ? 1 : 0) && <Rounds history={phase === 'reveal' ? lobby.history.slice(0, -1) : lobby.history} name={name} you={you} />}
@@ -766,7 +777,7 @@ function Rounds ({ history, name, you, open }) {
                 <small>{line.text}</small>
                 {(h.perfect?.[you] || []).map((x) => <small key={x.label} className='rp'>💎 {x.label}</small>)}
               </div>
-              {mine ? <span className='rpts'>+{mine}</span> : line.mine != null ? <span className='rmine' style={{ color: ratingColor(line.mine) }}>{formatRating(line.mine)}</span> : null}
+              {mine ? <span className='rpts'>{TABLES.includes(h.style) ? signedCoins(mine) : `+${mine}`}</span> : line.mine != null ? <span className='rmine' style={{ color: ratingColor(line.mine) }}>{formatRating(line.mine)}</span> : null}
             </li>
           )
         })}
@@ -785,6 +796,8 @@ function roundLine (h, name, you) {
       const mineE = (h.entries || []).find((e) => e.picker === you)
       return { word: mineE?.word || best?.word, text: best ? `Closest: ${name(best.picker)}, aimed ${r(best.target)} and got ${r(best.r)}` : 'No words rated', mine: null }
     }
+    case 'roulette': return { word: h.letter || '—', text: h.void ? 'Nobody bet' : `${Object.values(h.net || {}).filter((n) => n > 0).length} of ${Object.keys(h.net || {}).length} came out ahead`, mine: null }
+    case 'blackjack': return { word: h.dealerTotal ? `Dealer ${h.dealerTotal}` : '—', text: h.void ? 'Nobody played' : Object.entries(h.hands || {}).map(([id, x]) => `${cap(name(id))} ${x.total}${x.word ? ` (${x.word.toUpperCase()})` : ''}`).join(', '), mine: null }
     case 'jury': return { word: h.word, text: `${cap(name(h.defendant))} gave it ${r(h.charge)} and ${h.convicted ? 'was caught' : 'got away with it'}`, mine: null }
     case 'clues': {
       const got = Object.keys(h.solved || {})
@@ -968,7 +981,7 @@ function Podium ({ players, style }) {
   const top = [...players].sort((a, b) => b.score - a.score).slice(0, 3)
   const order = [top[1], top[0], top[2]].filter(Boolean)
   const h = { 0: 90, 1: 64, 2: 46 }
-  const label = { highlow: 'Best at reading the table', hotseat: 'Knew each other best', hive: 'Best aim', jury: 'Sharpest jury', clues: 'Quickest minds' }[style] || 'Top scores'
+  const label = { highlow: 'Best at reading the table', hotseat: 'Knew each other best', hive: 'Best aim', jury: 'Sharpest jury', clues: 'Quickest minds', roulette: 'Coins won at the wheel', blackjack: 'Coins won at the table' }[style] || 'Top scores'
   const best = top[0]?.score || 0
   const winners = top.filter((p) => p.score === best && best > 0)
   return (

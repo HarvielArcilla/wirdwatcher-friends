@@ -199,7 +199,7 @@ function App () {
         {tab === 'collection' && <Collection me={me} econ={econ} profile={profile} modes={modes} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         {tab === 'friends' && <Friends friends={friends} profile={profile} refreshTop={refreshTop} openWord={(w) => { setFocusWord(w); setTab('play') }} playMode={(m) => { pickMode(m); setTab('play') }} />}
         <div style={{ display: tab === 'lobby' ? 'contents' : 'none' }}>
-          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} active={tab === 'lobby' && !searching} events={events} settings={settings.values} wild={lobbyWild} clearWild={() => setLobbyWild(null)} />
+          <Lobby lobby={lobby} choices={boot.lobbyChoices} me={me} coins={Math.floor(econ?.coins ?? 0)} active={tab === 'lobby' && !searching} events={events} settings={settings.values} wild={lobbyWild} clearWild={() => setLobbyWild(null)} />
         </div>
         {tab === 'wirdhouse' && <Wirdhouse econ={econ} />}
         {tab === 'shop' && <Shop econ={econ} me={me} />}

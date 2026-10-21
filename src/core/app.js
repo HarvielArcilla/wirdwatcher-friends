@@ -369,13 +369,14 @@ export class WirdApp extends EventEmitter {
     this.lobby = lobby
     this.lobbyRated = new Set()
     this.stakeConsent = null // { host, amount }: what I agreed to put in
-    lobby.on('state', (s) => { this._stakeSync(s); this._lobbyState(s) })
+    lobby.on('state', (s) => { this._stakeSync(s); this._tableSync(s); this._lobbyState(s) })
     lobby.on('event', (e) => this.emit('lobby-event', e))
     this.friendAsks = new Map() // seat -> my nonce, for requests I sent
     this.friendOffers = new Map() // seat -> their hello, for requests I got
     lobby.on('friend', (m) => this._lobbyFriend(lobby, m))
     lobby.on('closed', ({ reason }) => {
       this._stakeEnd(lobby)
+      this._tableEnd(lobby)
       if (this.lobby !== lobby) return
       this.lobby = null
       this.lobbyState = null
@@ -426,6 +427,59 @@ export class WirdApp extends EventEmitter {
     let back = 0
     for (const [key, rec] of this.economy.stakesWith(host)) back += rec.state === 'held' ? this.economy.refundStake(key) : (this.economy.dropStake(key), 0)
     if (back) this._stakeNote('↩️', 'Your stake came back', `${back.toLocaleString()} coins. The lobby closed before the game finished.`)
+  }
+
+  // --- lobby tables --------------------------------------------------------------
+  //
+  // My bets at a lobby table follow the round they're on: settled from its
+  // result (Tables checks the seeds and works out what I'm owed), and back
+  // to me if the round never finished.
+  _tableSync (s) {
+    if (!s?.host) return
+    const c = s.current
+    for (const [key] of this.tables.heldWith(s.host)) {
+      if (c?.key === key && ['betting', 'drawing', 'playing'].includes(s.phase)) continue
+      if (c?.key === key && s.phase === 'reveal' && c.result) {
+        const res = c.result
+        if (!res.seeds?.[s.you]) { const back = this.tables.lobbyRefund(key); if (back) this._stakeNote('↩️', 'Your bet came back', `${back.toLocaleString()} coins. It wasn’t counted this round.`); continue }
+        const out = this.tables.lobbySettle(key, res, s.you)
+        if (!out) continue
+        if (!out.ok) this._stakeNote('⚠️', 'That round didn’t add up', `Your ${out.total.toLocaleString()} coins came back instead.`)
+        else if (out.paid > 0) this._stakeNote(out.word ? '📝' : '🎉', `You won ${out.paid.toLocaleString()} coins`, out.word ? `${out.word.toUpperCase()}: a word, so the win paid double.` : out.net > 0 ? `${out.net.toLocaleString()} more than you bet.` : out.net === 0 ? 'Your bet back, no more.' : 'Some of your bet back.')
+        continue
+      }
+      const back = this.tables.lobbyRefund(key)
+      if (back) this._stakeNote('↩️', 'Your bet came back', `${back.toLocaleString()} coins. That round didn’t finish.`)
+    }
+  }
+
+  _tableEnd (lobby) {
+    const host = lobby.isHost ? lobby.hostId : (lobby.state?.host || this._stakeHost)
+    if (!host) return
+    let back = 0
+    for (const [key] of this.tables.heldWith(host)) back += this.tables.lobbyRefund(key)
+    if (back) this._stakeNote('↩️', 'Your bet came back', `${back.toLocaleString()} coins. The lobby closed before the round finished.`)
+  }
+
+  tableBet (arg = {}) {
+    const l = this.lobby
+    const s = this.lobbyState
+    const c = s?.current
+    if (!l || !c?.key || s.phase !== 'betting') throw new Error('Betting’s closed.')
+    if (arg.skip) { l.tableBet({ skip: true }); return true }
+    const host = l.isHost ? l.hostId : s.host
+    const r = this.tables.lobbyBet(c.key, host, c.style, arg)
+    l.tableBet({ bets: r.bets, stake: r.stake, commit: r.commit })
+    return true
+  }
+
+  tableMove (move) {
+    const l = this.lobby
+    const c = this.lobbyState?.current
+    if (!l || !c?.key || this.lobbyState.phase !== 'playing') throw new Error('Not now.')
+    if (move === 'double') this.tables.lobbyDouble(c.key)
+    l.tableMove(move)
+    return true
   }
 
   _stakeNote (emoji, title, text) { this.emit('progress', { source: 'economy', notes: [{ emoji, title, text }], xp: [], badges: [] }) }
@@ -599,6 +653,7 @@ export class WirdApp extends EventEmitter {
       for (const w of (Array.isArray(args.words) ? args.words : []).slice(0, 8)) { const v = this.store.rating(String(w)); if (typeof v === 'number') out[w] = v }
       return out
     }
+    if (kind === 'seed') return this.tables.lobbySeed(String(args.key || ''), this.lobby?.isHost ? this.lobby.hostId : this.lobbyState?.host)
     if (kind === 'sample') return shuffle(mine).slice(0, 120).map(({ word, r }) => ({ word, r }))
     if (kind === 'hold') {
       // Only what I agreed to, only for this host's game.
@@ -624,7 +679,7 @@ export class WirdApp extends EventEmitter {
     this.store.count('hosted')
     this.game.award()
     const lookup = (word) => (this.words.has(word) ? this.words.lookup(word) : null)
-    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan, options })
+    const lobby = new LobbyHost({ me: this._lobbyMe(), dealer, lookup, byLetters: (k) => this.words.byLetters(k), provide: (k, a) => this._lobbyProvide(k, a), settings: this.settings, swarm: this.swarm, lan: this.lan, options })
     this._wireLobby(lobby)
     await lobby.start()
     return this.lobbyState
@@ -669,6 +724,8 @@ export class WirdApp extends EventEmitter {
     if (!l) throw new Error('You’re not in a lobby.')
     const hostOnly = ['configure', 'begin', 'advance', 'kick', 'backToLobby']
     if (action === 'stakeIn') return this.stakeIn(arg || {})
+    if (action === 'tableBet') return this.tableBet(arg || {})
+    if (action === 'tableMove') return this.tableMove(String(arg))
     const allowed = ['rate', 'guess', 'pick', 'choose', 'vote', 'clueGuess', 'next', 'react', 'chat', 'setReady', ...hostOnly]
     if (!allowed.includes(action)) throw new Error('Unknown lobby action.')
     if (hostOnly.includes(action) && !l.isHost) throw new Error('Only the host can do that.')

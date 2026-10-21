@@ -428,3 +428,64 @@ test('Clues are fair: the word never shows up in them', async () => {
   assert.ok(clues.at(-1).pattern.includes(null), 'a letter always stays hidden')
   assert.equal(clues[0].pattern.every((x) => x === null), true)
 })
+
+test('Letter Roulette at the lobby: everyone bets on the same spin, and each app pays itself', async (t) => {
+  const apps = await table(t)
+  const [host, pip, quinn] = apps
+  for (const a of apps) a.economy.devAddCoins(10000)
+  await seat(apps, { style: 'roulette', rounds: 1 })
+  await until(() => quinn.lobbyState?.phase === 'betting')
+  const before = apps.map((a) => a.economy.s.coins)
+  const nets = apps.map((a) => a.tables.net())
+  host.lobbyAction('tableBet', { bets: [{ kind: 'red', amount: 100 }] })
+  pip.lobbyAction('tableBet', { bets: [{ kind: 'word', pick: 'wird', amount: 50 }, { kind: 'letter', pick: 'Q', amount: 10 }] })
+  await until(() => quinn.lobbyState.current.bets[idOf(pip)])
+  assert.equal(quinn.lobbyState.current.bets[idOf(pip)].total, 60, 'bets are on show')
+  assert.equal(pip.economy.s.coins, before[1] - 60, 'the coins leave when the bet is placed')
+  quinn.lobbyAction('tableBet', { skip: true })
+  await until(() => apps.every((a) => a.lobbyState.phase === 'reveal'))
+  const res = quinn.lobbyState.current.result
+  assert.equal(Object.keys(res.seeds).length, 2, 'the two bettors’ seeds decide it')
+  const [h, p, q] = apps.map(idOf)
+  assert.equal(q in res.net, false)
+  await until(() => !Object.keys(host.tables.s.held).length && !Object.keys(pip.tables.s.held).length)
+  // (Playing a lobby round also earns its usual coins, on top.)
+  assert.equal(Math.round(host.tables.net() - nets[0]), Math.round(res.net[h]))
+  assert.equal(Math.round(pip.tables.net() - nets[1]), Math.round(res.net[p]))
+  assert.equal(quinn.tables.net(), nets[2], 'sitting out costs nothing')
+  assert.equal(host.lobbyState.players.find((x) => x.id === p).score, res.net[p], 'scores are coins won or lost')
+})
+
+test('Word Blackjack at the lobby: one dealer, your own hand, and a void round gives bets back', async (t) => {
+  const apps = await table(t, 2)
+  const [host, pip] = apps
+  for (const a of apps) a.economy.devAddCoins(10000)
+  await seat(apps, { style: 'blackjack', rounds: 2 })
+  await until(() => pip.lobbyState?.phase === 'betting')
+  const nets = apps.map((a) => a.tables.net())
+  host.lobbyAction('tableBet', { stake: 100 })
+  pip.lobbyAction('tableBet', { stake: 200 })
+  await until(() => apps.every((a) => a.lobbyState.phase === 'playing' || a.lobbyState.phase === 'reveal'))
+  if (pip.lobbyState.phase === 'playing') {
+    const c = pip.lobbyState.current
+    assert.equal(c.dealer[1], '?', 'the dealer’s second tile is face down')
+    if (c.hands[idOf(pip)] && !c.hands[idOf(pip)].done) pip.lobbyAction('tableMove', 'double')
+    if (c.hands[idOf(host)] && !c.hands[idOf(host)].done) host.lobbyAction('tableMove', 'stand')
+  }
+  await until(() => apps.every((a) => a.lobbyState.phase === 'reveal'))
+  const res = pip.lobbyState.current.result
+  assert.ok(res.dealerTotal >= 20)
+  await until(() => !Object.keys(pip.tables.s.held).length && !Object.keys(host.tables.s.held).length)
+  const [h, p] = apps.map(idOf)
+  assert.equal(Math.round(host.tables.net() - nets[0]), Math.round(res.net[h]))
+  assert.equal(Math.round(pip.tables.net() - nets[1]), Math.round(res.net[p]))
+  // The next hand is ended early: bets come back.
+  host.lobbyAction('next'); pip.lobbyAction('next')
+  await until(() => pip.lobbyState.phase === 'betting')
+  const mid = pip.economy.s.coins
+  pip.lobbyAction('tableBet', { stake: 500 })
+  assert.equal(pip.economy.s.coins, mid - 500)
+  await until(() => host.lobbyState.current.bets[p])
+  host.lobbyAction('backToLobby')
+  await until(() => pip.economy.s.coins === mid)
+})
