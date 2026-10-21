@@ -8,10 +8,10 @@ import { Coinflip, useLiveCoins } from './Wirdhouse.jsx'
 import Packs from './Packs.jsx'
 import Sportsbook from './Sportsbook.jsx'
 import { Credit } from './Credit.jsx'
-import { Roulette, Blackjack, Wheel } from './Tables.jsx'
+import { Roulette, Wordjack, Wheel } from './Tables.jsx'
 
 // The Casino: Wird Slots, the coinflip, the word tables (Letter Roulette,
-// Word Blackjack, the Wheel of Words), the prediction market and card packs. Luck, for coins that only buy
+// Wordjack, the Wheel of Words), the prediction market and card packs. Luck, for coins that only buy
 // looks. Nothing here counts toward ink.
 export default function Casino ({ econ, settings }) {
   const toast = useToast()
@@ -62,7 +62,7 @@ export default function Casino ({ econ, settings }) {
         </div>
       </div>
       <div className='tabs' role='tablist'>
-        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Word Blackjack'], ['wheel', 'Wheel of Words'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Wordjack'], ['wheel', 'Wheel of Words'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
       {econ?.bankrupt
         ? <div className='casino-closed'><h2>The casino’s closed to you for now</h2><p className='lede'>It doesn’t take bankrupt players. Build some steady income and the doors open again{v.packs.free > 0 ? `, and your ${v.packs.free} free pack${v.packs.free === 1 ? ' is' : 's are'} waiting` : ''}.</p><Credit econ={econ} compact /></div>
@@ -71,7 +71,7 @@ export default function Casino ({ econ, settings }) {
             {tab === 'slots' && <Slots v={shown} live={real} coins={coins} play={play} settings={settings} />}
             {tab === 'flip' && <Coinflip v={shown} coins={coins} act={(...a) => play(1500, ...a)} look={econ?.look} />}
             {tab === 'roulette' && <Roulette coins={coins} hold={hold} toast={tableToast} />}
-            {tab === 'blackjack' && <Blackjack coins={coins} hold={hold} toast={tableToast} />}
+            {tab === 'blackjack' && <Wordjack coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'wheel' && <Wheel coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'sports' && <Sportsbook coins={coins} />}
             {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}

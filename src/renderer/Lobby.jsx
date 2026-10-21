@@ -19,7 +19,7 @@ export const STYLES = [
   { id: 'jury', name: 'Grand Jury', emoji: '⚖️', blurb: 'One of you is secretly on trial for a rating you really gave. Vote on who did it, then argue about it. 3 or more players.' },
   { id: 'clues', name: 'Clues', emoji: '🧩', blurb: 'Guess a hidden word from its blanks and what the table rated it. Clues keep coming, and every clue and wrong guess costs points.' },
   { id: 'roulette', name: 'Letter Roulette', emoji: '🎡', blurb: 'Everyone bets on the same spin of the letter wheel, against the house. Bet on letters, colours or whole words. Scores are coins won or lost.' },
-  { id: 'blackjack', name: 'Word Blackjack', emoji: '🀄', blurb: 'One dealer, a hand of letter tiles each. Get closer to 21 than the dealer; spell a word of four letters or more and a win pays double.' }
+  { id: 'blackjack', name: 'Wordjack', emoji: '🀄', blurb: 'One dealer, a hand of letter tiles each. Your hand is worth its best word in Scrabble points; go over 21 and you bust. Ties push.' }
 ]
 const TABLES = ['roulette', 'blackjack']
 const signedCoins = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString()}`
@@ -111,7 +111,7 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
   const res = c?.result
   const style = c?.style || lobby.options.style
   const phase = lobby.phase
-  const casino = TABLES.includes(style) // Letter Roulette or Word Blackjack
+  const casino = TABLES.includes(style) // Letter Roulette or Wordjack
   const mine = c?.mine || {}
   const waiting = new Set(lobby.waitingOn || [])
   const iMustAct = waiting.has(you)

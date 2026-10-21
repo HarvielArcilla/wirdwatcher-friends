@@ -62,7 +62,7 @@ export class WirdApp extends EventEmitter {
     this.market.derivs = this.derivs
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
-    this.tables = new Tables({ economy: this.economy, byLetters: (k) => this.words.byLetters(k) })
+    this.tables = new Tables({ economy: this.economy, byLetters: (k) => this.words.byLetters(k), wordFor: () => this.words.wheelWord() })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })

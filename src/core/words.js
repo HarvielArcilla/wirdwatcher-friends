@@ -87,18 +87,31 @@ export class Words {
   get size () { return this.list.length }
   has (form) { return this.index.has(form) }
 
-  // A word spelled by exactly these letters (sorted, lower case), for the
-  // word bonus in Word Blackjack. Words of 4 to 9 letters.
+  // A word spelled by exactly these letters (sorted, lower case), for
+  // Wordjack. Words of 2 to 12 letters.
   byLetters (sorted) {
     if (!this._anagrams) {
       this._anagrams = new Map()
       for (const [form] of this.list) {
-        if (form.length < 4 || form.length > 9 || !/^[a-z]+$/.test(form)) continue
+        if (form.length < 2 || form.length > 12 || !/^[a-z]+$/.test(form)) continue
         const key = [...form].sort().join('')
         if (!this._anagrams.has(key)) this._anagrams.set(key, form)
       }
     }
     return this._anagrams.get(sorted) || null
+  }
+
+  // A word for the Wheel of Words: an everyday word of 5 to 10 letters, with
+  // a clue (what kind of word it is, and its topic if it has one).
+  wheelWord () {
+    if (!this._wheel) this._wheel = this.everyday.filter((i) => /^[a-z]{5,10}$/.test(this.list[i][0]))
+    if (!this._wheel.length) return null
+    const i = this._wheel[Math.floor(Math.random() * this._wheel.length)]
+    const [word, , senses] = this.list[i]
+    const pos = POS_NAMES[senses[0][0]] || 'word'
+    const t = TOPICS.find((x) => x.id === this._topic[i])
+    const topic = t && !['describing', 'adverbs'].includes(t.id) ? `${t.emoji} ${t.name}` : null
+    return { word, clue: `${/^[aeiou]/i.test(pos) ? 'An' : 'A'} ${pos}${topic ? ` · ${topic}` : ''}` }
   }
 
   // Everything the app shows about a word.

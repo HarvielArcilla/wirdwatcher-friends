@@ -1,5 +1,5 @@
-// The Casino's table games, you against the house: Letter Roulette, Word
-// Blackjack and the Wheel of Words. The rules are in src/shared/tables.js
+// The Casino's table games, you against the house: Letter Roulette,
+// Wordjack and the word wheel. The rules are in src/shared/tables.js
 // (lobby tables use the same ones). Bets come out of your coins when you
 // place them and winnings go back in; like the coinflip, luck isn't
 // "earned", so none of it counts toward ink. Bankrupt players can't play.
@@ -7,18 +7,20 @@
 import crypto from 'node:crypto'
 import {
   POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS,
-  shuffledBag, handTotal, bjResult, bjPayout, wordInTiles, BJ_TARGET, DEALER_STANDS,
-  WHEEL_SEGMENTS, WHEEL_IDS, wheelPayout, pickFrom
+  shuffledBag, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
+  WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, wfPattern, pickFrom
 } from '../shared/tables.js'
 
-const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, words: 0, net: 0, biggest: 0 }, bj: null, held: {} })
+const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, words: 0, solved: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, jacks: 0, net: 0, biggest: 0 }, bj: null, wf: null, held: {} })
 const MAX_BETS = 12
 
 export class Tables {
   // byLetters(sorted): a word spelled by exactly those letters, or null.
-  constructor ({ economy, byLetters = () => null }) {
+  // wordFor(): a word for the wheel, { word, clue }.
+  constructor ({ economy, byLetters = () => null, wordFor = () => null }) {
     this.economy = economy
     this.byLetters = byLetters
+    this.wordFor = wordFor
     const b = blankStats()
     const s = economy.s.tables || {}
     economy.s.tables = { ...b, ...s, held: {}, roulette: { ...b.roulette, ...(s.roulette || {}) }, wheel: { ...b.wheel, ...(s.wheel || {}) }, blackjack: { ...b.blackjack, ...(s.blackjack || {}) } }
@@ -69,24 +71,151 @@ export class Tables {
   }
 
   // --- Wheel of Words ---
-  wheel (bets) {
-    const { clean, total } = this._stake(bets, (b) => b.kind === 'word' && WHEEL_IDS.includes(b.pick))
-    const segment = crypto.randomInt(WHEEL_SEGMENTS.length)
-    const results = clean.map((b) => ({ ...b, paid: wheelPayout(b, segment) }))
-    const paid = results.reduce((a, b) => a + b.paid, 0)
-    this.s.wheel.spins++
-    const net = this._settle('wheel', total, paid)
-    this._commit()
-    return { segment, word: WHEEL_SEGMENTS[segment], bets: results, total, paid, net, coins: this.economy.s.coins }
+  // The puzzle as you see it: the blanks, never the word until it's over.
+  wfView () {
+    const g = this.s.wf
+    if (!g) return null
+    return {
+      stake: g.stake,
+      pattern: g.done ? [...g.word.toUpperCase()] : wfPattern(g.word, g.called),
+      clue: g.clue,
+      called: g.called,
+      misses: g.misses,
+      maxMisses: WF_MISSES,
+      bank: Math.floor(g.bank),
+      segment: g.segment ?? null, // where the last spin landed
+      value: g.value ?? null, // a value waiting for a consonant
+      vowelCost: Math.ceil(g.stake * WF_VOWEL),
+      consonantsLeft: [...new Set(g.word.toUpperCase())].some((l) => !WF_VOWELS.has(l) && !g.called.includes(l)),
+      done: g.done,
+      solved: Boolean(g.solved),
+      word: g.done ? g.word : null,
+      paid: g.paid ?? null,
+      last: g.last || null
+    }
   }
 
-  // --- Word Blackjack ---
-  // A hand: your tiles, the dealer's (the second face down until you stand).
+  _wf () {
+    const g = this.s.wf
+    if (!g || g.done) throw new Error('Start a word first.')
+    return g
+  }
+
+  wfStart (stake) {
+    if (this.s.wf && !this.s.wf.done) throw new Error('Finish this word first.')
+    const pick = this.wordFor()
+    if (!pick?.word) throw new Error('No words to play with.')
+    const { total } = this._stake([{ kind: 'word', amount: stake }], () => true)
+    this.s.wf = { stake: total, word: pick.word.toLowerCase(), clue: pick.clue || null, called: [], misses: 0, bank: 0, done: false }
+    this.s.wheel.words++
+    this._commit()
+    return this.wfView()
+  }
+
+  _miss (g, why) {
+    g.misses++
+    g.last = why
+    if (g.misses >= WF_MISSES) return this._wfEnd(g, false)
+    this._commit()
+    return this.wfView()
+  }
+
+  wfSpin () {
+    const g = this._wf()
+    if (g.value) throw new Error('Call a consonant first.')
+    if (!this.wfView().consonantsLeft) throw new Error('There are no consonants left: buy a vowel or solve it.')
+    const segment = crypto.randomInt(WF_SEGMENTS.length)
+    const v = WF_SEGMENTS[segment]
+    g.segment = segment
+    this.s.wheel.spins++
+    if (v === 'bankrupt') { g.bank = 0; g.last = { kind: 'bankrupt' }; this._commit(); return this.wfView() }
+    if (v === 'lose') return this._miss(g, { kind: 'lose' })
+    g.value = v
+    g.last = { kind: 'value', value: Math.round(v * g.stake) }
+    this._commit()
+    return this.wfView()
+  }
+
+  wfCall (letter) {
+    const g = this._wf()
+    const l = String(letter || '').toUpperCase()
+    if (!g.value) throw new Error('Spin first.')
+    if (!/^[A-Z]$/.test(l) || WF_VOWELS.has(l)) throw new Error('Call a consonant.')
+    if (g.called.includes(l)) throw new Error('That one’s been called.')
+    g.called.push(l)
+    const n = [...g.word.toUpperCase()].filter((x) => x === l).length
+    const value = g.value
+    g.value = null
+    if (!n) return this._miss(g, { kind: 'none', letter: l })
+    g.bank += value * g.stake * n
+    g.last = { kind: 'hit', letter: l, n, won: Math.floor(value * g.stake * n) }
+    this._commit()
+    return this.wfView()
+  }
+
+  wfVowel (letter) {
+    const g = this._wf()
+    const l = String(letter || '').toUpperCase()
+    if (g.value) throw new Error('Call a consonant first.')
+    if (!WF_VOWELS.has(l)) throw new Error('That isn’t a vowel.')
+    if (g.called.includes(l)) throw new Error('That one’s been called.')
+    const cost = Math.ceil(g.stake * WF_VOWEL)
+    if (g.bank < cost) throw new Error(`A vowel costs ${cost.toLocaleString()} from your bank.`)
+    g.bank -= cost
+    g.called.push(l)
+    const n = [...g.word.toUpperCase()].filter((x) => x === l).length
+    g.last = { kind: 'vowel', letter: l, n }
+    this._commit()
+    return this.wfView()
+  }
+
+  wfSolve (guess) {
+    const g = this._wf()
+    if (g.value) throw new Error('Call a consonant first.')
+    const t = String(guess || '').toLowerCase().replace(/[^a-z]/g, '')
+    if (!t) throw new Error('Type the word.')
+    if (t === g.word) return this._wfEnd(g, true)
+    return this._miss(g, { kind: 'wrong', guess: t.slice(0, 20) })
+  }
+
+  _wfEnd (g, solved) {
+    g.done = true
+    g.solved = solved
+    g.paid = solved ? Math.floor(g.bank) : 0
+    g.last = { kind: solved ? 'solved' : 'out' }
+    if (solved) this.s.wheel.solved++
+    this._settle('wheel', g.stake, g.paid)
+    this._commit()
+    return this.wfView()
+  }
+
+  // --- Wordjack ---
+  // (Kept under its old name, blackjack, in saved games.)
+  // A hand: your tiles and best word, the dealer's (the second tile face
+  // down until you stand).
   bjView () {
     const h = this.s.bj
     if (!h) return null
+    const mine = bestWord(h.mine, this.byLetters)
     const dealer = h.done ? h.dealer : [h.dealer[0], '?']
-    return { stake: h.stake, mine: h.mine, dealer, mineTotal: handTotal(h.mine), dealerTotal: h.done ? handTotal(h.dealer) : handTotal([h.dealer[0]]), done: h.done, result: h.result || null, word: h.word || null, paid: h.paid ?? null, doubled: Boolean(h.doubled), canDouble: !h.done && h.mine.length === 2 && this.economy.s.coins >= h.stake }
+    const theirs = h.done ? bestWord(h.dealer, this.byLetters) : { word: null, score: null, used: [] }
+    return {
+      stake: h.stake,
+      mine: h.mine,
+      mineWord: mine.word,
+      mineScore: mine.score,
+      mineUsed: mine.used,
+      dealer,
+      dealerWord: theirs.word,
+      dealerScore: theirs.score,
+      dealerUsed: theirs.used,
+      done: h.done,
+      result: h.result || null,
+      paid: h.paid ?? null,
+      doubled: Boolean(h.doubled),
+      canDouble: !h.done && h.mine.length === 2 && this.economy.s.coins >= h.stake,
+      full: h.mine.length >= MAX_TILES
+    }
   }
 
   bjDeal (stake) {
@@ -94,6 +223,7 @@ export class Tables {
     const { total } = this._stake([{ kind: 'hand', amount: stake }], () => true)
     const bag = shuffledBag(crypto.randomBytes(16).toString('hex'))
     this.s.bj = { stake: total, bag, mine: [bag.pop(), bag.pop()], dealer: [bag.pop(), bag.pop()], done: false }
+    if (handDone(this.s.bj.mine, this.byLetters)) return this._finish(this.s.bj)
     this._commit()
     return this.bjView()
   }
@@ -106,8 +236,9 @@ export class Tables {
 
   bjHit () {
     const h = this._hand()
+    if (h.mine.length >= MAX_TILES) throw new Error('Your hand’s full.')
     h.mine.push(h.bag.pop())
-    if (handTotal(h.mine) > BJ_TARGET) return this._finish(h)
+    if (handDone(h.mine, this.byLetters)) return this._finish(h)
     this._commit()
     return this.bjView()
   }
@@ -127,16 +258,16 @@ export class Tables {
   bjStand () { return this._finish(this._hand()) }
 
   _finish (h) {
-    // The dealer draws to 20 (unless you've already gone over).
-    if (handTotal(h.mine) <= BJ_TARGET) while (handTotal(h.dealer) < DEALER_STANDS) h.dealer.push(h.bag.pop())
-    h.result = bjResult(h.mine, h.dealer)
-    h.word = h.result === 'win' ? wordInTiles(h.mine, this.byLetters) : null
-    h.paid = bjPayout(h.stake, h.result, h.word)
+    const mine = bestWord(h.mine, this.byLetters).score
+    // The dealer draws to 17 (unless you've already gone over).
+    if (mine <= WJ_TARGET) h.dealer = dealerHand(h.bag, this.byLetters, h.dealer)
+    h.result = wjResult(mine, bestWord(h.dealer, this.byLetters).score)
+    h.paid = wjPayout(h.stake, h.result)
     h.done = true
     const st = this.s.blackjack
     st.hands++
     if (h.result === 'win') st.wins++
-    if (h.word) st.words++
+    if (mine === WJ_TARGET) st.jacks = (st.jacks || 0) + 1
     this._settle('blackjack', h.stake, h.paid)
     delete h.bag
     this._commit()
@@ -145,7 +276,7 @@ export class Tables {
 
   view () {
     const s = this.s
-    return { roulette: s.roulette, wheel: s.wheel, blackjack: s.blackjack, bj: this.bjView(), coins: this.economy.s.coins }
+    return { roulette: s.roulette, wheel: s.wheel, blackjack: s.blackjack, bj: this.bjView(), wf: this.wfView(), coins: this.economy.s.coins }
   }
 
   net () { return (this.s.roulette.net || 0) + (this.s.wheel.net || 0) + (this.s.blackjack.net || 0) }
@@ -213,7 +344,7 @@ export class Tables {
   lobbySettle (key, result, me) {
     const h = this.s.held[key]
     if (!h) return null
-    const out = tableOutcome(h.kind, result, key)
+    const out = tableOutcome(h.kind, result, key, this.byLetters)
     const mine = out && result.seeds?.[me] === h.seed && result.commits?.[me] === h.commit
     if (!mine) { const back = this.lobbyRefund(key); return { ok: false, paid: back, net: 0, total: h.total } }
     let paid = 0
@@ -223,16 +354,17 @@ export class Tables {
       extra = { letter: POCKETS[out.pocket] }
     } else {
       const moves = Array.isArray(result.moves?.[me]) ? result.moves[me] : []
-      const hand = playHand(out.bag(me), moves)
+      const hand = playHand(out.bag(me), moves, this.byLetters)
       const doubled = moves.includes('double')
       if (doubled !== Boolean(h.doubled)) { const back = this.lobbyRefund(key); return { ok: false, paid: back, net: 0, total: h.total } }
-      const res = bjResult(hand, out.dealer)
-      const word = res === 'win' ? wordInTiles(hand, this.byLetters) : null
-      paid = bjPayout(h.total, res, word)
+      const best = bestWord(hand, this.byLetters)
+      const res = wjResult(best.score, bestWord(out.dealer, this.byLetters).score)
+      const word = best.word
+      paid = wjPayout(h.total, res)
       const st = this.s.blackjack
       st.hands++
       if (res === 'win') st.wins++
-      if (word) st.words++
+      if (best.score === WJ_TARGET) st.jacks = (st.jacks || 0) + 1
       extra = { result: res, word }
     }
     delete this.s.held[key]
@@ -264,34 +396,13 @@ export function combineSeeds (seeds, commits) {
   return crypto.createHash('sha256').update(ids.map((id) => `${id}:${seeds[id]}`).join('|')).digest('hex')
 }
 
-// A blackjack hand from a bag and the moves made: two tiles, then one for
-// each hit (or the double).
-export function playHand (bag, moves) {
-  const b = [...bag]
-  const hand = [b.pop(), b.pop()]
-  for (const m of moves) {
-    if (handTotal(hand) > BJ_TARGET) break
-    if (m === 'hit' || m === 'double') hand.push(b.pop())
-    if (m === 'double' || m === 'stand') break
-  }
-  return hand
-}
-
-// The dealer draws to 20 from their own bag.
-export function dealerHand (bag) {
-  const b = [...bag]
-  const hand = [b.pop(), b.pop()]
-  while (handTotal(hand) < DEALER_STANDS) hand.push(b.pop())
-  return hand
-}
-
 // What a round's seeds decide: the pocket, or each seat's bag and the
 // dealer's hand. Every seat draws from its own bag.
-export function tableOutcome (kind, result, key) {
+export function tableOutcome (kind, result, key, byLetters) {
   const seed = combineSeeds(result?.seeds, result?.commits)
   if (!seed) return null
   if (kind === 'roulette') return { seed, pocket: pickFrom(seed, POCKETS.length, `roulette:${key}`) }
-  return { seed, bag: (id) => shuffledBag(`${seed}:${key}:${id}`), dealer: dealerHand(shuffledBag(`${seed}:${key}:dealer`)) }
+  return { seed, bag: (id) => shuffledBag(`${seed}:${key}:${id}`), dealer: dealerHand(shuffledBag(`${seed}:${key}:dealer`), byLetters) }
 }
 
 export { pickFrom }

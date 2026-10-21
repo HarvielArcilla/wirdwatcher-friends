@@ -456,7 +456,7 @@ test('Letter Roulette at the lobby: everyone bets on the same spin, and each app
   assert.equal(host.lobbyState.players.find((x) => x.id === p).score, res.net[p], 'scores are coins won or lost')
 })
 
-test('Word Blackjack at the lobby: one dealer, your own hand, and a void round gives bets back', async (t) => {
+test('Wordjack at the lobby: one dealer, your own hand, and a void round gives bets back', async (t) => {
   const apps = await table(t, 2)
   const [host, pip] = apps
   for (const a of apps) a.economy.devAddCoins(10000)
@@ -474,7 +474,7 @@ test('Word Blackjack at the lobby: one dealer, your own hand, and a void round g
   }
   await until(() => apps.every((a) => a.lobbyState.phase === 'reveal'))
   const res = pip.lobbyState.current.result
-  assert.ok(res.dealerTotal >= 20)
+  assert.ok(res.dealerTotal >= 17 || res.dealer.length >= 10, 'the dealer draws to 17')
   await until(() => !Object.keys(pip.tables.s.held).length && !Object.keys(host.tables.s.held).length)
   const [h, p] = apps.map(idOf)
   assert.equal(Math.round(host.tables.net() - nets[0]), Math.round(res.net[h]))

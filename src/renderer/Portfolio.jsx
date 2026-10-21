@@ -116,7 +116,7 @@ export default function Portfolio ({ onPick }) {
         </section>
         <section className='panel pf-flows'>
           <h3>Luck and risk <small>all time</small></h3>
-          {[['📈 Trading', r.market], ['🎰 Wird Slots', r.slots], ['🪙 Coinflips', r.flips], ['🎡 Roulette, blackjack and the wheel', r.tables || 0], ['🏟️ Prediction bets', r.sports], ['🎲 Lobby stakes', r.stakes]].map(([k, v]) => <div key={k} className='pf-row'><span>{k}</span><b className={v >= 0 ? 'up' : 'down'}>{signed(v)}</b></div>)}
+          {[['📈 Trading', r.market], ['🎰 Wird Slots', r.slots], ['🪙 Coinflips', r.flips], ['🎡 Roulette, Wordjack and the wheel', r.tables || 0], ['🏟️ Prediction bets', r.sports], ['🎲 Lobby stakes', r.stakes]].map(([k, v]) => <div key={k} className='pf-row'><span>{k}</span><b className={v >= 0 ? 'up' : 'down'}>{signed(v)}</b></div>)}
           {r.debtInterest > 0 && <div className='pf-row'><span>🧾 Interest on debt</span><b className='down'>{signed(-r.debtInterest)}</b></div>}
           {r.bankruptcy > 0 && <div className='pf-row'><span>⚖️ Debt cancelled in bankruptcy</span><b><Coins n={r.bankruptcy} /></b></div>}
         </section>

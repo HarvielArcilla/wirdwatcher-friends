@@ -127,7 +127,7 @@ function handlers () {
     },
     tables: () => ww.tables.view(),
     tablesAction: (action, ...args) => {
-      if (!['roulette', 'wheel', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble'].includes(action)) throw new Error('Unknown action.')
+      if (!['roulette', 'wfStart', 'wfSpin', 'wfCall', 'wfVowel', 'wfSolve', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble'].includes(action)) throw new Error('Unknown action.')
       return { out: ww.tables[action](...args), tables: ww.tables.view() }
     },
     valley: () => ww.valley.view(),

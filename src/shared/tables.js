@@ -1,21 +1,21 @@
 // Word games of chance, shared by the Casino (you against the house) and
-// lobby tables (friends betting on the same spins and hands). Every game
-// has a house edge, like a real one.
+// lobby tables (friends betting on the same spins and hands). Roulette and
+// the wheel keep a small house edge; Wordjack has none.
 //
 // Letter Roulette: 27 pockets, A to Z and a star. Bet on a letter, a
 // colour, vowels or consonants, a half of the alphabet, or a whole word:
 // a word bet wins if the ball lands on any of its letters, and pays more
 // the fewer letters it has.
 //
-// Word Blackjack: letter tiles instead of cards, worth their Scrabble points
-// plus one. Get closer to 21 than the dealer without going over. Tiles are
-// small, so it's easy to creep close: the dealer draws to 20 and wins ties.
-// If the tiles in a winning hand spell a word of four letters or more, the
-// win pays double. With the best play that returns about 98% (measured over
-// thousands of hands), close to real blackjack.
+// Wordjack: letter tiles instead of cards. A hand is worth its best word:
+// the highest-scoring word (Scrabble points) some of its tiles spell. Tiles
+// the word doesn't use stay in the hand, so every draw can push the best word
+// over 21, and that's a bust. The dealer draws to 17. Ties push, and a win
+// pays 1 to 1: played well it comes out even (measured over thousands of
+// hands). No house edge; it's for fun.
 //
-// Wheel of Words: a money wheel. Each segment is a word, and a word pays as
-// many to one as it has letters. The two stars pay 40 to 1.
+// Wheel of Words: a word puzzle with a wheel. Spin for a value, call
+// consonants, buy vowels, and solve the word to keep what you've banked.
 
 // --- Letter Roulette ----------------------------------------------------------------
 export const POCKETS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '★']
@@ -50,71 +50,105 @@ export function roulettePayout (bet, pocket) {
   return b.wins.includes(POCKETS[pocket]) ? bet.amount * (1 + b.pays) : 0
 }
 
-// --- Word Blackjack ------------------------------------------------------------------
+// --- Wordjack ----------------------------------------------------------------------
 // The Scrabble bag (no blanks): letter, how many, points.
 const BAG = [['A', 9, 1], ['B', 2, 3], ['C', 2, 3], ['D', 4, 2], ['E', 12, 1], ['F', 2, 4], ['G', 3, 2], ['H', 2, 4], ['I', 9, 1], ['J', 1, 8], ['K', 1, 5], ['L', 4, 1], ['M', 2, 3], ['N', 6, 1], ['O', 8, 1], ['P', 2, 3], ['Q', 1, 10], ['R', 6, 1], ['S', 4, 1], ['T', 6, 1], ['U', 4, 1], ['V', 2, 4], ['W', 2, 4], ['X', 1, 8], ['Y', 2, 4], ['Z', 1, 10]]
 export const TILE_POINTS = Object.fromEntries(BAG.map(([l, , p]) => [l, p]))
-export const tileValue = (l) => TILE_POINTS[l] + 1
-export const BJ_TARGET = 21
-export const DEALER_STANDS = 20
-export const WORD_MIN = 4
+export const WJ_TARGET = 21
+export const DEALER_STANDS = 17
+export const MAX_TILES = 10 // a hand stops growing here
+export const WORD_MIN = 2
 export function freshBag () { const out = []; for (const [l, n] of BAG) for (let i = 0; i < n; i++) out.push(l); return out }
-export const handTotal = (tiles) => tiles.reduce((a, l) => a + tileValue(l), 0)
-// A hand's result against the dealer's: 'bust', 'win' or 'lose' (the
-// dealer wins ties).
-export function bjResult (mine, dealer) {
-  const m = handTotal(mine); const d = handTotal(dealer)
-  if (m > BJ_TARGET) return 'bust'
-  if (d > BJ_TARGET || m > d) return 'win'
-  return 'lose'
+export const tilePoints = (tiles) => tiles.reduce((a, l) => a + (TILE_POINTS[l] || 0), 0)
+
+// A hand's best word: the highest-scoring word (by Scrabble points) that
+// some of its tiles spell, in any order. byLetters(sortedLower) → a word
+// spelled by exactly those letters, or null. { word, score, used } where
+// used is which tiles it takes; { word: null, score: 0 } if none spell one.
+const memos = new WeakMap()
+export function bestWord (tiles, byLetters) {
+  let memo = memos.get(byLetters)
+  if (!memo) { memo = new Map(); memos.set(byLetters, memo) }
+  const key = [...tiles].sort().join('')
+  let found = memo.get(key)
+  if (found === undefined) {
+    found = { word: null, score: 0 }
+    const sorted = [...key]
+    const n = sorted.length
+    const seen = new Set()
+    for (let mask = 1; mask < (1 << n); mask++) {
+      let sub = ''
+      let pts = 0
+      for (let i = 0; i < n; i++) if (mask & (1 << i)) { sub += sorted[i]; pts += TILE_POINTS[sorted[i]] }
+      if (sub.length < WORD_MIN || pts < found.score || (pts === found.score && found.word && sub.length <= found.word.length) || seen.has(sub)) continue
+      seen.add(sub)
+      const w = byLetters(sub.toLowerCase())
+      if (w) found = { word: w, score: pts }
+    }
+    if (memo.size > 50000) memo.clear()
+    memo.set(key, found)
+  }
+  // Which of these tiles the word takes.
+  const used = []
+  if (found.word) {
+    const left = [...found.word.toUpperCase()]
+    tiles.forEach((l, i) => { const j = left.indexOf(l); if (j >= 0) { left.splice(j, 1); used.push(i) } })
+  }
+  return { word: found.word, score: found.score, used }
 }
-// What a hand pays back in all: a win pays 1 to 1, or 2 to 1 with a word.
-export function bjPayout (stake, result, word) {
-  if (result === 'win') return stake * (word ? 3 : 2)
+
+// A hand's result against the dealer's: 'bust', 'win', 'push' or 'lose'.
+export function wjResult (mine, dealer) {
+  if (mine > WJ_TARGET) return 'bust'
+  if (dealer > WJ_TARGET || mine > dealer) return 'win'
+  return mine === dealer ? 'push' : 'lose'
+}
+// What a hand pays back in all: a win doubles the stake, a push returns it.
+export function wjPayout (stake, result) {
+  if (result === 'win') return stake * 2
   if (result === 'push') return stake
   return 0
 }
-// The longest word the tiles can spell (any of them, in any order), from a
-// lookup by sorted letters. byLetters(sortedLower) → word or null.
-export function wordInTiles (tiles, byLetters) {
-  const n = tiles.length
-  let best = null
-  for (let mask = 1; mask < (1 << n); mask++) {
-    let k = 0
-    for (let i = 0; i < n; i++) if (mask & (1 << i)) k++
-    if (k < WORD_MIN || (best && k <= best.length)) continue
-    const key = tiles.filter((_, i) => mask & (1 << i)).map((l) => l.toLowerCase()).sort().join('')
-    const w = byLetters(key)
-    if (w) best = w
+// Is this hand finished growing? (Bust, 21, or full.)
+export const handDone = (tiles, byLetters) => tiles.length >= MAX_TILES || bestWord(tiles, byLetters).score >= WJ_TARGET
+
+// A hand from a bag and the moves made: two tiles, then one for each hit
+// (or the double).
+export function playHand (bag, moves, byLetters) {
+  const b = [...bag]
+  const hand = [b.pop(), b.pop()]
+  for (const m of moves) {
+    if (handDone(hand, byLetters)) break
+    if (m === 'hit' || m === 'double') hand.push(b.pop())
+    if (m === 'double' || m === 'stand') break
   }
-  return best
+  return hand
+}
+// The dealer draws until their best word is worth 17 or more.
+export function dealerHand (bag, byLetters, start = null) {
+  const b = [...bag]
+  const hand = start ? [...start] : [b.pop(), b.pop()]
+  while (bestWord(hand, byLetters).score < DEALER_STANDS && hand.length < MAX_TILES) hand.push(b.pop())
+  return hand
 }
 
-// --- Wheel of Words ------------------------------------------------------------------
-// [word, how many segments, pays to 1]. 54 segments in all.
-export const WHEEL = [
-  ['A', 24, 1],
-  ['AN', 15, 2],
-  ['WORDS', 7, 5],
-  ['DICTIONARY', 4, 10],
-  ['UNCHARACTERISTICALLY', 2, 20],
-  ['★ WIRD', 1, 40],
-  ['★ LEXICON', 1, 40]
-]
-export const WHEEL_IDS = WHEEL.map(([w]) => w)
-// The segments in order round the wheel, spread out.
-export const WHEEL_SEGMENTS = (() => {
-  const counts = Object.fromEntries(WHEEL.map(([w, n]) => [w, n]))
-  const out = []
-  const order = ['A', 'AN', 'A', 'WORDS', 'A', 'AN', 'A', 'DICTIONARY', 'A', 'AN', 'A', 'WORDS', 'A', 'AN', 'UNCHARACTERISTICALLY', 'A', 'AN', 'A', 'WORDS', 'A', 'AN', 'A', 'DICTIONARY', 'A', 'AN', '★ WIRD', 'A', 'AN', 'A', 'WORDS', 'A', 'AN', 'A', 'DICTIONARY', 'A', 'AN', 'A', 'WORDS', 'A', 'AN', 'UNCHARACTERISTICALLY', 'A', 'AN', 'A', 'WORDS', 'A', 'AN', 'DICTIONARY', 'A', 'AN', 'WORDS', 'A', 'AN', '★ LEXICON']
-  for (const w of order) if (counts[w] > 0) { out.push(w); counts[w]-- }
-  for (const [w, n] of Object.entries(counts)) for (let i = 0; i < n; i++) out.push(w)
-  return out
-})()
-export const wheelPays = (word) => WHEEL.find(([w]) => w === word)?.[2] ?? 0
-export function wheelPayout (bet, segment) {
-  return WHEEL_SEGMENTS[segment] === bet.pick ? bet.amount * (1 + wheelPays(bet.pick)) : 0
-}
+// --- Wheel of Words -----------------------------------------------------------------
+// A hidden word, shown as blanks, with a clue (what kind of word it is).
+// Put in a stake, then:
+//   Spin      the wheel lands on a value (a share of your stake) and you call
+//             a consonant: each time it's in the word adds the value to your
+//             bank. Not in the word is a miss. Bankrupt empties the bank;
+//             Lose a Turn is a miss.
+//   Vowel     buy one for a quarter of your stake, out of the bank.
+//   Solve     type the word: right, and the bank is yours; wrong is a miss.
+// Six misses and the word's gone, bank and all. Played well, it pays back
+// about what goes in (measured over thousands of words).
+export const WF_MISSES = 6
+export const WF_VOWEL = 0.25
+export const WF_SEGMENTS = [0.25, 0.15, 0.6, 0.2, 'bankrupt', 0.3, 0.25, 0.9, 0.2, 0.4, 'lose', 0.15, 0.5, 0.25, 1.25, 0.3, 'bankrupt', 0.4, 0.6]
+export const WF_VOWELS = new Set([...'AEIOU'])
+// The word as it stands: letters called so far shown, the rest blank.
+export const wfPattern = (word, called) => [...word.toUpperCase()].map((l) => (called.includes(l) ? l : null))
 
 // --- one round, from shared randomness --------------------------------------------------
 // A table's outcomes come from a seed (the lobby combines one from every

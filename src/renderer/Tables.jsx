@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, Coins } from './ui.jsx'
 import { formatCoins } from '../shared/economy.js'
-import { POCKETS, pocketColor, rouletteBet, VOWELS, TILE_POINTS, WHEEL, WHEEL_SEGMENTS, wheelPays } from '../shared/tables.js'
+import { POCKETS, pocketColor, rouletteBet, TILE_POINTS, WF_SEGMENTS } from '../shared/tables.js'
 
-// The Casino's word tables: Letter Roulette, Word Blackjack and the Wheel of
+// The Casino's word tables: Letter Roulette, Wordjack and the Wheel of
 // Words, played against the house. The wheels and tiles here are also used
 // by the lobby tables.
 
@@ -131,93 +131,165 @@ export function Roulette ({ coins, hold, toast }) {
 }
 
 // --- Wheel of Words ----------------------------------------------------------------------
-const WHEEL_COLORS = { A: '#4a9ee8', AN: '#3fbf9a', WORDS: '#e8a03a', DICTIONARY: '#a66bd8', UNCHARACTERISTICALLY: '#e8648f', '★ WIRD': '#f4c542', '★ LEXICON': '#f4c542' }
-export function WordsWheel ({ segment, spinning }) {
+const SEG_COLORS = ['#4a9ee8', '#3fbf9a', '#e8a03a', '#a66bd8', '#e8648f', '#5bbf5b', '#e86a4a', '#3fa8c8']
+const segLabel = (v, stake) => (v === 'bankrupt' ? 'BANKRUPT' : v === 'lose' ? 'LOSE A TURN' : stake ? formatCoins(Math.round(v * stake)) : `×${v}`)
+export function WordsWheel ({ segment, spinning, stake }) {
   const turn = useRef(0)
   const [angle, setAngle] = useState(0)
   useEffect(() => {
-    if (segment === null || segment === undefined) return
-    const a = 360 / WHEEL_SEGMENTS.length
+    if (segment === null || segment === undefined || !spinning) return
+    const a = 360 / WF_SEGMENTS.length
     turn.current += 4
     setAngle(turn.current * 360 - (segment * a + a / 2))
   }, [segment, spinning])
   const r = 100
-  const a = (2 * Math.PI) / WHEEL_SEGMENTS.length
+  const a = (2 * Math.PI) / WF_SEGMENTS.length
   return (
     <div className='tb-wheelwrap big'>
       <i className='tb-pointer' />
-      <svg viewBox='-110 -110 220 220' className='tb-wheel' style={{ transform: `rotate(${angle}deg)`, transition: spinning ? `transform ${SPIN_MS}ms cubic-bezier(.12,.6,.12,1)` : 'none' }} aria-hidden='true'>
-        {WHEEL_SEGMENTS.map((w, i) => {
+      <svg viewBox='-110 -110 220 220' className='tb-wheel' style={{ transform: `rotate(${angle}deg)`, transition: spinning ? `transform ${WF_SPIN_MS}ms cubic-bezier(.12,.6,.12,1)` : 'none' }} aria-hidden='true'>
+        {WF_SEGMENTS.map((v, i) => {
           const a0 = i * a - Math.PI / 2; const a1 = a0 + a
           const p = (t, rr) => `${Math.cos(t) * rr},${Math.sin(t) * rr}`
           const mid = a0 + a / 2
-          const label = w.replace('★ ', '★')
-          const fs = label.length > 12 ? 3.4 : label.length > 6 ? 5 : 7
+          const label = segLabel(v, stake)
+          const fill = v === 'bankrupt' ? '#1e1e26' : v === 'lose' ? '#f4f0e8' : SEG_COLORS[i % SEG_COLORS.length]
           return (
             <g key={i}>
-              <path d={`M0,0 L${p(a0, r)} A${r},${r} 0 0 1 ${p(a1, r)} Z`} fill={WHEEL_COLORS[w]} stroke='#fff' strokeWidth='.6' />
-              <text x={Math.cos(mid) * 60} y={Math.sin(mid) * 60} transform={`rotate(${(mid * 180) / Math.PI} ${Math.cos(mid) * 60} ${Math.sin(mid) * 60})`} className='tb-seg-l' style={{ fontSize: fs }}>{label}</text>
+              <path d={`M0,0 L${p(a0, r)} A${r},${r} 0 0 1 ${p(a1, r)} Z`} fill={fill} stroke='#fff' strokeWidth='.8' />
+              <text x={Math.cos(mid) * 64} y={Math.sin(mid) * 64} transform={`rotate(${(mid * 180) / Math.PI} ${Math.cos(mid) * 64} ${Math.sin(mid) * 64})`} className={`tb-seg-l ${v === 'lose' ? 'dark' : ''}`} style={{ fontSize: label.length > 8 ? 5.4 : 8 }}>{label}</text>
             </g>
           )
         })}
-        <circle r='18' className='tb-hub' />
+        <circle r='16' className='tb-hub' />
       </svg>
     </div>
   )
 }
 
+const WF_SPIN_MS = 3200
+const CONSONANTS = [...'BCDFGHJKLMNPQRSTVWXYZ']
+const VOWEL_KEYS = [...'AEIOU']
+
 export function Wheel ({ coins, hold, toast }) {
-  const [bets, setBets] = useState([])
-  const [chip, setChip] = useState(100)
-  const [spin, setSpin] = useState(null)
+  const [g, setG] = useState(null)
+  const [stats, setStats] = useState(null)
+  const [stake, setStake] = useState('100')
   const [spinning, setSpinning] = useState(false)
-  const total = bets.reduce((a, b) => a + b.amount, 0)
-  const go = async () => {
+  const [guess, setGuess] = useState('')
+  const [solving, setSolving] = useState(false)
+  const load = () => api('tables').then((t) => { setG(t.wf); setStats(t.wheel) }).catch(() => {})
+  useEffect(() => { load() }, [])
+  const act = async (action, ...args) => {
     try {
-      hold(SPIN_MS + 400)
-      const res = await api('tablesAction', 'wheel', bets)
-      setSpinning(true)
-      setSpin(res.out)
-      setTimeout(() => {
-        setSpinning(false)
-        const o = res.out
-        toast({ emoji: o.net > 0 ? '🎉' : '🎡', title: o.word, text: o.paid > 0 ? `Paid ${formatCoins(o.paid)}: ${signed(o.net)}.` : `Nothing this time: ${signed(o.net)}.` })
-      }, SPIN_MS)
-    } catch (err) { hold(0); toast({ error: true, title: 'Can’t spin', text: err.message }) }
+      const res = await api('tablesAction', action, ...args)
+      setStats(res.tables.wheel)
+      return res.out
+    } catch (err) { toast({ error: true, title: 'Can’t do that', text: err.message }); return null }
   }
+  const after = (o) => {
+    setG(o)
+    if (!o?.done) return
+    toast(o.solved ? { emoji: '🎉', title: `${o.word.toUpperCase()}! You keep ${formatCoins(o.paid)}`, text: `${signed(o.paid - o.stake)} on your stake.` } : { emoji: '💔', title: `Out of misses: it was ${o.word.toUpperCase()}`, text: `${signed(-o.stake)}.` })
+  }
+  const start = async () => { hold(400); const o = await act('wfStart', n); if (o) { setG(o); setGuess('') } }
+  const spin = async () => {
+    const o = await act('wfSpin')
+    if (!o) return
+    setG((x) => ({ ...x, segment: o.segment }))
+    setSpinning(true)
+    setTimeout(() => {
+      setSpinning(false)
+      after(o)
+      if (o.last?.kind === 'bankrupt') toast({ emoji: '💸', title: 'Bankrupt!', text: 'Your bank is empty. Keep going.' })
+      if (o.last?.kind === 'lose') toast({ emoji: '⏭️', title: 'Lose a turn', text: 'That counts as a miss.' })
+    }, WF_SPIN_MS)
+  }
+  const call = async (l) => { const o = await act('wfCall', l); if (o) { after(o); if (o.last?.kind === 'none') toast({ emoji: '✖️', title: `No ${l}`, text: 'That’s a miss.' }) } }
+  const vowel = async (l) => { const o = await act('wfVowel', l); if (o) after(o) }
+  const solve = async (e) => { e.preventDefault(); const o = await act('wfSolve', guess); if (o) { after(o); setGuess(''); if (!o.done) { toast({ emoji: '✖️', title: 'Not it', text: 'That’s a miss.' }) } else setSolving(false) } }
+  const n = Math.floor(Number(stake) || 0)
+  const live = g && !g.done
+  const waiting = live && g.value !== null
   return (
     <div className='tb-game tb-wheelgame'>
-      <div className='tb-left'><WordsWheel segment={spin?.segment ?? null} spinning={spinning} /></div>
+      <div className='tb-left'>
+        <WordsWheel segment={g?.segment ?? null} spinning={spinning} stake={g?.stake || n} />
+        {live && <div className='wf-misses' aria-label={`${g.misses} of ${g.maxMisses} misses`}>{Array.from({ length: g.maxMisses }, (_, i) => <i key={i} className={i < g.maxMisses - g.misses ? 'on' : ''}>♥</i>)}</div>}
+      </div>
       <div className='tb-right'>
-        <p className='lede'>Each word pays as many to one as it has letters. The stars pay 40 to 1.</p>
-        <Chips chip={chip} setChip={setChip} coins={coins} />
-        <div className='tb-wheelbets'>
-          {WHEEL.map(([w, n]) => {
-            const on = bets.find((b) => b.pick === w)?.amount || 0
-            return (
-              <button key={w} className='tb-wbet' style={{ '--wc': WHEEL_COLORS[w] }} onClick={() => !spinning && setBets(addBet(bets, 'word', w, chip))} disabled={spinning}>
-                <b>{w}</b><small>{wheelPays(w)} to 1 · {n} of 54</small>{on > 0 && <i className='tb-stack'>{formatCoins(on)}</i>}
-              </button>
+        {g
+          ? (
+            <>
+              <div className='wf-clue'>{g.clue} · {g.pattern.length} letters</div>
+              <div className={`wf-board ${g.done ? (g.solved ? 'won' : 'lost') : ''}`}>{g.pattern.map((l, i) => <span key={i} className={`wf-cell ${l ? 'open' : ''}`}>{l || ''}</span>)}</div>
+              <div className='wf-bank'><small>Bank</small><b><Coins n={g.bank} /></b>{waiting && !spinning && <span className='wf-value'>Landed on {formatCoins(Math.round(g.value * g.stake))}: call a consonant</span>}</div>
+            </>
             )
-          })}
-        </div>
-        <div className='tb-actions'>
-          <span className='tb-total'>{bets.length ? <>On the wheel: <Coins n={total} /></> : 'Pick the words you think it’ll stop on.'}</span>
-          <button className='btn ghost small' onClick={() => setBets([])} disabled={!bets.length || spinning}>Clear</button>
-          <button className='btn primary' onClick={go} disabled={!bets.length || spinning || total > coins}>Spin</button>
-        </div>
+          : <p className='lede'>A hidden word, a wheel and your stake. Spin for a value and call consonants: each one in the word adds the value to your bank. Buy vowels from your bank, and solve the word to keep it all. Six misses and it’s gone.</p>}
+        {live && (
+          <>
+            <div className='wf-keys'>
+              {CONSONANTS.map((l) => <button key={l} className='wf-key' disabled={!waiting || spinning || g.called.includes(l)} onClick={() => call(l)}>{l}</button>)}
+            </div>
+            <div className='wf-keys vowels'>
+              {VOWEL_KEYS.map((l) => <button key={l} className='wf-key vowel' disabled={waiting || spinning || g.called.includes(l) || g.bank < g.vowelCost} onClick={() => vowel(l)} title={`Buy for ${formatCoins(g.vowelCost)}`}>{l}</button>)}
+              <small>Vowels cost {formatCoins(g.vowelCost)} from your bank.</small>
+            </div>
+            {solving
+              ? (
+                <form className='tb-actions' onSubmit={solve}>
+                  <input className='field' autoFocus value={guess} onChange={(e) => setGuess(e.target.value.replace(/[^a-z]/gi, '').slice(0, g.pattern.length))} placeholder='Type the word' aria-label='Your answer' />
+                  <button className='btn ghost small' type='button' onClick={() => setSolving(false)}>Back</button>
+                  <button className='btn primary' disabled={guess.length !== g.pattern.length}>Solve</button>
+                </form>
+                )
+              : (
+                <div className='tb-actions'>
+                  <span className='tb-total'>Stake <Coins n={g.stake} /></span>
+                  <button className='btn' onClick={() => setSolving(true)} disabled={waiting || spinning}>Solve</button>
+                  <button className='btn primary' onClick={spin} disabled={waiting || spinning || !g.consonantsLeft}>{g.consonantsLeft ? 'Spin' : 'No consonants left'}</button>
+                </div>
+                )}
+          </>
+        )}
+        {!live && (
+          <div className='tb-actions'>
+            <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
+            {[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{formatCoins(x)}</button>)}
+            <button className='btn primary' onClick={start} disabled={!(n >= 1) || n > coins}>{g ? 'Next word' : 'Play'}</button>
+          </div>
+        )}
+        {stats && <p className='tb-stats'>{stats.words || 0} word{stats.words === 1 ? '' : 's'} · {stats.solved || 0} solved · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
       </div>
     </div>
   )
 }
 
-// --- Word Blackjack ------------------------------------------------------------------------
-export function Tile ({ l, small = false, fresh = false }) {
+// --- Wordjack ------------------------------------------------------------------------
+// A tile. In a hand, the tiles the best word uses are lit; the rest wait.
+export function Tile ({ l, small = false, fresh = false, lit = null }) {
   if (l === '?') return <span className={`tb-tile back ${small ? 'small' : ''}`} aria-label='face down'>?</span>
-  return <span className={`tb-tile ${small ? 'small' : ''} ${fresh ? 'fresh' : ''} ${VOWELS.has(l) ? 'vowel' : ''}`}>{l}<sub>{TILE_POINTS[l]}</sub></span>
+  return <span className={`tb-tile ${small ? 'small' : ''} ${fresh ? 'fresh' : ''} ${lit === true ? 'lit' : lit === false ? 'idle' : ''}`}>{l}<sub>{TILE_POINTS[l]}</sub></span>
 }
 
-export function Blackjack ({ coins, hold, toast }) {
+// A hand of tiles with its best word.
+export function WordHand ({ tiles, used = [], small = false, fresh = false }) {
+  const set = new Set(used)
+  return <>{tiles.map((l, i) => <Tile key={i} l={l} small={small} fresh={fresh && i === tiles.length - 1} lit={l === '?' ? null : set.has(i)} />)}</>
+}
+
+export function BestWord ({ word, score, bust }) {
+  if (score === null || score === undefined) return null
+  return (
+    <span className={`tb-best ${bust ? 'bust' : score === 21 ? 'jack' : ''}`}>
+      {word ? <em className='tb-word'>{word.toUpperCase()}</em> : <em className='tb-word none'>no word yet</em>}
+      <b>{score}</b>{bust ? <span> bust!</span> : score === 21 ? <span> Wordjack!</span> : null}
+    </span>
+  )
+}
+
+export function Wordjack ({ coins, hold, toast }) {
   const [h, setH] = useState(null)
   const [stats, setStats] = useState(null)
   const [stake, setStake] = useState('100')
@@ -231,8 +303,8 @@ export function Blackjack ({ coins, hold, toast }) {
       setStats(res.tables.blackjack)
       const o = res.out
       if (o.done) {
-        const word = o.word ? `${o.word.toUpperCase()}: a word! The win pays double.` : null
-        toast({ emoji: o.result === 'win' ? (o.word ? '📝' : '🎉') : o.result === 'bust' ? '💥' : '🃏', title: o.result === 'win' ? `You win ${formatCoins(o.paid)}` : o.result === 'bust' ? 'Bust' : 'The dealer wins', text: word || `${o.mineTotal} against ${o.dealerTotal}.` })
+        const vs = `${o.mineWord ? o.mineWord.toUpperCase() : 'No word'} (${o.mineScore}) against ${o.dealerWord ? o.dealerWord.toUpperCase() : 'no word'} (${o.dealerScore ?? '–'}).`
+        toast({ emoji: o.result === 'win' ? '🎉' : o.result === 'bust' ? '💥' : o.result === 'push' ? '🤝' : '🃏', title: o.result === 'win' ? `You win ${formatCoins(o.paid)}` : o.result === 'bust' ? 'Bust' : o.result === 'push' ? 'A push: your stake back' : 'The dealer wins', text: vs })
       }
     } catch (err) { hold(0); toast({ error: true, title: 'Can’t do that', text: err.message }) }
   }
@@ -242,21 +314,21 @@ export function Blackjack ({ coins, hold, toast }) {
     <div className='tb-game tb-bj'>
       <div className='tb-felt'>
         <div className='tb-hand'>
-          <small>Dealer {h ? <b>{h.dealerTotal}{h.done ? '' : ' + ?'}</b> : null}</small>
-          <div className='tb-tiles'>{h ? h.dealer.map((l, i) => <Tile key={i} l={l} />) : <span className='tb-empty'>The dealer draws to 20 and wins ties.</span>}</div>
+          <small>Dealer {h?.done ? <BestWord word={h.dealerWord} score={h.dealerScore} bust={h.dealerScore > 21} /> : null}</small>
+          <div className='tb-tiles'>{h ? <WordHand tiles={h.dealer} used={h.done ? h.dealerUsed : []} /> : <span className='tb-empty'>The dealer draws until their best word is worth 17 or more.</span>}</div>
         </div>
         <div className='tb-hand mine'>
-          <small>You {h ? <b className={h.mineTotal > 21 ? 'down' : ''}>{h.mineTotal}</b> : null}{h?.word ? <em className='tb-word'>{h.word.toUpperCase()}</em> : null}</small>
-          <div className='tb-tiles'>{h ? h.mine.map((l, i) => <Tile key={i} l={l} fresh={i === h.mine.length - 1 && playing} />) : <span className='tb-empty'>Tiles are worth their Scrabble points plus one. Get closer to 21 than the dealer; spell a word of four letters or more and a win pays double.</span>}</div>
+          <small>You {h ? <BestWord word={h.mineWord} score={h.mineScore} bust={h.mineScore > 21} /> : null}</small>
+          <div className='tb-tiles'>{h ? <WordHand tiles={h.mine} used={h.mineUsed} fresh={playing} /> : <span className='tb-empty'>Your hand is worth its best word: the highest-scoring word (in Scrabble points) your tiles can spell. Tiles it doesn’t use stay in your hand, so every draw could push your best word over 21. Beat the dealer without going over.</span>}</div>
         </div>
-        {h?.done && <div className={`tb-result ${h.result}`}>{h.result === 'win' ? `Won ${formatCoins(h.paid)}${h.word ? ' (with a word!)' : ''}` : h.result === 'bust' ? 'Bust' : 'Dealer wins'}</div>}
+        {h?.done && <div className={`tb-result ${h.result}`}>{h.result === 'win' ? `Won ${formatCoins(h.paid)}` : h.result === 'bust' ? 'Bust' : h.result === 'push' ? 'Push' : 'Dealer wins'}</div>}
       </div>
       <div className='tb-actions'>
         {playing
           ? (
             <>
               <span className='tb-total'>Stake <Coins n={h.stake} />{h.doubled ? ' (doubled)' : ''}</span>
-              <button className='btn' onClick={() => act('bjHit')}>Draw a tile</button>
+              <button className='btn' onClick={() => act('bjHit')} disabled={h.full}>Draw a tile</button>
               <button className='btn' onClick={() => act('bjDouble')} disabled={!h.canDouble}>Double</button>
               <button className='btn primary' onClick={() => act('bjStand')}>Stand</button>
             </>
@@ -269,13 +341,13 @@ export function Blackjack ({ coins, hold, toast }) {
             </>
             )}
       </div>
-      {stats && <p className='tb-stats'>Tiles count their points plus one. {stats.hands} hand{stats.hands === 1 ? '' : 's'} · {stats.wins} won · {stats.words} with a word · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
+      {stats && <p className='tb-stats'>Ties push and a win pays 1 to 1: no house edge. {stats.hands} hand{stats.hands === 1 ? '' : 's'} · {stats.wins} won · {stats.jacks || 0} Wordjack{stats.jacks === 1 ? '' : 's'} · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
     </div>
   )
 }
 
 // --- the lobby tables ------------------------------------------------------------------------
-// Letter Roulette and Word Blackjack around a lobby table: everyone against
+// Letter Roulette and Wordjack around a lobby table: everyone against
 // the house, sharing the spin or the dealer. See src/core/lobby.js.
 
 // On the felt: the wheel, or the dealer's tiles.
@@ -304,8 +376,8 @@ export function LobbyTableCenter ({ c, phase, res, name }) {
   const dealer = phase === 'reveal' ? res?.dealer : c.dealer
   return (
     <div className='tb-lobby-center'>
-      <div className='tsub'>Dealer{phase === 'reveal' && res?.dealerTotal ? <> · <b>{res.dealerTotal}</b>{res.dealerTotal > 21 ? ' bust!' : ''}</> : null}</div>
-      <div className='tb-tiles center'>{dealer ? dealer.map((l, i) => <Tile key={i} l={l} small />) : <span className='tsub'>{phase === 'betting' ? 'Stakes first. The dealer draws to 20 and wins ties.' : phase === 'drawing' ? 'Dealing…' : res?.void ? 'Nobody played this hand.' : ''}</span>}</div>
+      <div className='tsub'>Dealer {phase === 'reveal' && res?.dealer ? <BestWord word={res.dealerWord} score={res.dealerTotal} bust={res.dealerTotal > 21} /> : null}</div>
+      <div className='tb-tiles center'>{dealer ? <WordHand tiles={dealer} used={phase === 'reveal' ? res?.dealerUsed : []} small /> : <span className='tsub'>{phase === 'betting' ? 'Stakes first. The dealer draws to 17; ties push.' : phase === 'drawing' ? 'Dealing…' : res?.void ? 'Nobody played this hand.' : ''}</span>}</div>
     </div>
   )
 }
@@ -317,10 +389,10 @@ export function LobbySeatTable ({ c, phase, res, id }) {
   const hand = phase === 'reveal' ? res?.hands?.[id] : c.hands?.[id]
   return (
     <span className='tb-seat'>
-      {hand && <span className='tb-seat-tiles'>{hand.tiles.map((l, i) => <Tile key={i} l={l} small />)}<b className={hand.total > 21 ? 'down' : ''}>{hand.total}</b></span>}
+      {hand && <span className='tb-seat-tiles'><WordHand tiles={hand.tiles} used={hand.used} small /><b className={hand.total > 21 ? 'down' : ''}>{hand.word ? `${hand.word.toUpperCase()} ` : ''}{hand.total}</b></span>}
       {bet === null && phase !== 'reveal' && <span className='tag'>sitting out</span>}
       {bet && net === undefined && <span className='tag'>{c.style === 'roulette' ? `bet ${formatCoins(bet.total)}` : `stake ${formatCoins(bet.total)}${bet.doubled ? ' ×2' : ''}`}</span>}
-      {net !== undefined && <span className={`tag ${net > 0 ? 'ok' : net < 0 ? 'lo' : ''}`}>{net > 0 ? `won ${formatCoins(net)}` : net < 0 ? `lost ${formatCoins(-net)}` : 'even'}{hand?.word ? ` · ${hand.word.toUpperCase()}` : ''}</span>}
+      {net !== undefined && <span className={`tag ${net > 0 ? 'ok' : net < 0 ? 'lo' : ''}`}>{net > 0 ? `won ${formatCoins(net)}` : net < 0 ? `lost ${formatCoins(-net)}` : 'push'}</span>}
     </span>
   )
 }
