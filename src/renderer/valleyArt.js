@@ -259,3 +259,20 @@ export function drawForage (g, kind, px, py, t) {
   if (kind === 'dandelion') { d('#4a8a3a', 7, 8, 1, 6); d('#f0d040', 5, 5, 5, 4); d('#f8e870', 6, 6, 3, 2) } else if (kind === 'lavender') { d('#4a8a3a', 7, 6, 1, 8); for (let i = 0; i < 4; i++) d('#9a7ad8', 6 + (i % 2), 3 + i * 2, 2, 2) } else if (kind === 'clover') { d('#3a9a3a', 7, 9, 1, 5); d('#4ac84a', 4, 5, 4, 4); d('#4ac84a', 8, 5, 4, 4); d('#4ac84a', 4, 1 + 8, 0, 0); d('#5ad85a', 6, 2, 4, 4) } else if (kind === 'inkcap') { d('#f0ece4', 7, 8, 2, 6); d('#e0d8d0', 4, 3, 8, 5); d('#f8f4f0', 5, 3, 4, 2); d('#3a3a5a', 4, 8, 1, 2); d('#3a3a5a', 7, 8, 1, 1); d('#3a3a5a', 11, 8, 1, 3) } else if (kind === 'shell') { d('#f0d0c0', 4, 8, 8, 5); d('#d8a090', 6, 8, 1, 5); d('#d8a090', 9, 8, 1, 5); d('#f8e8e0', 5, 9, 1, 1) }
   g.restore()
 }
+
+// A butterfly (or moth, or firefly), wings beating.
+export function drawBug (g, bug, x, y, t, s = 1) {
+  const open = Math.sin(t / 70 + x) > 0
+  const px = (dx, dy, w = 1, h = 1) => g.fillRect(Math.round(x + dx * s), Math.round(y + dy * s), w * s, h * s)
+  if (bug.kind === 'firefly') {
+    const a = (Math.sin(t / 250 + y) + 1) / 2
+    g.fillStyle = `rgba(230,255,140,${0.35 + 0.65 * a})`; px(-1, -1, 3, 3)
+    g.fillStyle = '#3a3a2a'; px(0, -2, 1, 1)
+    return
+  }
+  g.fillStyle = '#2a1a1a'; px(0, -2, 1, 5)
+  g.fillStyle = bug.color
+  if (open) { px(-4, -3, 4, 3); px(1, -3, 4, 3); px(-3, 0, 3, 2); px(1, 0, 3, 2) } else { px(-2, -3, 2, 3); px(1, -3, 2, 3); px(-1, 0, 1, 2); px(1, 0, 1, 2) }
+  g.fillStyle = bug.wing2
+  if (open) { px(-4, -3, 1, 1); px(4, -3, 1, 1); px(-2, -2, 1, 1); px(2, -2, 1, 1) }
+}

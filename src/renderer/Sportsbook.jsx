@@ -317,7 +317,7 @@ function BuyButtons ({ c, trade, coins, amount }) {
   const ch = c.chances || { home: c.chance, away: 1 - c.chance }
   const sides = sideList(c)
   return (
-    <div className={`sp-buy n${sides.length}`}>
+    <div className={`sp-buy n${sides.length} ${c.event ? 'ev' : ''}`}>
       {sides.map((side) => (
         <button key={side} className={`btn sp-side ${side}`} disabled={!can} onClick={(e) => { e.stopPropagation(); trade('buy', c.id, side, amount) }}>
           <b>{sideName(c, side)}</b><span>{Math.round(ch[side] * 100)}%</span><small>buy at {c.quotes[side].ask}</small>

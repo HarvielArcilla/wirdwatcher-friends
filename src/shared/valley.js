@@ -1,12 +1,13 @@
-// The Word Farm: a quiet place to grow words, fish, and get to know the
-// word gods. Plain data and rules, shared by the core (src/core/farm.js)
-// and the screen (src/renderer/Farm.jsx).
+// Word Valley: a quiet place to be outdoors. Fish, farm a field, forage
+// in the woods, catch butterflies, look at the stars, and get to know the
+// word gods along the way. Plain data and rules, shared by the core
+// (src/core/valley.js) and the screen (src/renderer/Valley.jsx).
 //
 // Time is real time. Crops grow while their soil is wet (watering keeps it
 // wet for WET_HOURS; rain keeps it wet all day) and never die. The gods can
-// be talked to once a day and given two gifts a week, like in Stardew
-// Valley, and nothing here depends on how you rate words: a new word drops
-// a seed of itself whatever you gave it.
+// be talked to once a day, given two gifts a week, and asked along on one
+// outing a day, like in Stardew Valley. Nothing here depends on how you
+// rate words: a new word drops a seed of itself whatever you gave it.
 
 export const HOUR = 3600e3
 export const WET_HOURS = 8
@@ -68,8 +69,32 @@ export const FORAGE = {
   lavender: { name: 'Lavender', sell: 30, blurb: 'Calming. Hush keeps some in her pockets.' },
   clover: { name: 'Four-leaf clover', sell: 60, blurb: 'Lucky, apparently.' },
   inkcap: { name: 'Ink cap', sell: 45, blurb: 'A mushroom that drips ink. Good for writing, not for eating.' },
-  shell: { name: 'Pond shell', sell: 25, blurb: 'Hold it to your ear: whispering.' }
+  shell: { name: 'River shell', sell: 25, blurb: 'Hold it to your ear: whispering.' },
+  berries: { name: 'Wild berries', sell: 28, blurb: 'Tart, and they stain your fingers purple.' },
+  acorn: { name: 'Acorn', sell: 12, blurb: 'A whole oak tree, folded up very small.' }
 }
+
+// --- butterflies -------------------------------------------------------------------------
+// speed: how quick it flits. when: the parts of the day it's out.
+export const BUGS = {
+  comma: { name: 'Comma butterfly', sell: 30, speed: 1, weight: 30, when: ['morning', 'day', 'evening'], color: '#e8902a', wing2: '#7a3a1a', blurb: 'Has a little white comma on each wing. Pauses a lot.' },
+  admiral: { name: 'Red admiral', sell: 40, speed: 1.2, weight: 22, when: ['morning', 'day'], color: '#2a2a2a', wing2: '#e84a2a', blurb: 'Very orderly. Flies in straight lines, mostly.' },
+  painted: { name: 'Painted lady', sell: 45, speed: 1.1, weight: 18, when: ['day', 'evening'], color: '#f0a060', wing2: '#3a2a2a', blurb: 'Travels thousands of miles. Stopped here for you.' },
+  swallowtail: { name: 'Swallowtail', sell: 70, speed: 1.5, weight: 10, when: ['morning', 'day'], color: '#f0d040', wing2: '#2a2a2a', blurb: 'Long tails on its wings, like a fancy coat.' },
+  glasswing: { name: 'Glasswing', sell: 120, speed: 1.9, weight: 4, when: ['day'], color: '#d8f0f8', wing2: '#4a3a2a', blurb: 'You can read through its wings. Glyph would love one.' },
+  luna: { name: 'Luna moth', sell: 110, speed: 1.3, weight: 8, when: ['evening', 'night'], color: '#a8e0a0', wing2: '#7ab07a', blurb: 'Pale green, out only after dark.' },
+  firefly: { name: 'Firefly', sell: 35, speed: 1.4, weight: 26, when: ['evening', 'night'], color: '#e8f080', wing2: '#3a3a2a', blurb: 'A tiny lantern with wings.' }
+}
+export const bugPool = (t) => Object.entries(BUGS).filter(([, b]) => b.when.includes(partOfDay(t)))
+export function pickBug (r, t) {
+  const pool = bugPool(t)
+  const total = pool.reduce((a, [, b]) => a + b.weight, 0)
+  let x = r() * total
+  for (const [id, b] of pool) { x -= b.weight; if (x <= 0) return id }
+  return pool[0][0]
+}
+export const BUG_ROUND_MS = 40e3
+export const STARDUST = 'stardust'
 
 // --- fish ----------------------------------------------------------------------------------
 // diff: 1–100, how lively it is on the line. moves: how it swims.
@@ -117,6 +142,8 @@ export function itemInfo (id) {
   if (CROPS[id]) return { id, ...CROPS[id], kind: 'crop' }
   if (FISH[id]) return { id, ...FISH[id], kind: 'fish' }
   if (FORAGE[id]) return { id, ...FORAGE[id], kind: 'forage' }
+  if (BUGS[id]) return { id, ...BUGS[id], kind: 'bug' }
+  if (id === STARDUST) return { id, name: 'Stardust', sell: 90, kind: 'treasure', blurb: 'A pinch of a constellation, left over after you traced it.' }
   if (id === BOUQUET) return { id, name: 'Bouquet of letters', sell: 0, kind: 'special', blurb: 'For a god at 8 hearts.' }
   if (id === QUILL) return { id, name: 'Promise quill', sell: 0, kind: 'special', blurb: 'For the god you’re dating, at 10 hearts.' }
   return null
@@ -131,12 +158,15 @@ export const GODS = {
     name: 'Vela',
     title: 'Goddess of Vowels',
     birthday: [4, 5],
-    loves: ['melon', 'rhymeberry', 'sunflower', 'trout'],
-    likes: ['dandelion', 'lavender', 'shell', 'carp', 'koi'],
+    loves: ['melon', 'rhymeberry', 'sunflower', 'trout', 'stardust'],
+    likes: ['dandelion', 'lavender', 'shell', 'carp', 'koi', 'painted', 'berries'],
     dislikes: ['inkplant', 'eel'],
     hates: ['page'],
     word: (w) => (vowels(w) >= 0.5 ? 'love' : vowels(w) < 0.25 ? 'dislike' : 'like'),
     wordHint: 'loves open, vowel-rich words',
+    fav: ['stars', 'butterflies'],
+    outing: { invite: 'Oh, I’d love to! Let me grab my shawl.', fav: 'This is my favourite thing in the whole valley. Listen to it!', after: 'Thank you for asking me along. Today sounded lovely.' },
+    cheer: { yay: ['Ooh, beautiful!', 'Oh, well done, you!'], aw: ['Oh no, it slipped away!', 'Never mind. Try again, softly.'] },
     lines: {
       t0: ['Oh! Hello-o-o. I didn’t see you there. I was humming.', 'Every word needs a little breath in it. That’s where I come in.', 'Do you hear that? The pond is singing in A minor today.'],
       t1: ['You say my name so softly. Most people rush the e.', 'I planted a vowel melon once. It grew so round it rolled away.', 'Some words have no vowels at all. I worry about them. Who holds them up?'],
@@ -158,11 +188,14 @@ export const GODS = {
     title: 'God of Consonants',
     birthday: [11, 2],
     loves: ['corn', 'syllabeet', 'eel', 'salmon'],
-    likes: ['inkplant', 'minnow', 'inkcap', 'clover'],
+    likes: ['inkplant', 'minnow', 'inkcap', 'clover', 'acorn', 'admiral'],
     dislikes: ['melon', 'lavender'],
     hates: ['page'],
     word: (w) => (vowels(w) <= 0.25 ? 'love' : vowels(w) >= 0.5 ? 'dislike' : 'like'),
     wordHint: 'loves crunchy, consonant-heavy words',
+    fav: ['farming', 'fishing'],
+    outing: { invite: 'Sure. Lead the way.', fav: 'Good work, this. Honest work.', after: 'Good day. Thanks.' },
+    cheer: { yay: ['Good.', 'Nice. Clean.'], aw: ['Hm. Again.', 'Close. Steady hands.'] },
     lines: {
       t0: ['Hm. Farmer. Good.', 'Words need bones. I make the bones. Strengths. Rhythms. Crwth.', 'Busy. Hammering out a new cluster. Str. Spl. Ngth.'],
       t1: ['You work hard. I respect that.', 'Vela thinks I’m rude. I’m not rude. I’m concise.', 'Brought my tools. Fence by the pond needed fixing. Fixed it.'],
@@ -183,12 +216,15 @@ export const GODS = {
     name: 'Etyma',
     title: 'Goddess of Roots',
     birthday: [9, 21],
-    loves: ['thyme', 'inkcap', 'salmon', 'clover'],
-    likes: ['syllabeet', 'corn', 'shell', 'perch'],
+    loves: ['thyme', 'inkcap', 'salmon', 'clover', 'berries'],
+    likes: ['syllabeet', 'corn', 'shell', 'perch', 'acorn', 'comma'],
     dislikes: ['punkin'],
     hates: ['page'],
     word: (w) => (w.length >= 9 ? 'love' : w.length >= 6 ? 'like' : 'neutral'),
     wordHint: 'loves long words with history in them',
+    fav: ['foraging', 'farming'],
+    outing: { invite: 'A walk! At my age, the best kind of invitation.', fav: 'Ah, the woods. Every plant here has a name older than the hills.', after: 'What a lovely outing, dear. My knees thank you less than I do.' },
+    cheer: { yay: ['Splendid, dear!', 'Oh, look at that. Lovely.'], aw: ['Ah well. Patience, dear.', 'Even the oldest words took a few tries.'] },
     lines: {
       t0: ['Ah, a new face. From the Old English fæger, fair. Welcome.', 'Every word has roots. Most people never dig.', 'Did you know “farm” once meant a fixed payment? Words wander.'],
       t1: ['You ask good questions. Very rare, these days.', 'I keep a garden of root-words. Some are older than the hills.', '“Companion” means someone you share bread with. Here, have some bread.'],
@@ -209,12 +245,15 @@ export const GODS = {
     name: 'Orrin',
     title: 'God of Rhyme',
     birthday: [7, 14],
-    loves: ['rhymeberry', 'koi', 'sunflower', 'clover'],
-    likes: ['melon', 'trout', 'dandelion', 'carp'],
+    loves: ['rhymeberry', 'koi', 'sunflower', 'clover', 'swallowtail'],
+    likes: ['melon', 'trout', 'dandelion', 'carp', 'painted', 'stardust'],
     dislikes: ['syllabeet', 'minnow'],
     hates: ['page'],
     word: (w) => (/(ing|ight|tion|ay|ee|oon)$/i.test(w) ? 'love' : /(y|e)$/i.test(w) ? 'like' : 'neutral'),
     wordHint: 'loves words that end in a ring: -ing, -ight, -tion',
+    fav: ['butterflies', 'stars'],
+    outing: { invite: 'An outing, a jaunt, a day in the sun; I’ll bring my lute, and we’ll have some fun!', fav: 'Of all of the things that a bard likes to do, this one’s my favourite, and doing it with you.', after: 'A wonderful day, I must say it was grand; I’ll write it a song, if you’ll lend me a hand.' },
+    cheer: { yay: ['Hooray, hurrah, a triumph today!', 'Bravo! A catch for the ages, I say!'], aw: ['Alas and alack, it won’t be back.', 'No matter, my friend, we’ll try it again.'] },
     lines: {
       t0: ['A stranger, I see, on a fine sunny day; I’m Orrin, the rhymer. Good farming, I say!', 'I rhyme when I speak, it’s a habit, you see. It started at birth, and it won’t let me be.', 'The pond’s looking bright and the weather is fair; I tried a new couplet. It went… over there.'],
       t1: ['You listen so well to my lute and my lines; you’re turning out finer than most other finds.', 'I tried to rhyme “orange”. I wept for a week. It’s not that I’m sad, I’m just… lacking technique.', 'Your farm’s looking grand, all the rows standing straight; I wrote it a ballad. It’s called “Crop Debate”.'],
@@ -235,12 +274,15 @@ export const GODS = {
     name: 'Hush',
     title: 'Goddess of Silent Letters',
     birthday: [12, 1],
-    loves: ['lavender', 'perch', 'squid', 'shell'],
-    likes: ['thyme', 'inkcap', 'dandelion', 'minnow'],
+    loves: ['lavender', 'perch', 'squid', 'shell', 'luna', 'stardust'],
+    likes: ['thyme', 'inkcap', 'dandelion', 'minnow', 'firefly'],
     dislikes: ['punkin', 'corn'],
     hates: ['page'],
     word: (w) => (SILENT.test(w) ? 'love' : 'neutral'),
     wordHint: 'loves words with a silent letter: knight, write, gnome, lamb',
+    fav: ['stars', 'fishing'],
+    outing: { invite: '…Oh. Yes. I’d like that.', fav: '…This is my favourite. It’s so quiet.', after: '…Thank you. That was nice.' },
+    cheer: { yay: ['…Oh. Nice.', '…That was lovely.'], aw: ['…It’s all right.', '…Maybe next time.'] },
     lines: {
       t0: ['…Oh. Hello.', 'I’m the k in knife. Nobody notices. It’s fine.', '…The pond is quiet today. I like it.'],
       t1: ['You noticed me. Most people look straight through.', 'Every silent letter remembers how it used to sound.', '…I left some lavender by your door. In case you didn’t notice.'],
@@ -261,12 +303,15 @@ export const GODS = {
     name: 'Pip',
     title: 'God of Puns',
     birthday: [4, 1],
-    loves: ['punkin', 'carp', 'corn', 'minnow'],
-    likes: ['syllabeet', 'sunflower', 'sunfish', 'clover'],
+    loves: ['punkin', 'carp', 'corn', 'minnow', 'firefly'],
+    likes: ['syllabeet', 'sunflower', 'sunfish', 'clover', 'comma', 'acorn'],
     dislikes: ['thyme', 'lavender'],
     hates: ['page'],
     word: (w) => (/(.)\1/.test(w) ? 'love' : w.length <= 4 ? 'like' : 'neutral'),
     wordHint: 'loves words with double letters, and anything short and punchy',
+    fav: ['fishing', 'butterflies'],
+    outing: { invite: 'An outing? I’m hooked already!', fav: 'My favourite! I’m having a whale of a time.', after: 'Best day ever. Well, top three. Okay, top one.' },
+    cheer: { yay: ['Nailed it! Or should I say… netted it?', 'You’re on a roll! A roll! Like bread!'], aw: ['Whoops! That one was slippery.', 'Don’t worry, it happens to the best of us. Mostly me.'] },
     lines: {
       t0: ['Hey there! I’m Pip. I’d tell you a farming joke, but it’s still growing on me.', 'Did you hear about the scarecrow who won an award? Outstanding in his field.', 'I’m reading a book about anti-gravity. Can’t put it down.'],
       t1: ['You laugh at my jokes! Even the bad ones! Especially the bad ones!', 'Why did the tomato blush? It saw the salad dressing. …I’ll see myself out.', 'I tried to catch fog this morning. Mist.'],
@@ -287,12 +332,15 @@ export const GODS = {
     name: 'Thea',
     title: 'Goddess of Synonyms',
     birthday: [2, 18],
-    loves: ['thyme', 'sunflower', 'koi', 'sunfish'],
-    likes: ['melon', 'inkplant', 'clover', 'trout'],
+    loves: ['thyme', 'sunflower', 'koi', 'sunfish', 'comma'],
+    likes: ['melon', 'inkplant', 'clover', 'trout', 'berries', 'painted'],
     dislikes: ['eel'],
     hates: ['page'],
     word: (w) => (w.length >= 10 ? 'love' : 'like'),
     wordHint: 'likes every word, and loves long ones',
+    fav: ['foraging', 'butterflies'],
+    outing: { invite: 'Yes! Absolutely, certainly, gladly!', fav: 'My favourite, best-loved, most cherished thing!', after: 'What a lovely, pleasant, delightful day.' },
+    cheer: { yay: ['Wonderful, marvellous, superb!', 'Great, grand, glorious!'], aw: ['Oh dear, oh no, oh well!', 'Never mind, no matter, no worries!'] },
     lines: {
       t0: ['Hello! Hi! Greetings! I’m Thea. Pleased, delighted, glad to meet you.', 'Lovely, beautiful, gorgeous day, isn’t it?', 'I’m reading, perusing, studying. Mostly the same book, three times.'],
       t1: ['You’re kind, gentle, considerate. All three, honestly.', 'Every word has a sibling or two. Nobody should be alone.', 'Have you tried the thesaurus thyme? Tasty, flavourful, scrumptious.'],
@@ -313,12 +361,15 @@ export const GODS = {
     name: 'Glyph',
     title: 'God of Letters and Ink',
     birthday: [10, 30],
-    loves: ['squid', 'inkplant', 'inkcap', 'eel'],
-    likes: ['salmon', 'perch', 'thyme', 'shell'],
+    loves: ['squid', 'inkplant', 'inkcap', 'eel', 'glasswing', 'stardust'],
+    likes: ['salmon', 'perch', 'thyme', 'shell', 'luna'],
     dislikes: ['dandelion', 'sunflower'],
     hates: ['page'],
     word: (w) => (/[qxzj]/i.test(w) ? 'love' : 'neutral'),
     wordHint: 'loves words with rare letters: q, x, z, j',
+    fav: ['stars', 'fishing'],
+    outing: { invite: 'Let me put my quill away. Lead on.', fav: 'I could draw this for hours. I might.', after: 'A good day. I’ll write it down.' },
+    cheer: { yay: ['Exquisite.', 'Very well done.'], aw: ['A smudge. It happens.', 'Again. Slower.'] },
     lines: {
       t0: ['Careful. Ink’s still wet.', 'Every letter was drawn by hand, once. I remember drawing them.', 'The Q was my favourite. Nobody uses it enough.'],
       t1: ['You have nice handwriting. I can tell from how you hold a hoe.', 'I’m designing a new letter. It’s for the sound of rain on a pond.', 'The squid in that pond write better than most scholars.'],
@@ -338,6 +389,70 @@ export const GODS = {
 }
 export const GOD_IDS = Object.keys(GODS)
 
+// --- outdoors ------------------------------------------------------------------------------
+export const ACTIVITIES = {
+  fishing: { name: 'Fishing', emoji: '🎣', place: 'The lake', blurb: 'Cast a line and wait for a bite. What bites depends on the hour and the weather.' },
+  farming: { name: 'Farming', emoji: '🌱', place: 'Your field', blurb: 'Till the soil, plant seeds, water them, and pick what grows.' },
+  foraging: { name: 'Foraging', emoji: '🍄', place: 'The woods', blurb: 'Look closely: flowers, mushrooms, berries and shells, hidden in the undergrowth.' },
+  butterflies: { name: 'Butterflies', emoji: '🦋', place: 'The meadow', blurb: 'Catch what flutters by with your net. Different ones come out at different hours.' },
+  stars: { name: 'Stargazing', emoji: '✨', place: 'The hill', blurb: 'After dark, trace tonight’s constellation letter by letter: it spells a word.' }
+}
+// Where each god is, by part of the day: a place, how far along it (0–1),
+// and how near (bigger is nearer).
+export const PLACES = ['home', 'field', 'meadow', 'woods', 'lake', 'hill']
+export const WHERE = {
+  morning: { vela: ['lake', 0.3, 1], kip: ['field', 0.82, 1.2], etyma: ['woods', 0.6, 1], orrin: ['meadow', 0.35, 1], hush: ['lake', 0.8, 0.8], pip: ['home', 0.2, 1.1], thea: ['meadow', 0.72, 0.9], glyph: ['hill', 0.6, 1] },
+  day: { vela: ['meadow', 0.6, 1], kip: ['home', 0.2, 1.1], etyma: ['woods', 0.35, 1.1], orrin: ['home', 0.86, 1], hush: ['woods', 0.82, 0.8], pip: ['lake', 0.75, 1], thea: ['field', 0.15, 1], glyph: ['lake', 0.25, 0.9] },
+  evening: { vela: ['hill', 0.3, 1], kip: ['field', 0.2, 1], etyma: ['home', 0.8, 1], orrin: ['meadow', 0.5, 1.1], hush: ['lake', 0.55, 0.8], pip: ['home', 0.25, 1], thea: ['woods', 0.7, 1], glyph: ['hill', 0.75, 0.9] },
+  night: { vela: ['hill', 0.22, 1], kip: ['home', 0.25, 1], etyma: ['home', 0.82, 0.9], orrin: ['hill', 0.5, 0.9], hush: ['hill', 0.8, 1], pip: ['lake', 0.3, 1], thea: ['home', 0.6, 0.85], glyph: ['hill', 0.65, 0.8] }
+}
+export const OUTING_POINTS = 30 // plus up to this again for how well it went
+export const FAV_MULT = 1.5
+export const outingPoints = (godId, activity, quality) => Math.round((OUTING_POINTS + OUTING_POINTS * Math.max(0, Math.min(1, quality))) * (GODS[godId].fav.includes(activity) ? FAV_MULT : 1))
+
+// The field: a grid of ground to till. A few weeds and stones to start.
+export const FIELD_W = 10
+export const FIELD_H = 6
+export const FIELD = FIELD_W * FIELD_H
+export const fieldStart = () => Array.from({ length: FIELD }, (_, i) => { const h = hash32(`field|${i}`) % 100; return { soil: 'grass', decor: h < 12 ? 'weed' : h < 17 ? 'stone' : null } })
+
+// The woods refill every few hours with a handful of things to find.
+export const FOREST_HOURS = 3
+export const forestWindow = (t) => Math.floor(t / (FOREST_HOURS * HOUR))
+export function forestRound (t) {
+  const w = forestWindow(t)
+  const r = rng(hash32(`forest|${w}`))
+  const kinds = ['dandelion', 'lavender', 'clover', 'inkcap', 'berries', 'acorn', 'shell']
+  const items = []
+  const n = 6
+  for (let i = 0; i < n; i++) {
+    // Somewhere in the scene (0–1 across, 0.35–0.95 down), not on top of another.
+    let x; let y; let tries = 0
+    do { x = 0.05 + r() * 0.9; y = 0.38 + r() * 0.55; tries++ } while (tries < 20 && items.some((o) => Math.hypot(o.x - x, o.y - y) < 0.09))
+    const kind = y > 0.82 ? 'shell' : kinds[Math.floor(r() * 6)]
+    items.push({ id: `${w}-${i}`, x, y, kind, hide: 0.3 + r() * 0.5 })
+  }
+  return { window: w, until: (w + 1) * FOREST_HOURS * HOUR, items }
+}
+
+// Tonight's constellation: a word, its letters as stars.
+const STAR_WORDS = ['LANTERN', 'MEADOW', 'ORBIT', 'QUILL', 'RIVER', 'EMBER', 'WILLOW', 'COMET', 'HARBOR', 'VELVET', 'THISTLE', 'LYRIC', 'SONNET', 'FABLE', 'HUSH', 'GLYPH', 'ECHO', 'NOVA', 'AURORA', 'MOTH', 'TIDE', 'FERN', 'SPARK', 'DREAM']
+export const isNight = (t) => partOfDay(t) === 'night'
+// The night a time belongs to (after midnight still counts as the night before).
+export const nightKey = (t) => dayKey(t - 6 * HOUR)
+export function starsTonight (t) {
+  const night = nightKey(t)
+  const r = rng(hash32(`stars|${night}`))
+  const word = STAR_WORDS[Math.floor(r() * STAR_WORDS.length)]
+  const pts = []
+  for (let i = 0; i < word.length; i++) {
+    let x; let y; let tries = 0
+    do { x = 0.1 + r() * 0.8; y = 0.12 + r() * 0.7; tries++ } while (tries < 40 && pts.some((p) => Math.hypot(p.x - x, p.y - y) < 0.14))
+    pts.push({ letter: word[i], x, y })
+  }
+  return { night, word, stars: pts }
+}
+
 // How a god feels about a gift.
 export function taste (godId, itemId) {
   const g = GODS[godId]
@@ -351,69 +466,3 @@ export function taste (godId, itemId) {
 
 export const isBirthday = (godId, t) => { const d = new Date(t); const [m, day] = GODS[godId].birthday; return d.getMonth() + 1 === m && d.getDate() === day }
 export const heartsOf = (points) => Math.floor(points / HEART)
-
-// --- the map -------------------------------------------------------------------------------
-// 32 × 20 tiles. Letters: T tree, . grass, , path, W water, H house, S stall,
-// B shipping bin, F fence, P plot, D dock, A altar stone, R rock, f flowers.
-export const MAP = [
-  'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
-  'T..f....................f.....TT',
-  'T.HHHHH...SSS.......WWWWWW....TT',
-  'T.HHHHH...SSS.....WWWWWWWWW...TT',
-  'T.HHHHH..f,,,....WWWWWWWWWWW..TT',
-  'T.HHHHHB..,......WWWWWWWWWWW...T',
-  'T....,,,,,,,,,,,DWWWWWWWWWWW...T',
-  'T....,..........,WWWWWWWWWW..f.T',
-  'T.FFF,FFFFFFFFFF.WWWWWWWWW.....T',
-  'T.FPPPPPPPPPPPPF..WWWWWWW....R.T',
-  'T.FPPPPPPPPPPPPF........,......T',
-  'T.FPPPPPPPPPPPPF.......,,......T',
-  'T.FFFFFF,FFFFFFF......,....TT..T',
-  'T.......,.....f......,..A...A..T',
-  'T..f....,,,,,,,,,,,,,,.........T',
-  'T..R....................A...A..T',
-  'T.......f.........f.......A....T',
-  'TT...........TT...........f....T',
-  'TTT.....f...TTTT.......f......TT',
-  'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT'
-]
-export const MAP_W = MAP[0].length
-export const MAP_H = MAP.length
-export const tileAt = (x, y) => (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H ? 'T' : MAP[y][x])
-export const SOLID = new Set(['T', 'W', 'H', 'S', 'B', 'F', 'R', 'A'])
-export const PLOTS = []
-for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) if (MAP[y][x] === 'P') PLOTS.push([x, y])
-export const plotIndex = (x, y) => PLOTS.findIndex(([px, py]) => px === x && py === y)
-export const DOOR = [4, 6]
-
-// Where each god spends each part of the day (tile x, y).
-export const SPOTS = {
-  vela: { morning: [17, 10], day: [21, 13], evening: [16, 8], night: [26, 14] },
-  kip: { morning: [11, 6], day: [8, 13], evening: [12, 14], night: [24, 14] },
-  etyma: { morning: [25, 12], day: [26, 17], evening: [22, 16], night: [27, 16] },
-  orrin: { morning: [15, 4], day: [16, 13], evening: [15, 7], night: [25, 13] },
-  hush: { morning: [30, 8], day: [29, 4], evening: [28, 10], night: [26, 9] },
-  pip: { morning: [8, 7], day: [12, 7], evening: [6, 14], night: [24, 16] },
-  thea: { morning: [20, 11], day: [5, 16], evening: [10, 16], night: [28, 16] },
-  glyph: { morning: [27, 8], day: [16, 5], evening: [26, 8], night: [16, 9] }
-}
-
-// Forage for the day: a few things on the grass, the same all day.
-export function forageFor (day) {
-  const r = rng(hash32(`forage|${day}`))
-  const kinds = Object.keys(FORAGE)
-  const out = []
-  const used = new Set()
-  for (let tries = 0; out.length < 5 && tries < 400; tries++) {
-    const x = 1 + Math.floor(r() * (MAP_W - 2))
-    const y = 1 + Math.floor(r() * (MAP_H - 2))
-    const t = tileAt(x, y)
-    if ((t !== '.' && t !== 'f') || used.has(`${x},${y}`)) continue
-    if (Object.values(SPOTS).some((s) => Object.values(s).some(([sx, sy]) => sx === x && sy === y))) continue
-    const nearWater = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tileAt(x + dx, y + dy) === 'W')
-    const kind = nearWater ? 'shell' : kinds.filter((k) => k !== 'shell')[Math.floor(r() * 4)]
-    used.add(`${x},${y}`)
-    out.push({ id: `${x},${y}`, x, y, kind })
-  }
-  return out
-}
