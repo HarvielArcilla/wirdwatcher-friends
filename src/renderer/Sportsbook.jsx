@@ -8,7 +8,7 @@ import { Field } from './Field.jsx'
 // pays 100 coins if its team wins; its price is the chance, in coins.
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
-const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer']]
+const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA']]
 
 // The game clock, live: it runs between plays at the game's speed (the
 // plays decide everything else). Basketball and football count down each
@@ -27,6 +27,11 @@ function liveSecs (c, now) {
 }
 function clockText (c, now = Date.now()) {
   if (c.status === 'pre') return null
+  if (c.fighters) {
+    if (c.status === 'final') return c.method && /KO|Submission/.test(c.method) ? `Final · R${c.q}` : 'Final'
+    if (c.last?.kind === 'period-end') return `End of round ${c.q}`
+    return `R${c.q} ${mmss(liveSecs(c, now))}`
+  }
   if (c.status === 'final') return c.q > c.periods ? 'Final (OT)' : 'Final'
   const k = c.last?.kind
   if (c.sport === 'soccer') {
@@ -41,7 +46,9 @@ function clockText (c, now = Date.now()) {
   return `${period} ${mmss(liveSecs(c, now))}`
 }
 function Clock ({ c }) {
-  const now = useNow(c.status === 'live' ? 250 : 5000)
+  // Fights run fast (six game seconds a second in boxing), so their clock
+  // redraws once a game second.
+  const now = useNow(c.status !== 'live' ? 5000 : c.fighters ? Math.round(1000 / (c.clockInfo?.speed || 4)) : 250)
   return <>{c.status === 'live' && <i className='sp-live-dot' />}{clockText(c, now) || startText(c.start)}</>
 }
 const SIDE_ORDER = { home: 2, draw: 1, away: 0 }
@@ -49,6 +56,9 @@ const SIDE_ORDER = { home: 2, draw: 1, away: 0 }
 const teamVars = (c) => ({ '--hc': c.home?.color || 'var(--accent)', '--ac': c.away?.color || '#4a9ee8' })
 const sideList = (c) => [...(c.sides || ['home', 'away'])].sort((a, b) => SIDE_ORDER[a] - SIDE_ORDER[b])
 const sideName = (c, side) => (side === 'draw' ? 'Draw' : c[side].code)
+// Under a name: the city, or for a fighter, the nickname and hometown.
+const subName = (t) => (t.nickname ? `“${t.nickname}” · ${t.city}` : t.city)
+const fullName = (c, side) => (c.fighters ? c[side].name : `${c[side].city} ${c[side].name}`)
 
 const ordinal = (n) => ['1st', '2nd', '3rd', '4th'][n - 1] || `${n}th`
 function ballText (c) {
@@ -88,12 +98,12 @@ export default function Sportsbook ({ coins }) {
         {board && <div className='sp-stats'><span><small>Bets</small><b>{board.stats.count}</b></span><span><small>Won–lost</small><b>{board.stats.won}–{board.stats.lost}</b></span><span><small>All told</small><b className={board.stats.net >= 0 ? 'up' : 'down'}>{signed(board.stats.net)}</b></span></div>}
       </div>
       {!board
-        ? <div className='sp-wait'>Loading the {league === 'hoops' ? 'courts' : 'fields'}…</div>
+        ? <div className='sp-wait'>Loading the {league === 'hoops' ? 'courts' : league === 'ring' ? 'ring' : league === 'cage' ? 'cage' : 'fields'}…</div>
         : open
           ? <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />
           : (
             <>
-              <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'basketball' ? 'a game every half hour' : board.league.sport === 'soccer' ? 'a match every 40 minutes' : 'a game every hour, at quarter past'}, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
+              <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight every 8 minutes' : board.league.sport === 'mma' ? 'a three-round fight every 7 minutes' : board.league.sport === 'basketball' ? 'a game every half hour' : board.league.sport === 'soccer' ? 'a match every 40 minutes' : 'a game every hour, at quarter past'}, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
               {board.mine.length > 0 && (
                 <section className='sp-sec'>
                   <h3>Your bets</h3>
@@ -117,7 +127,7 @@ export default function Sportsbook ({ coins }) {
               {board.history.length > 0 && (
                 <section className='sp-sec'>
                   <h3>Settled</h3>
-                  <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.away} @ {h.home}</span><small>{h.how === 'sold' ? 'sold early' : `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
+                  <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.away} @ {h.home}</span><small>{h.how === 'sold' ? 'sold early' : h.method || `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
                 </section>
               )}
             </>
@@ -153,7 +163,7 @@ function BuyButtons ({ c, trade, coins, amount }) {
 function GameCard ({ c, trade, coins, onOpen }) {
   const [amt, setAmt] = useState('100')
   const n = Number(amt) || 0
-  const lead = c.home.score > c.away.score ? 'home' : c.away.score > c.home.score ? 'away' : null
+  const lead = c.fighters ? c.winner : c.home.score > c.away.score ? 'home' : c.away.score > c.home.score ? 'away' : null
   return (
     <div className={`sp-card ${c.status}`} style={teamVars(c)} onClick={onOpen} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
       <div className='sp-card-top'>
@@ -163,8 +173,8 @@ function GameCard ({ c, trade, coins, onOpen }) {
       <div className='sp-teams'>
         {['away', 'home'].map((side) => (
           <div key={side} className={`sp-team ${lead === side ? 'lead' : ''}`}>
-            <span className='sp-tname'><small>{c[side].city}</small><b><i className={`sp-swatch ${side}`} />{c[side].name}</b></span>
-            <span className='sp-score'>{c.status === 'pre' ? '–' : c[side].score}</span>
+            <span className='sp-tname'><small>{subName(c[side])}</small><b><i className={`sp-swatch ${side}`} />{c[side].name}</b></span>
+            <span className='sp-score'>{c.fighters ? fightMark(c, side) : c.status === 'pre' ? '–' : c[side].score}</span>
           </div>
         ))}
       </div>
@@ -186,7 +196,7 @@ function UpcomingRow ({ c, onOpen }) {
   return (
     <button className='sp-row' style={teamVars(c)} onClick={onOpen}>
       <span className='sp-when'>{startText(c.start)}</span>
-      <span className='sp-match'><b>{c.away.city} {c.away.name}</b> <small>at</small> <b>{c.home.city} {c.home.name}</b></span>
+      <span className='sp-match'><b>{fullName(c, 'away')}</b> <small>{c.fighters ? 'vs' : 'at'}</small> <b>{fullName(c, 'home')}</b></span>
       <span className='sp-odds'>{sideList(c).map((s) => `${sideName(c, s)} ${Math.round((c.chances || { home: c.chance, away: 1 - c.chance })[s] * 100)}%`).join(' · ')}</span>
       <Chance c={c} />
     </button>
@@ -195,6 +205,15 @@ function UpcomingRow ({ c, onOpen }) {
 
 function FinalRow ({ c, onOpen }) {
   const homeWon = c.home.score > c.away.score
+  if (c.fighters) {
+    return (
+      <button className='sp-row final' onClick={onOpen}>
+        <span className='sp-when'>{clockText(c)}</span>
+        <span className='sp-match'><b className={c.winner === 'away' ? 'won' : ''}>{c.away.name}</b> <small>vs</small> <b className={c.winner === 'home' ? 'won' : ''}>{c.home.name}</b></span>
+        <span className='sp-odds'>{c.last?.text}</span>
+      </button>
+    )
+  }
   return (
     <button className='sp-row final' onClick={onOpen}>
       <span className='sp-when'>{clockText(c)}</span>
@@ -217,20 +236,21 @@ function GameView ({ id, coins, trade, onBack }) {
     <div className='sp-game' style={teamVars(g)}>
       <button className='btn small ghost sp-back' onClick={onBack}>← All games</button>
       <div className='sp-board'>
-        <div className='sp-bteam away'><small>{g.away.city}</small><b>{g.away.name}</b><span className='sp-bscore'>{g.status === 'pre' ? '–' : g.away.score}</span></div>
+        <div className='sp-bteam away'><small>{subName(g.away)}</small><b>{g.away.name}</b><span className='sp-bscore'>{g.fighters ? fightMark(g, 'away') : g.status === 'pre' ? '–' : g.away.score}</span></div>
         <div className='sp-bmid'>
           <span className={`sp-clock ${g.status}`}><Clock c={g} /></span>
           {g.ball && <small>{ballText(g)}</small>}
           {g.ball && <div className='sp-bfield'><Field c={g} big /></div>}
+          {g.fighters && <small>{g.method || 'Chance to win'}</small>}
           <small>{g.status === 'pre' ? `Opening chances: ${sideList(g).map((s) => `${sideName(g, s)} ${Math.round(g.chances[s] * 100)}%`).join(' · ')}` : `Started at ${new Date(g.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</small>
         </div>
-        <div className='sp-bteam home'><small>{g.home.city}</small><b>{g.home.name}</b><span className='sp-bscore'>{g.status === 'pre' ? '–' : g.home.score}</span></div>
+        <div className='sp-bteam home'><small>{subName(g.home)}</small><b>{g.home.name}</b><span className='sp-bscore'>{g.fighters ? fightMark(g, 'home') : g.status === 'pre' ? '–' : g.home.score}</span></div>
       </div>
       <div className='sp-game-grid'>
         <div className='panel sp-chart-panel'>
           <h3>Chance to win <small>{sideList(g).map((s) => `${sideName(g, s)} ${Math.round(g.chances[s] * 100)}%`).join(' · ')}</small></h3>
           <WinChart g={g} />
-          <small className='sp-note'>{g.sport === 'soccer' ? 'From the score and the minutes left: the goals each side should still score, at their rates, and every way that could end. The gap between the lines is the chance of a draw.' : `From the score and the time left${g.sport === 'football' ? ', plus who has the ball and where' : ''}: the lead, and what the stronger team should still add, against how much can still swing.`} It’s calibrated against thousands of simulated games.</small>
+          <small className='sp-note'>{g.fighters ? 'From the fight so far: the rest of it played out a hundred and sixty ways under the same rules (the damage each fighter has taken, how tired they are, and the judges’ cards so far, which stay secret), counting who wins in each. The gap between the lines is the chance of a draw.' : g.sport === 'soccer' ? 'From the score and the minutes left: the goals each side should still score, at their rates, and every way that could end. The gap between the lines is the chance of a draw.' : `From the score and the time left${g.sport === 'football' ? ', plus who has the ball and where' : ''}: the lead, and what the stronger team should still add, against how much can still swing.`} {g.fighters ? '' : ' It’s calibrated against thousands of simulated games.'}</small>
         </div>
         <div className='panel sp-trade'>
           <h3>Bet</h3>
@@ -243,7 +263,7 @@ function GameView ({ id, coins, trade, onBack }) {
                 {n > 0 && <small className='sp-note'>{sideList(g).map((s) => `${sideName(g, s)} pays ${formatCoins((n / g.quotes[s].ask) * 100)}`).join(' · ')}</small>}
               </>
               )
-            : <p className='lede'>{g.status === 'final' ? 'This game is over.' : 'Betting opens a few games ahead.'}</p>}
+            : <p className='lede'>{g.status === 'final' ? (g.fighters ? 'This fight is over.' : 'This game is over.') : 'Betting opens a few games ahead.'}</p>}
           {b && (
             <div className='sp-pos'>
               <h4>Your contracts</h4>
@@ -261,19 +281,10 @@ function GameView ({ id, coins, trade, onBack }) {
         <div className='panel sp-feed'>
           <h3>Play by play</h3>
           {g.plays.length
-            ? <ol>{g.plays.map((p, i) => <li key={`${p.at}${i}`} className={`${p.kind} ${p.team || ''} ${p.pts ? 'scored' : ''}`}><span className='sp-pq'>{['period', 'period-end', 'half-time', 'final', 'added'].includes(p.kind) ? '' : g.sport === 'soccer' ? `${Math.min(p.q * 45, Math.floor(p.clock / 60) + 1)}${p.clock >= p.q * 2700 ? `+${Math.floor((p.clock - p.q * 2700) / 60) + 1}` : ''}′` : `Q${p.q > g.periods ? 'OT' : p.q} ${Math.floor(p.clock / 60)}:${String(p.clock % 60).padStart(2, '0')}`}</span><span className='sp-ptext'>{p.team && <b className='sp-pteam'>{g[p.team].code}</b>}{p.text}</span><span className='sp-pscore'>{p.pts ? `${p.away}–${p.home}` : ''}</span></li>)}</ol>
+            ? <ol>{g.plays.map((p, i) => (g.fighters ? fightLine(g, p, i) : playLine(g, p, i)))}</ol>
             : <p className='lede'>It hasn’t started yet. Plays show up here as they happen.</p>}
         </div>
-        <div className='panel sp-box'>
-          <h3>{g.sport === 'soccer' ? 'Goals' : 'Who’s scored'}</h3>
-          {['away', 'home'].map((s) => (
-            <div key={s} className='sp-box-team'>
-              <b>{g[s].city} {g[s].name}</b>
-              {g.box[s].length ? g.box[s].map((row) => <div key={row.who} className='sp-box-row'><span>{row.who}</span><span className='sp-tags'>{scoreTags(row).map(([k, label]) => <i key={k} className={`sp-tag ${k}`}>{label}</i>)}</span></div>) : <small className='sp-note'>{g.sport === 'soccer' ? 'No goals yet.' : 'No points yet.'}</small>}
-              <details><summary>Roster</summary><small>{g.rosters[s].join(' · ')}</small></details>
-            </div>
-          ))}
-        </div>
+        {g.fighters ? <FightBox g={g} /> : <ScoreBox g={g} />}
       </div>
     </div>
   )
@@ -295,6 +306,71 @@ function scoreTags (r) {
   return out
 }
 
+// Who's scored, team by team.
+function ScoreBox ({ g }) {
+  return (
+    <div className='panel sp-box'>
+      <h3>{g.sport === 'soccer' ? 'Goals' : 'Who’s scored'}</h3>
+      {['away', 'home'].map((s) => (
+        <div key={s} className='sp-box-team'>
+          <b>{g[s].city} {g[s].name}</b>
+          {g.box[s].length ? g.box[s].map((row) => <div key={row.who} className='sp-box-row'><span>{row.who}</span><span className='sp-tags'>{scoreTags(row).map(([k, label]) => <i key={k} className={`sp-tag ${k}`}>{label}</i>)}</span></div>) : <small className='sp-note'>{g.sport === 'soccer' ? 'No goals yet.' : 'No points yet.'}</small>}
+          <details><summary>Roster</summary><small>{g.rosters[s].join(' · ')}</small></details>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// One line of the play by play.
+function playLine (g, p, i) {
+  return <li key={`${p.at}${i}`} className={`k-${p.kind} ${p.team || ''} ${p.pts ? 'scored' : ''}`}><span className='sp-pq'>{['period', 'period-end', 'half-time', 'final', 'added'].includes(p.kind) ? '' : g.sport === 'soccer' ? `${Math.min(p.q * 45, Math.floor(p.clock / 60) + 1)}${p.clock >= p.q * 2700 ? `+${Math.floor((p.clock - p.q * 2700) / 60) + 1}` : ''}′` : `Q${p.q > g.periods ? 'OT' : p.q} ${Math.floor(p.clock / 60)}:${String(p.clock % 60).padStart(2, '0')}`}</span><span className='sp-ptext'>{p.team && <b className='sp-pteam'>{g[p.team].code}</b>}{p.text}</span><span className='sp-pscore'>{p.pts ? `${p.away}–${p.home}` : ''}</span></li>
+}
+function fightLine (g, p, i) {
+  return <li key={`${p.at}${i}`} className={`k-${p.kind} ${p.team || ''} ${['kd', 'finish'].includes(p.kind) ? 'scored' : ''}`}><span className='sp-pq'>{['period', 'period-end', 'final'].includes(p.kind) ? '' : `R${p.q} ${Math.floor(p.clock / 60)}:${String(p.clock % 60).padStart(2, '0')}`}</span><span className='sp-ptext'>{p.team && <b className='sp-pteam'>{g[p.team].code}</b>}{p.text}</span><span className='sp-pscore' /></li>
+}
+
+// In a fight's score spot: each fighter's chance, and at the end who won.
+// The rounds stay on the judges' cards until then.
+function fightMark (c, side) {
+  if (c.status === 'final') return c.winner === side ? 'W' : c.winner === 'draw' ? 'D' : 'L'
+  const ch = c.chances || { home: c.chance, away: 1 - c.chance }
+  return <>{Math.round(ch[side] * 100)}<small className='sp-pct'>%</small></>
+}
+
+// A fight's numbers: shots, knockdowns, takedowns, and the judges' cards.
+function FightBox ({ g }) {
+  const f = g.fight
+  const mma = g.sport === 'mma'
+  const rows = [
+    [mma ? 'Strikes landed' : 'Punches landed', (s) => `${s.landed} of ${s.thrown}`],
+    [mma ? 'Big shots' : 'Power punches', (s) => s.power],
+    ['Knockdowns', (s) => s.kd],
+    ...(mma ? [['Takedowns', (s) => s.td], ['Submission tries', (s) => s.sub]] : [])
+  ]
+  return (
+    <div className='panel sp-box sp-fightbox'>
+      <h3>The fight</h3>
+      {f
+        ? (
+          <>
+            <table className='sp-ftable'>
+              <thead><tr><th /><th>{g.away.code}</th><th>{g.home.code}</th></tr></thead>
+              <tbody>{rows.map(([label, v]) => <tr key={label}><td>{label}</td><td>{v(f.stats.away)}</td><td>{v(f.stats.home)}</td></tr>)}</tbody>
+            </table>
+            <h4>Judges’ cards {f.rounds && <small>{g.home.code}–{g.away.code}</small>}</h4>
+            {!f.rounds
+              ? <small className='sp-note'>Kept secret until the fight is over, as in a real fight.</small>
+              : f.rounds.length
+                ? <div>{f.rounds.map((r) => <div key={r.round} className='sp-box-row'><span>Round {r.round}</span><span className='sp-tags'><small>{r.cards}</small><i className='sp-tag'>{r.team ? g[r.team].code : 'Even'}</i></span></div>)}</div>
+                : <small className='sp-note'>It ended before the judges were needed.</small>}
+          </>
+          )
+        : <small className='sp-note'>The opening bell hasn’t gone yet.</small>}
+    </div>
+  )
+}
+
 function WinChart ({ g }) {
   const pts = g.chart
   if (pts.length < 2) return <div className='sp-chart empty'><span>{Math.round(g.chances.home * 100)}%</span></div>
@@ -306,14 +382,14 @@ function WinChart ({ g }) {
   const away = pts.map(([t, , a]) => `${x(t)},${y(a)}`).join(' ')
   return (
     <div className='sp-chart'>
-      <svg viewBox='0 0 100 100' preserveAspectRatio='none' aria-label={`Each side’s chance to win over the game`}>
+      <svg viewBox='0 0 100 100' preserveAspectRatio='none' aria-label='Each side’s chance to win over the game'>
         <line x1='0' x2='100' y1='50' y2='50' className='mid' vectorEffect='non-scaling-stroke' />
-        {g.sport === 'soccer' && <polyline points={away} fill='none' className='away-line' strokeWidth='2' vectorEffect='non-scaling-stroke' />}
+        {(g.sport === 'soccer' || g.fighters) && <polyline points={away} fill='none' className='away-line' strokeWidth='2' vectorEffect='non-scaling-stroke' />}
         <polyline points={home} fill='none' className='home-line' strokeWidth='2' vectorEffect='non-scaling-stroke' />
       </svg>
       <span className='sp-axis top'>100%</span>
       <span className='sp-axis bottom'>0%</span>
-      <span className='sp-key'><i className='home' />{g.home.code}{g.sport === 'soccer' ? <> <i className='away' />{g.away.code} · the gap is the draw</> : ' to win'}</span>
+      <span className='sp-key'><i className='home' />{g.home.code}{g.sport === 'soccer' || g.fighters ? <> <i className='away' />{g.away.code} · the gap is the draw</> : ' to win'}</span>
     </div>
   )
 }

@@ -85,6 +85,37 @@ export const LEAGUES = {
     ],
     every: 40 * MIN,
     offset: 5 * MIN
+  },
+  // Fighters: [code, hometown, name, color, second color, nickname].
+  ring: {
+    id: 'ring', name: 'Word Boxing Council', short: 'WBC', sport: 'boxing', emoji: '🥊',
+    teams: [
+      ['SER', 'Seattle', 'J. Serendipity', '#c8323c', '#2a4a8a', 'The Thesaurus'], ['GRV', 'Glasgow', 'M. Gravy', '#e8902a', '#2a2a2a', 'Silver Tongue'],
+      ['THN', 'Houston', 'T. Thunder', '#7a3fc4', '#e8b42a', 'Hard Consonant'], ['VEL', 'Lagos', 'A. Velvet', '#a8204a', '#c9a44a', 'The Soft Sell'],
+      ['ZEP', 'Manila', 'R. Zephyr', '#127a86', '#e8b42a', 'Breeze'], ['QUX', 'Mexico City', 'D. Quixote', '#1f8a4c', '#c8323c', 'Windmill'],
+      ['HUL', 'Belfast', 'K. Hullabaloo', '#2a6ad8', '#e8902a', 'The Commotion'], ['MRG', 'Accra', 'S. Marigold', '#e8b82a', '#5a2a8a', 'Petals'],
+      ['COB', 'Tokyo', 'N. Cobalt', '#2a4ab8', '#c8c8c8', 'Blue Note'], ['EMB', 'Philadelphia', 'L. Ember', '#d8582a', '#2a2a2a', 'Slow Burn'],
+      ['FAL', 'Cardiff', 'P. Falcon', '#8a6a3a', '#e8b42a', 'Talons'], ['GRN', 'Johannesburg', 'B. Granite', '#7a7f88', '#c8323c', 'The Wall'],
+      ['NIM', 'Havana', 'E. Nimbus', '#4a9ee8', '#2a2a2a', 'Cloud Nine'], ['RAV', 'Liverpool', 'O. Raven', '#5a5a8a', '#c8323c', 'Nevermore'],
+      ['TUN', 'Almaty', 'V. Tundra', '#5ab0e8', '#1f3a7a', 'The Freeze'], ['SAF', 'Mumbai', 'I. Saffron', '#e8a03a', '#a8204a', 'Spice']
+    ],
+    every: 8 * MIN,
+    offset: 2 * MIN
+  },
+  cage: {
+    id: 'cage', name: 'Word Fighting Championship', short: 'WFC MMA', sport: 'mma', emoji: '🥋',
+    teams: [
+      ['WOM', 'Sydney', 'G. Wombat', '#8a6a3a', '#2a6a3a', 'The Burrow'], ['KRF', 'Dublin', 'C. Kerfuffle', '#2a9a5a', '#e8902a', 'Chaos Theory'],
+      ['LAB', 'Rio de Janeiro', 'F. Labyrinth', '#e8b82a', '#1f8a4c', 'Maze Runner'], ['VOR', 'Moscow', 'Y. Vortex', '#c8202e', '#1f3a7a', 'The Drain'],
+      ['GIZ', 'Albuquerque', 'H. Gizmo', '#7a3fc4', '#c8a42a', 'Gadget'], ['OBL', 'Cairo', 'A. Obelisk', '#c9a44a', '#2a4a8a', 'The Monument'],
+      ['SHN', 'Las Vegas', 'T. Shenanigan', '#2ab0c8', '#e8507a', 'Mischief'], ['BRO', 'Stockholm', 'J. Brouhaha', '#2a6ad8', '#e8b82a', 'Uproar'],
+      ['JAR', 'Denver', 'M. Jargon', '#d63a2a', '#9aa3b0', 'Fine Print'], ['TUM', 'Phoenix', 'R. Tumbleweed', '#c8783a', '#2a6ad8', 'Drifter'],
+      ['FLX', 'Montreal', 'S. Flummox', '#3a8ad8', '#c8323c', 'The Puzzler'], ['WHI', 'Auckland', 'L. Whirlwind', '#1f7a4a', '#e8b82a', 'Gale Force'],
+      ['DYN', 'Seoul', 'K. Dynamo', '#e8402a', '#5a5a8a', 'Live Wire'], ['RIG', 'Manchester', 'D. Rigmarole', '#5a2a8a', '#5ab0e8', 'The Runaround'],
+      ['HUB', 'Chicago', 'P. Hubbub', '#b8202e', '#c9a44a', 'Racket'], ['VAG', 'Lisbon', 'N. Vagabond', '#0f6a6a', '#e8b82a', 'No Fixed Abode']
+    ],
+    every: 7 * MIN,
+    offset: 4 * MIN
   }
 }
 
@@ -111,7 +142,8 @@ export function team (league, code) {
   const names = [...pool].sort((a, b) => hashStr(`${key}|${a}`) - hashStr(`${key}|${b}`))
   const roles = L.sport === 'basketball' ? ['G', 'G', 'F', 'F', 'C', 'G', 'F', 'C'] : L.sport === 'soccer' ? ['FW', 'FW', 'MF', 'MF', 'MF', 'DF', 'DF', 'GK'] : ['QB', 'RB', 'WR', 'WR', 'TE', 'K', 'LB', 'CB']
   const players = roles.map((pos, i) => ({ name: `${INITIALS[Math.floor(r() * INITIALS.length)]}. ${names[i % names.length]}`, pos, skill: 0.75 + r() * 0.5 }))
-  const t = { code, city: row[1], name: row[2], full: `${row[1]} ${row[2]}`, color: row[3], alt: row[4], strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : L.sport === 'soccer' ? 2.5 : 6), players }
+  const fighter = L.sport === 'boxing' || L.sport === 'mma'
+  const t = { code, city: row[1], name: row[2], full: fighter ? row[2] : `${row[1]} ${row[2]}`, nickname: row[5] || null, fighter, color: row[3], alt: row[4], strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : L.sport === 'soccer' ? 2.5 : fighter ? 3 : 6), players }
   teamCache.set(key, t)
   return t
 }
@@ -127,8 +159,10 @@ export const gameNumberAt = (league, t) => Math.floor((t - SPORTS_EPOCH - LEAGUE
 // avoids the two teams that just played: nobody plays two games in a row.
 // Each season the teams are shuffled (from the season's number) and home
 // and away swap halfway.
-const ROUND = 6
-const SEASON = 11 * ROUND // 11 rounds of 6
+// (Twelve teams: rounds of six, a season of 66. Sixteen fighters: rounds of
+// eight, a season of 120.)
+const roundOf = (league) => LEAGUES[league].teams.length / 2
+const seasonOf = (league) => (LEAGUES[league].teams.length - 1) * roundOf(league)
 const seasons = new Map() // league -> [season][game] = [home, away] (indexes)
 
 function circleRounds (order) {
@@ -155,7 +189,7 @@ function seasonGames (league, c) {
     const order = L.teams.map((_, i) => i).sort((a, b) => hashStr(`s|${league}|${k}|${a}`) - hashStr(`s|${league}|${k}|${b}`))
     const rounds = circleRounds(order)
     const out = []
-    let prev = k ? list[k - 1][SEASON - 1] : null
+    let prev = k ? list[k - 1][seasonOf(league) - 1] : null
     for (const round of rounds) {
       // Shuffle the round, then lead with a game that shares no team with the last one.
       const games = [...round].sort(() => r() - 0.5)
@@ -171,7 +205,7 @@ function seasonGames (league, c) {
 
 function matchup (league, n) {
   const L = LEAGUES[league]
-  const [h, a] = seasonGames(league, Math.floor(n / SEASON))[n % SEASON]
+  const [h, a] = seasonGames(league, Math.floor(n / seasonOf(league)))[n % seasonOf(league)]
   return { home: L.teams[h][0], away: L.teams[a][0] }
 }
 
@@ -546,6 +580,233 @@ function simSoccer (n) {
   return { league: 'pitch', n, id: `pitch-${n}`, start, end, home, away, plays, periods: 2, periodSecs: HALF, countUp: true, final: { ...score } }
 }
 
+// --- boxing and MMA -------------------------------------------------------------------------
+//
+// A fight is rounds of exchanges between the red corner (home) and the blue
+// corner (away). Every landed shot does damage; a knockdown or a submission
+// can end it early, and otherwise three judges score each round 10–9 (10–8
+// with a knockdown) and the cards decide it. Boxing: ten three-minute
+// rounds at six times real speed. MMA: three five-minute rounds at three
+// times, with takedowns, ground strikes and submissions.
+//
+// The same rules (fightStep) play out the real fight and, for the market,
+// a few hundred possible futures from wherever the fight is, so the chances
+// are the fight's own odds.
+
+export const FIGHT = {
+  ring: { sport: 'boxing', rounds: 10, roundSecs: 180, rest: 60, speed: 6 },
+  cage: { sport: 'mma', rounds: 3, roundSecs: 300, rest: 60, speed: 3 }
+}
+const BOX_JAB = ['pops the jab', 'snaps out a stiff jab', 'paws with the jab and lands', 'doubles up on the jab']
+const BOX_COMBO = ['lands a crisp one-two', 'digs a combination to the body', 'rattles off a three-punch combination', 'lands a jab and a straight right']
+const BOX_POWER = ['lands a big right hand', 'rips a left hook', 'lands a clean uppercut', 'thuds a hook to the body', 'cracks an overhand right']
+const BOX_MISS = ['swings and misses with a big right', 'loads up and misses', 'throws a hook that whistles past', 'misses with the jab']
+const BOX_FLAVOR = ['They tie up and the referee breaks them', 'The crowd is on its feet', 'A feeling-out exchange in the center of the ring', 'The two trade at close range', 'Warned by the referee for holding']
+const MMA_STAND = ['lands a heavy leg kick', 'lands a stiff jab', 'connects with a body kick', 'lands a straight left', 'throws a spinning back fist and lands', 'lands an elbow in the clinch', 'lands a teep to the body']
+const MMA_MISS = ['misses with a head kick', 'swings wide', 'misses a spinning kick', 'is just short with the hook']
+const MMA_SUBS = ['locks in a rear-naked choke', 'goes for an armbar', 'snaps on a guillotine', 'hunts for a triangle', 'goes for a heel hook', 'cinches a d’arce choke']
+const MMA_GROUND = ['rains down ground and pound', 'lands elbows from the top', 'passes to side control', 'takes the back', 'lands short punches from full mount']
+const MMA_FLAVOR = ['They circle the cage', 'Clinch against the fence', 'A wild exchange in the center', 'Both fighters reset']
+
+const blankStats = () => ({ landed: 0, thrown: 0, kd: 0, td: 0, sub: 0, power: 0 })
+export function fightStart () {
+  return { round: 1, sec: 0, hp: { home: 100, away: 100 }, stam: { home: 100, away: 100 }, rd: { home: 0, away: 0 }, rkd: { home: 0, away: 0 }, ctrl: { home: 0, away: 0 }, top: null, cards: [[], [], []], won: { home: 0, away: 0 }, stats: { home: blankStats(), away: blankStats() }, over: null }
+}
+const cloneFight = (st) => JSON.parse(JSON.stringify(st))
+const opp = (s) => (s === 'home' ? 'away' : 'home')
+
+// One exchange: returns { dt, side, text, kind } or null. Changes st.
+function fightStep (league, st, r, A, B) {
+  const cfg = FIGHT[league]
+  const edge = (A.strength - B.strength) * 0.035
+  const tired = (s) => 0.85 + 0.15 * (st.stam[s] / 100)
+  const pHome = Math.min(0.75, Math.max(0.25, 0.5 + edge * 0.8 + (st.hp.home - st.hp.away) * 0.002))
+  const side = st.top || (r() < pHome ? 'home' : 'away')
+  const other = opp(side)
+  const me = side === 'home' ? A : B
+  const sk = (side === 'home' ? 1 : -1) * edge // the attacker's edge
+  const dt = (cfg.sport === 'boxing' ? 9 : 12) + r() * (cfg.sport === 'boxing' ? 9 : 14)
+  const S = st.stats[side]
+  const hit = (dmg) => { st.hp[other] = Math.max(0, st.hp[other] - dmg); st.rd[side] += dmg; S.landed++; S.thrown++ }
+  st.stam[side] = Math.max(20, st.stam[side] - 1.2)
+  let out = null
+  if (cfg.sport === 'boxing') {
+    const x = r()
+    if (x < 0.12) out = { text: pickOf(r, BOX_FLAVOR), kind: 'flavor' }
+    else if (x < 0.46) {
+      if (r() < (0.45 + sk) * tired(side)) { hit(1 + r() * 1.5); out = { text: `${me.name} ${pickOf(r, BOX_JAB)}`, kind: 'jab' } } else { S.thrown++; out = { text: `${me.name} ${pickOf(r, BOX_MISS.slice(3))}`, kind: 'miss' } }
+    } else if (x < 0.74) {
+      if (r() < (0.33 + sk) * tired(side)) { hit(3 + r() * 3); out = { text: `${me.name} ${pickOf(r, BOX_COMBO)}`, kind: 'combo' } } else { S.thrown += 2; out = { text: `${me.name} ${pickOf(r, BOX_MISS)}`, kind: 'miss' } }
+    } else {
+      if (r() < (0.26 + sk) * tired(side)) {
+        hit(6 + r() * 6)
+        S.power++
+        out = { text: `${me.name} ${pickOf(r, BOX_POWER)}`, kind: 'power' }
+        if (r() < 0.06 + Math.max(0, 60 - st.hp[other]) / 380) {
+          st.rkd[other]++
+          S.kd++
+          st.hp[other] = Math.max(0, st.hp[other] - 6)
+          const down = other === 'home' ? A : B
+          if (st.hp[other] < 16 || st.rkd[other] >= 3) {
+            st.over = { winner: side, method: st.rkd[other] >= 3 ? 'TKO' : 'KO', round: st.round, sec: st.sec + dt }
+            out = { text: `DOWN GOES ${down.name.split(' ')[1].toUpperCase()}! ${me.name} lands it and ${down.name} can’t beat the count. It’s over!`, kind: 'finish' }
+          } else out = { text: `DOWN GOES ${down.name.split(' ')[1].toUpperCase()}! ${me.name} drops him. ${down.name} beats the count`, kind: 'kd' }
+        }
+      } else { S.thrown++; out = { text: `${me.name} ${pickOf(r, BOX_MISS)}`, kind: 'miss' } }
+    }
+    if (!st.over && st.hp[other] <= 0) { st.over = { winner: side, method: 'TKO', round: st.round, sec: st.sec + dt }; out = { text: `The referee steps in and waves it off: ${me.name} wins by TKO!`, kind: 'finish' } }
+  } else {
+    // MMA: on the feet, or someone on top.
+    if (st.top) {
+      st.ctrl[side] += dt
+      const x = r()
+      if (x < 0.22) { st.top = null; out = { text: `${(other === 'home' ? A : B).name} scrambles back to the feet`, kind: 'scramble' } } else if (x < 0.34) {
+        S.sub++
+        out = { text: `${me.name} ${pickOf(r, MMA_SUBS)}`, kind: 'sub' }
+        if (r() < 0.2 + Math.max(0, 70 - st.hp[other]) / 260 + sk) { st.over = { winner: side, method: 'Submission', round: st.round, sec: st.sec + dt }; out = { text: `${me.name} ${pickOf(r, MMA_SUBS)}… and ${(other === 'home' ? A : B).name} TAPS! It’s over!`, kind: 'finish' } } else out.text += `, but ${(other === 'home' ? A : B).name} escapes`
+      } else if (x < 0.4) { st.top = other; out = { text: `${(other === 'home' ? A : B).name} sweeps and ends up on top`, kind: 'sweep' } } else {
+        hit(2 + r() * 4)
+        out = { text: `${me.name} ${pickOf(r, MMA_GROUND)}`, kind: 'ground' }
+        if (st.hp[other] < 12) { st.over = { winner: side, method: 'TKO', round: st.round, sec: st.sec + dt }; out = { text: `${me.name} keeps landing and the referee stops it: TKO!`, kind: 'finish' } }
+      }
+    } else {
+      const x = r()
+      if (x < 0.1) out = { text: pickOf(r, MMA_FLAVOR), kind: 'flavor' }
+      else if (x < 0.24) {
+        if (r() < 0.42 + sk) { st.top = side; S.td++; out = { text: `${me.name} shoots for a takedown and gets it`, kind: 'td' } } else out = { text: `${me.name} shoots for a takedown, stuffed`, kind: 'miss' }
+      } else if (r() < (0.48 + sk) * tired(side)) {
+        hit(2 + r() * 5)
+        out = { text: `${me.name} ${pickOf(r, MMA_STAND)}`, kind: 'strike' }
+        if (r() < 0.035 + Math.max(0, 55 - st.hp[other]) / 500) {
+          S.kd++
+          st.hp[other] = Math.max(0, st.hp[other] - 10)
+          if (st.hp[other] < 30 || r() < 0.45) { st.over = { winner: side, method: 'KO', round: st.round, sec: st.sec + dt }; out = { text: `${me.name} CRACKS ${(other === 'home' ? A : B).name} and it’s all over: knockout!`, kind: 'finish' } } else { st.top = side; out = { text: `${me.name} drops ${(other === 'home' ? A : B).name} and pounces!`, kind: 'kd' } }
+        }
+      } else { S.thrown++; out = { text: `${me.name} ${pickOf(r, MMA_MISS)}`, kind: 'miss' } }
+    }
+  }
+  return { dt, side, ...out }
+}
+
+// The judges' cards for the round just ended, and the rest between rounds.
+function scoreRound (league, st, r) {
+  const mma = FIGHT[league].sport === 'mma'
+  const marks = []
+  for (let j = 0; j < 3; j++) {
+    const lean = (st.rd.home - st.rd.away) + (mma ? (st.ctrl.home - st.ctrl.away) / 30 : 0) + normal(r) * 3
+    let h = lean >= 0 ? 10 : 9
+    let a = lean >= 0 ? 9 : 10
+    h -= st.rkd.home; a -= st.rkd.away
+    h = Math.max(7, h); a = Math.max(7, a)
+    st.cards[j].push([h, a])
+    marks.push([h, a])
+  }
+  const homeWins = marks.filter(([h, a]) => h > a).length
+  const awayWins = marks.filter(([h, a]) => a > h).length
+  if (homeWins >= 2) st.won.home++; else if (awayWins >= 2) st.won.away++
+  st.rd = { home: 0, away: 0 }
+  st.rkd = { home: 0, away: 0 }
+  st.ctrl = { home: 0, away: 0 }
+  st.top = null
+  for (const s of ['home', 'away']) { st.hp[s] = Math.min(100, st.hp[s] + 5); st.stam[s] = Math.min(100, st.stam[s] + 14) }
+  return { marks, winner: homeWins >= 2 ? 'home' : awayWins >= 2 ? 'away' : null }
+}
+
+function decision (st) {
+  const totals = st.cards.map((c) => c.reduce((acc, [h, a]) => [acc[0] + h, acc[1] + a], [0, 0]))
+  const votes = totals.map(([h, a]) => (h > a ? 'home' : a > h ? 'away' : 'draw'))
+  const n = (x) => votes.filter((v) => v === x).length
+  let winner = 'draw'
+  let method = 'Draw'
+  if (n('home') === 3 || n('away') === 3) { winner = n('home') === 3 ? 'home' : 'away'; method = 'Unanimous decision' } else if (n('home') === 2 || n('away') === 2) {
+    winner = n('home') === 2 ? 'home' : 'away'
+    method = n('draw') === 1 ? 'Majority decision' : 'Split decision'
+  } else if (n('draw') >= 2) method = n('draw') === 3 ? 'Draw' : 'Majority draw'
+  else method = 'Split draw'
+  return { winner, method, totals }
+}
+
+// Play from st to the end (st is changed). emit(play) for each exchange, if given.
+function finishFight (league, st, r, A, B, emit = null) {
+  const cfg = FIGHT[league]
+  while (!st.over && st.round <= cfg.rounds) {
+    while (!st.over && st.sec < cfg.roundSecs) {
+      const e = fightStep(league, st, r, A, B)
+      const dt = Math.min(e.dt, cfg.roundSecs - st.sec)
+      st.sec += dt
+      if (emit) emit({ ...e, dt })
+    }
+    if (st.over) break
+    const sc = scoreRound(league, st, r)
+    if (emit) emit({ kind: 'round-end', marks: sc.marks, winner: sc.winner, dt: 0 })
+    st.round++
+    st.sec = 0
+  }
+  if (!st.over) { const d = decision(st); st.over = { winner: d.winner, method: d.method, round: cfg.rounds, sec: cfg.roundSecs, totals: d.totals } }
+  return st.over
+}
+
+function simFight (league, n) {
+  const cfg = FIGHT[league]
+  const { home, away } = matchup(league, n)
+  const A = team(league, home)
+  const B = team(league, away)
+  const r = rng(hashStr(`game|v1|${league}|${n}`))
+  const start = gameStart(league, n)
+  const st = fightStart()
+  const plays = []
+  let real = start
+  const snap = () => cloneFight(st)
+  // The judges' cards stay secret until the end, so plays carry no score.
+  const push = (p) => plays.push({ at: Math.round(real), q: st.round, clock: Math.max(0, Math.round(cfg.roundSecs - st.sec)), home: 0, away: 0, pts: 0, snap: snap(), ...p })
+  push({ team: null, text: `${cfg.sport === 'boxing' ? 'Ten rounds' : 'Three rounds'}: ${A.name} (red) against ${B.name} (blue). Round 1!`, kind: 'period' })
+  finishFight(league, st, r, A, B, (e) => {
+    if (e.kind === 'round-end') {
+      // The round is scored; what comes next is the next round from its bell.
+      const next = cloneFight(st)
+      next.round++
+      next.sec = 0
+      push({ team: null, text: `End of round ${st.round}. The judges mark their cards`, kind: 'period-end', clock: 0, snap: next })
+      if (st.round < cfg.rounds) {
+        real += (cfg.rest * SEC) / cfg.speed
+        push({ team: null, text: `Round ${st.round + 1}!`, kind: 'period', q: st.round + 1, clock: cfg.roundSecs, snap: cloneFight(next) })
+      }
+      return
+    }
+    real += (e.dt * SEC) / cfg.speed
+    push({ team: e.side, text: e.text, kind: e.kind })
+  })
+  const o = st.over
+  const W = o.winner === 'home' ? A : o.winner === 'away' ? B : null
+  const end = Math.round(real)
+  const how = o.method === 'KO' || o.method === 'TKO' || o.method === 'Submission' ? `by ${o.method} in round ${o.round}` : `by ${o.method.toLowerCase()}${o.totals ? ` (${o.totals.map(([h, a]) => `${Math.max(h, a)}–${Math.min(h, a)}`).join(', ')})` : ''}`
+  plays.push({ at: end, q: Math.min(o.round, cfg.rounds), clock: Math.max(0, Math.round(cfg.roundSecs - st.sec)), team: o.winner === 'draw' ? null : o.winner, text: W ? `Final: ${W.name} wins ${how}` : `Final: ${o.method.toLowerCase()}${o.totals ? ` (${o.totals.map(([h, a]) => `${h}–${a}`).join(', ')})` : ''}`, pts: 0, kind: 'final', home: 0, away: 0, snap: snap() })
+  return { league, n, id: `${league}-${n}`, start, end, home, away, plays, periods: cfg.rounds, periodSecs: cfg.roundSecs, final: { home: 0, away: 0 }, rounds: { ...st.won }, winner: o.winner, method: o.method, fight: true }
+}
+
+// The chances from here: a few hundred futures under the fight's own rules.
+const fightOdds = new Map()
+const FUTURES = 160
+function fightOutcomes (g, st) {
+  if (st.status === 'final') return { home: g.winner === 'home' ? 1 : 0, away: g.winner === 'away' ? 1 : 0, draw: g.winner === 'draw' ? 1 : 0 }
+  const k = st.plays.length
+  const key = `${g.id}|${k}`
+  if (fightOdds.has(key)) return fightOdds.get(key)
+  const A = team(g.league, g.home)
+  const B = team(g.league, g.away)
+  const base = k ? st.last.snap : fightStart()
+  const r = rng(hashStr(`mc|${key}`))
+  const tally = { home: 0, away: 0, draw: 0 }
+  for (let i = 0; i < FUTURES; i++) {
+    const f = cloneFight(base)
+    tally[finishFight(g.league, f, r, A, B).winner]++
+  }
+  const out = { home: (tally.home + 0.5) / (FUTURES + 1.5), away: (tally.away + 0.5) / (FUTURES + 1.5), draw: (tally.draw + 0.5) / (FUTURES + 1.5) }
+  if (fightOdds.size > 5000) fightOdds.clear()
+  fightOdds.set(key, out)
+  return out
+}
+
 // Poisson, for goals still to come.
 function poissonPmf (lam, k) {
   let p = Math.exp(-lam)
@@ -558,13 +819,13 @@ export function game (league, n) {
   const key = `${league}-${n}`
   let g = gameCache.get(key)
   if (!g) {
-    g = league === 'hoops' ? simHoops(n) : league === 'pitch' ? simSoccer(n) : simFoot(n)
+    g = league === 'hoops' ? simHoops(n) : league === 'pitch' ? simSoccer(n) : league === 'ring' || league === 'cage' ? simFight(league, n) : simFoot(n)
     if (gameCache.size > 400) gameCache.clear()
     gameCache.set(key, g)
   }
   return g
 }
-export const gameById = (id) => { const m = /^(hoops|gridiron|pitch)-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
+export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage)-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
 
 // --- watching ----------------------------------------------------------------------------
 
@@ -624,6 +885,7 @@ export function soccerOutcomes (g, st) {
 // Each result's chance: { home, away } and, in soccer, draw.
 export function outcomes (g, t, st = stateAt(g, t)) {
   if (g.league === 'pitch') return soccerOutcomes(g, st)
+  if (g.fight) return fightOutcomes(g, st)
   const p = winChance(g, t, st)
   return { home: p, away: 1 - p }
 }
@@ -633,11 +895,12 @@ export function outcomes (g, t, st = stateAt(g, t)) {
 export function clockAt (g, st) {
   const k = st.last?.kind
   const running = st.status === 'live' && k !== 'period-end' && k !== 'half-time' && k !== 'final'
-  const speed = g.league === 'hoops' ? HOOPS_SPEED : g.league === 'pitch' ? SOCCER_SPEED : FOOT_SPEED
+  const speed = g.league === 'hoops' ? HOOPS_SPEED : g.league === 'pitch' ? SOCCER_SPEED : g.fight ? FIGHT[g.league].speed : FOOT_SPEED
   return { running, at: st.last?.at || g.start, speed, countUp: Boolean(g.countUp), clock: st.clock }
 }
 
 export function winChance (g, t, st = stateAt(g, t)) {
+  if (g.fight) { const o = fightOutcomes(g, st); return o.home + o.draw / 2 }
   if (g.league === 'pitch') { const o = soccerOutcomes(g, st); return o.home + o.draw / 2 }
   if (st.status === 'final') return st.home > st.away ? 1 : st.home < st.away ? 0 : 0.5
   const H = team(g.league, g.home)

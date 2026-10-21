@@ -15,8 +15,8 @@ export const PAYOUT = 100
 export const PM_SPREAD = 0.02 // two points either side of the fair chance
 const clampPrice = (x) => Math.min(99, Math.max(1, x))
 
-// The sides you can back: soccer has the draw too.
-export const sidesOf = (g) => (g.league === 'pitch' ? ['home', 'draw', 'away'] : ['home', 'away'])
+// The sides you can back: soccer and fights have the draw too.
+export const sidesOf = (g) => (g.league === 'pitch' || g.fight ? ['home', 'draw', 'away'] : ['home', 'away'])
 
 export function quotes (g, t) {
   const st = stateAt(g, t)
@@ -27,6 +27,22 @@ export function quotes (g, t) {
   return out
 }
 const blankBet = () => ({ home: 0, away: 0, draw: 0, cost: 0, homeCost: 0, awayCost: 0, drawCost: 0 })
+
+// A fight's numbers so far: landed and thrown, knockdowns, takedowns,
+// submission tries, and each round on the judges' cards.
+// The cards are read out only at the end.
+function fightView (plays, final) {
+  const st = plays.length ? plays[plays.length - 1].snap : null
+  if (!st) return null
+  if (!final) return { stats: st.stats, rounds: null }
+  const rounds = st.cards[0].map((_, i) => {
+    const marks = st.cards.map((c) => c[i])
+    const h = marks.filter(([a, b]) => a > b).length
+    const a = marks.filter(([x, y]) => y > x).length
+    return { round: i + 1, team: h >= 2 ? 'home' : a >= 2 ? 'away' : null, cards: marks.map(([x, y]) => `${x}–${y}`).join(', ') }
+  })
+  return { stats: st.stats, rounds }
+}
 
 export class Sportsbook {
   constructor ({ economy, now }) {
@@ -54,9 +70,10 @@ export class Sportsbook {
       const g = gameById(id)
       if (!g || t < g.end) continue
       const tie = g.final.home === g.final.away
-      const winner = tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away'
-      // A football tie pays half on both teams; soccer has a draw to back.
-      const per = (side) => (g.league !== 'pitch' && tie ? PAYOUT / 2 : side === winner ? PAYOUT : 0)
+      // A fight is won however it ends (a knockout can come behind on rounds).
+      const winner = g.winner || (tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away')
+      // A football tie pays half on both teams; soccer and fights have a draw to back.
+      const per = (side) => (g.league !== 'pitch' && !g.fight && tie ? PAYOUT / 2 : side === winner ? PAYOUT : 0)
       const pay = Math.floor(((b.home || 0) * per('home') + (b.away || 0) * per('away') + (b.draw || 0) * per('draw')) * 100) / 100
       delete this.s.bets[id]
       this.economy.s.coins += pay
@@ -65,7 +82,7 @@ export class Sportsbook {
       this.s.net += gain
       if (gain > 0) this.s.won++; else if (gain < 0) this.s.lost++
       this.s.best = Math.max(this.s.best, gain)
-      this.s.history = [{ id, at: g.end, home: g.home, away: g.away, score: g.final, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
+      this.s.history = [{ id, at: g.end, home: g.home, away: g.away, score: g.final, method: g.method || null, cost: b.cost, pay, gain, how: 'settled' }, ...this.s.history].slice(0, 40)
       changed = true
     }
     if (changed) { this.economy.dirty = true; this.economy.save(true); this.economy.emit('changed') }
@@ -155,8 +172,11 @@ export class Sportsbook {
       start: g.start,
       end: t >= g.end ? g.end : null,
       status: q.st.status,
-      home: { code: H.code, city: H.city, name: H.name, score: q.st.home, color: gameColors(H, A).home },
-      away: { code: A.code, city: A.city, name: A.name, score: q.st.away, color: gameColors(H, A).away },
+      home: { code: H.code, city: H.city, name: H.name, nickname: H.nickname, score: q.st.home, color: gameColors(H, A).home },
+      away: { code: A.code, city: A.city, name: A.name, nickname: A.nickname, score: q.st.away, color: gameColors(H, A).away },
+      fighters: Boolean(g.fight),
+      method: g.fight && q.st.status === 'final' ? g.method : null,
+      winner: g.fight && q.st.status === 'final' ? g.winner : null,
       q: q.st.q,
       clock: q.st.clock,
       periods: g.periods,
@@ -195,7 +215,9 @@ export class Sportsbook {
     }
     const order = (rows) => Object.entries(rows).map(([who, r]) => ({ who, ...r })).sort((a, b) => score(b) - score(a))
     const score = (r) => (r.pts || 0) + 6 * ((r.rec || 0) + (r.rush || 0) + (r.pass || 0)) + 3 * (r.fg || 0) + (r.xp || 0) + 2 * (r.safety || 0) + 10 * (r.goal || 0) + (r.assist || 0)
-    const step = Math.max(1, Math.floor(plays.length / 160))
+    // Fight chances come from playing the rest of the fight many times, so
+    // their chart takes fewer points.
+    const step = Math.max(1, Math.floor(plays.length / (g.fight ? 30 : 160)))
     for (let i = 0; i < plays.length; i += step) chart.push(point(plays[i].at))
     if (plays.length) chart.push([plays[plays.length - 1].at, q.o.home, q.o.away])
     return {
@@ -203,7 +225,8 @@ export class Sportsbook {
       plays: plays.slice(-120).reverse().map((p) => ({ at: p.at, q: p.q, clock: p.clock, team: p.team, text: p.text, pts: p.pts, kind: p.kind, home: p.home, away: p.away })),
       chart,
       box: { home: order(box.home), away: order(box.away) },
-      rosters: { home: H.players.map((p) => `${p.name} (${p.pos})`), away: A.players.map((p) => `${p.name} (${p.pos})`) },
+      rosters: g.fight ? null : { home: H.players.map((p) => `${p.name} (${p.pos})`), away: A.players.map((p) => `${p.name} (${p.pos})`) },
+      fight: g.fight ? fightView(plays, q.st.status === 'final') : null,
       strength: { home: H.strength, away: A.strength },
       startChances: outcomes(g, g.start - 1)
     }

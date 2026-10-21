@@ -132,7 +132,7 @@ test('soccer: three results, chances that add up and come true, and the draw pay
 })
 
 test('nobody plays two games in a row, everyone plays as often, and scores are told apart', () => {
-  for (const lg of ['hoops', 'gridiron', 'pitch']) {
+  for (const lg of ['hoops', 'gridiron', 'pitch', 'ring', 'cage']) {
     const count = {}
     for (let n = 0; n < 1320; n++) {
       const a = game(lg, n)
@@ -146,4 +146,52 @@ test('nobody plays two games in a row, everyone plays as often, and scores are t
   for (let n = 0; n < 60; n++) for (const p of game('gridiron', n).plays) if (p.pts) kinds.add(p.kind)
   for (const k of ['td-pass', 'td-rush', 'xp', 'fg']) assert.ok(kinds.has(k), `football has ${k}`)
   assert.ok(game('gridiron', 3).plays.filter((p) => p.kind === 'td-pass').every((p) => p.passer && p.who))
+})
+
+test('boxing and MMA: fights end inside their slot, chances come true, and any result pays', () => {
+  for (const lg of ['ring', 'cage']) {
+    const buckets = Array.from({ length: 5 }, () => ({ n: 0, p: 0, w: 0 }))
+    const methods = new Set()
+    for (let n = 0; n < 400; n++) {
+      const g = game(lg, n)
+      assert.equal(g.id, `${lg}-${n}`)
+      assert.ok(g.end - g.start < LEAGUES[lg].every - 60000, 'over before the next fight')
+      assert.ok(['home', 'away', 'draw'].includes(g.winner))
+      methods.add(g.method)
+      let last = g.start
+      for (const p of g.plays) { assert.ok(p.at >= last); last = p.at; assert.ok(p.q >= 1 && p.q <= g.periods && p.clock >= 0 && p.clock <= g.periodSecs) }
+      // The clock runs in step with real time within a round.
+      const speed = clockAt(g, stateAt(g, g.start + 1)).speed
+      for (let k = 1; k < g.plays.length; k++) {
+        const a = g.plays[k - 1]
+        const b = g.plays[k]
+        if (a.q !== b.q || ['period-end', 'final'].includes(a.kind) || ['final', 'period-end'].includes(b.kind) || a.kind === 'period') continue
+        assert.ok(Math.abs((a.clock - b.clock) - ((b.at - a.at) / 1000) * speed) <= 1.01, `${lg} clock in step`)
+      }
+      for (const f of [0, 0.5]) {
+        const o = outcomes(g, g.start + (g.end - g.start) * f)
+        assert.ok(Math.abs(o.home + o.draw + o.away - 1) < 1e-9)
+        for (const k of ['home', 'away', 'draw']) { const b = buckets[Math.min(4, Math.floor(o[k] * 5))]; b.n++; b.p += o[k]; b.w += k === g.winner ? 1 : 0 }
+      }
+      assert.equal(outcomes(g, g.end)[g.winner], 1)
+    }
+    for (const b of buckets) if (b.n > 100) assert.ok(Math.abs(b.p / b.n - b.w / b.n) < 0.07, `${lg} predicted ${(b.p / b.n).toFixed(2)} vs happened ${(b.w / b.n).toFixed(2)}`)
+    assert.ok(methods.has('KO') && methods.has('Unanimous decision'))
+    if (lg === 'cage') assert.ok(methods.has('Submission'))
+    assert.ok(team(lg, LEAGUES[lg].teams[0][0]).nickname)
+  }
+  // A knockout pays whoever lands it, even down on the cards.
+  let n = 0
+  while (!/KO/.test(game('ring', n).method)) n++
+  const g = game('ring', n)
+  const clock = { t: g.start + 5000 }
+  const a = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false }, now: () => new Date(clock.t) })
+  a.economy.devAddCoins(1e5)
+  const bet = a.sports.buy(g.id, g.winner, 1000)
+  a.sports.buy(g.id, 'draw', 100)
+  clock.t = g.end + 1
+  a.sports.sync()
+  assert.ok(Math.abs(a.economy.s.sports.history[0].pay - Math.floor(bet.shares * PAYOUT * 100) / 100) < 0.02)
+  const view = a.sports.view(g.id)
+  assert.ok(view.fight.stats.home.thrown > 0 && view.fighters && view.method === g.method)
 })
