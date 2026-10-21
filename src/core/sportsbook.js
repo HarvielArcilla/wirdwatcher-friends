@@ -68,7 +68,17 @@ export class Sportsbook {
     let changed = false
     for (const [id, b] of Object.entries(this.s.bets)) {
       const g = gameById(id)
-      if (!g || t < g.end) continue
+      if (!g) {
+        // A bet from before the schedule changed: that game has moved, so
+        // the bet comes back at what it cost.
+        delete this.s.bets[id]
+        this.economy.s.coins += b.cost || 0
+        this.economy.note('got', 'sports', b.cost || 0)
+        this.s.history = [{ id, at: t, home: '', away: '', score: { home: 0, away: 0 }, cost: b.cost || 0, pay: b.cost || 0, gain: 0, how: 'refunded' }, ...this.s.history].slice(0, 40)
+        changed = true
+        continue
+      }
+      if (t < g.end) continue
       const tie = g.final.home === g.final.away
       // A fight is won however it ends (a knockout can come behind on rounds).
       const winner = g.winner || (tie ? 'draw' : g.final.home > g.final.away ? 'home' : 'away')
@@ -237,9 +247,9 @@ export class Sportsbook {
     this.sync()
     const t = this.now()
     const sl = slate(league, t)
-    const mine = Object.keys(this.s.bets).filter((id) => id.startsWith(`${league}-`))
+    const mine = Object.keys(this.s.bets).filter((id) => id.startsWith(`${league}-`) && gameById(id))
     return {
-      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport },
+      league: { id: league, name: LEAGUES[league].name, short: LEAGUES[league].short, emoji: LEAGUES[league].emoji, sport: LEAGUES[league].sport, every: LEAGUES[league].every },
       at: t,
       live: sl.live.map((n) => this._card(game(league, n), t)),
       upcoming: sl.upcoming.map((n) => this._card(game(league, n), t)),

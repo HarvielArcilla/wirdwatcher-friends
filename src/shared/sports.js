@@ -63,7 +63,7 @@ export const LEAGUES = {
       ['MIA', 'Miami', 'Metaphors', '#e8507a', '#2ab0c8'], ['DEN', 'Denver', 'Diphthongs', '#2a5ab8', '#f0b43c'], ['AUS', 'Austin', 'Adverbs', '#e0782a', '#5a3a8a'], ['PHX', 'Phoenix', 'Phonemes', '#d8582a', '#6a3ab8'],
       ['POR', 'Portland', 'Palindromes', '#b8202e', '#3a3a3a'], ['ATL', 'Atlanta', 'Anagrams', '#d63a2a', '#c8b45a'], ['NYN', 'New York', 'Neologisms', '#2a6ad8', '#f07a2a'], ['DET', 'Detroit', 'Dashes', '#2a8ad8', '#9aa3b0']
     ],
-    every: 30 * MIN,
+    every: 29 * MIN,
     offset: 0
   },
   gridiron: {
@@ -73,7 +73,7 @@ export const LEAGUES = {
       ['PIT', 'Pittsburgh', 'Prepositions', '#e8b82a', '#2a2a2a'], ['NO', 'New Orleans', 'Nouns', '#b89a5a', '#2a2a2a'], ['BAL', 'Baltimore', 'Ballads', '#4a2a8a', '#c8a42a'], ['SF', 'San Francisco', 'Sonnets', '#b82a2a', '#c8a45c'],
       ['HOU', 'Houston', 'Hyphens', '#1f3a6a', '#c8323c'], ['MIN', 'Minnesota', 'Morphemes', '#5a2a8a', '#f0c02a'], ['NSH', 'Nashville', 'Narrators', '#3a8ad8', '#c8323c'], ['LV', 'Las Vegas', 'Limericks', '#a8aeb8', '#c8323c']
     ],
-    every: 60 * MIN,
+    every: 36 * MIN,
     offset: 15 * MIN
   },
   pitch: {
@@ -83,7 +83,7 @@ export const LEAGUES = {
       ['MIL', 'Milan', 'Malapropisms', '#c8202e', '#1f1f1f'], ['MUN', 'Munich', 'Mnemonics', '#d8202e', '#2a5ab8'], ['PAR', 'Paris', 'Paragraphs', '#1f3a7a', '#d8323c'], ['LIS', 'Lisbon', 'Lisps', '#1f8a4c', '#e8e2d0'],
       ['AMS', 'Amsterdam', 'Ampersands', '#e8402a', '#e8e2d0'], ['DUB', 'Dublin', 'Digraphs', '#2a9a5a', '#e8902a'], ['GLA', 'Glasgow', 'Glyphs', '#1f7a4a', '#e8e2d0'], ['TOR', 'Toronto', 'Tildes', '#c8202e', '#2a5ab8']
     ],
-    every: 40 * MIN,
+    every: 52 * MIN,
     offset: 5 * MIN
   },
   // Fighters: [code, hometown, name, color, second color, nickname].
@@ -99,7 +99,7 @@ export const LEAGUES = {
       ['NIM', 'Havana', 'E. Nimbus', '#4a9ee8', '#2a2a2a', 'Cloud Nine'], ['RAV', 'Liverpool', 'O. Raven', '#5a5a8a', '#c8323c', 'Nevermore'],
       ['TUN', 'Almaty', 'V. Tundra', '#5ab0e8', '#1f3a7a', 'The Freeze'], ['SAF', 'Mumbai', 'I. Saffron', '#e8a03a', '#a8204a', 'Spice']
     ],
-    every: 8 * MIN,
+    every: 21 * MIN,
     offset: 2 * MIN
   },
   cage: {
@@ -114,7 +114,7 @@ export const LEAGUES = {
       ['DYN', 'Seoul', 'K. Dynamo', '#e8402a', '#5a5a8a', 'Live Wire'], ['RIG', 'Manchester', 'D. Rigmarole', '#5a2a8a', '#5ab0e8', 'The Runaround'],
       ['HUB', 'Chicago', 'P. Hubbub', '#b8202e', '#c9a44a', 'Racket'], ['VAG', 'Lisbon', 'N. Vagabond', '#0f6a6a', '#e8b82a', 'No Fixed Abode']
     ],
-    every: 7 * MIN,
+    every: 10 * MIN,
     offset: 4 * MIN
   }
 }
@@ -215,7 +215,9 @@ function matchup (league, n) {
 // real minutes), 30 seconds between quarters, two minutes at half time, and
 // five-minute overtimes until someone leads.
 
-const HOOPS_SPEED = 2
+// Every sport's clock runs at the same pace: two game seconds a real one.
+export const GAME_SPEED = 2
+const HOOPS_SPEED = GAME_SPEED
 const SHOT2 = ['hits a pull-up jumper', 'finishes at the rim', 'banks in a floater', 'scores in the post', 'lays it in', 'hits from the elbow', 'throws down a dunk', 'drops in a hook shot', 'cuts and scores']
 const SHOT3 = ['buries a three', 'hits a step-back three', 'drains it from the corner', 'pulls up from deep and hits', 'splashes a catch-and-shoot three', 'nails a three off the screen']
 const MISS2 = ['misses a jumper', 'can’t finish at the rim', 'misses the floater', 'has the layup rim out', 'misses in the post']
@@ -290,7 +292,7 @@ function simHoops (n) {
   while (score.home === score.away) { playPeriod(q, 5 * 60); real += 30 * SEC; q++ }
   const end = plays[plays.length - 1].at
   plays.push({ at: end, q: q - 1, clock: 0, team: null, text: `Final: ${score.home > score.away ? H.full : A.full} win ${Math.max(score.home, score.away)}–${Math.min(score.home, score.away)}`, pts: 0, kind: 'final', home: score.home, away: score.away })
-  return { league: 'hoops', n, id: `hoops-${n}`, start, end, home, away, plays, form, periods: 4, periodSecs: 12 * 60, final: { ...score } }
+  return { league: 'hoops', n, id: gameId('hoops', n), start, end, home, away, plays, form, periods: 4, periodSecs: 12 * 60, final: { ...score } }
 }
 
 // --- football ------------------------------------------------------------------------------
@@ -299,7 +301,7 @@ function simHoops (n) {
 // 30 seconds between quarters, three minutes at half time. A tie after four
 // goes to a ten-minute overtime, first score wins; still tied, it's a tie.
 
-const FOOT_SPEED = 1.5
+const FOOT_SPEED = GAME_SPEED
 const RUNS = ['runs up the middle', 'bounces it outside', 'cuts back', 'powers ahead', 'slips through the line', 'runs off tackle']
 const CATCHES = ['catches it over the middle', 'hauls it in on the sideline', 'makes the grab', 'catches a quick slant', 'reels in a deep ball', 'snags it in traffic']
 
@@ -434,7 +436,7 @@ function simFoot (n) {
   const end = plays[plays.length - 1].at
   const tie = score.home === score.away
   plays.push({ at: end, q: plays[plays.length - 1].q, clock: 0, team: null, text: tie ? `Final: a ${score.home}–${score.away} tie` : `Final: ${score.home > score.away ? H.full : A.full} win ${Math.max(score.home, score.away)}–${Math.min(score.home, score.away)}`, pts: 0, kind: 'final', home: score.home, away: score.away })
-  return { league: 'gridiron', n, id: `gridiron-${n}`, start, end, home, away, plays, form, periods: 4, periodSecs: 15 * 60, final: { ...score } }
+  return { league: 'gridiron', n, id: gameId('gridiron', n), start, end, home, away, plays, form, periods: 4, periodSecs: 15 * 60, final: { ...score } }
 }
 
 
@@ -448,7 +450,7 @@ function simFoot (n) {
 // corners, fouls and cards. The ball's position is x from 0 (the away
 // team's goal, on the left) to 100 (the home team's goal).
 
-export const SOCCER_SPEED = 3
+export const SOCCER_SPEED = GAME_SPEED
 const HALF = 45 * 60
 const PASSES = ['plays it into midfield', 'switches the play', 'carries it forward', 'finds a teammate in space', 'plays a one-two', 'drives down the wing', 'threads a pass forward']
 const BACK = ['recycles it to the back', 'plays it back to the keeper', 'keeps it in midfield', 'switches it across the back line', 'lays it off sideways']
@@ -577,7 +579,7 @@ function simSoccer (n) {
   const end = plays[plays.length - 1].at
   const draw = score.home === score.away
   plays.push({ at: end, q: 2, clock: plays[plays.length - 1].clock, team: null, text: draw ? `Final: a ${score.home}–${score.away} draw` : `Final: ${score.home > score.away ? H.full : A.full} win ${Math.max(score.home, score.away)}–${Math.min(score.home, score.away)}`, pts: 0, kind: 'final', home: score.home, away: score.away })
-  return { league: 'pitch', n, id: `pitch-${n}`, start, end, home, away, plays, periods: 2, periodSecs: HALF, countUp: true, final: { ...score } }
+  return { league: 'pitch', n, id: gameId('pitch', n), start, end, home, away, plays, periods: 2, periodSecs: HALF, countUp: true, final: { ...score } }
 }
 
 // --- boxing and MMA -------------------------------------------------------------------------
@@ -594,8 +596,8 @@ function simSoccer (n) {
 // are the fight's own odds.
 
 export const FIGHT = {
-  ring: { sport: 'boxing', rounds: 10, roundSecs: 180, rest: 60, speed: 6 },
-  cage: { sport: 'mma', rounds: 3, roundSecs: 300, rest: 60, speed: 3 }
+  ring: { sport: 'boxing', rounds: 10, roundSecs: 180, rest: 60, speed: GAME_SPEED },
+  cage: { sport: 'mma', rounds: 3, roundSecs: 300, rest: 60, speed: GAME_SPEED }
 }
 const BOX_JAB = ['pops the jab', 'snaps out a stiff jab', 'paws with the jab and lands', 'doubles up on the jab']
 const BOX_COMBO = ['lands a crisp one-two', 'digs a combination to the body', 'rattles off a three-punch combination', 'lands a jab and a straight right']
@@ -781,7 +783,7 @@ function simFight (league, n) {
   const end = Math.round(real)
   const how = o.method === 'KO' || o.method === 'TKO' || o.method === 'Submission' ? `by ${o.method} in round ${o.round}` : `by ${o.method.toLowerCase()}${o.totals ? ` (${o.totals.map(([h, a]) => `${Math.max(h, a)}–${Math.min(h, a)}`).join(', ')})` : ''}`
   plays.push({ at: end, q: Math.min(o.round, cfg.rounds), clock: Math.max(0, Math.round(cfg.roundSecs - st.sec)), team: o.winner === 'draw' ? null : o.winner, text: W ? `Final: ${W.name} wins ${how}` : `Final: ${o.method.toLowerCase()}${o.totals ? ` (${o.totals.map(([h, a]) => `${h}–${a}`).join(', ')})` : ''}`, pts: 0, kind: 'final', home: 0, away: 0, snap: snap() })
-  return { league, n, id: `${league}-${n}`, start, end, home, away, plays, periods: cfg.rounds, periodSecs: cfg.roundSecs, final: { home: 0, away: 0 }, rounds: { ...st.won }, winner: o.winner, method: o.method, fight: true }
+  return { league, n, id: gameId(league, n), start, end, home, away, plays, periods: cfg.rounds, periodSecs: cfg.roundSecs, final: { home: 0, away: 0 }, rounds: { ...st.won }, winner: o.winner, method: o.method, fight: true }
 }
 
 // The chances from here: a few hundred futures under the fight's own rules.
@@ -814,6 +816,7 @@ function poissonPmf (lam, k) {
   return p
 }
 
+export const gameId = (league, n) => `${league}-v2-${n}`
 const gameCache = new Map()
 export function game (league, n) {
   const key = `${league}-${n}`
@@ -825,7 +828,9 @@ export function game (league, n) {
   }
   return g
 }
-export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage)-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
+// Ids carry the schedule's version: games moved when every sport went to
+// the same speed (v2), so a bet on an old id is for a game that's gone.
+export const gameById = (id) => { const m = /^(hoops|gridiron|pitch|ring|cage)-v2-(\d+)$/.exec(String(id)); return m ? game(m[1], Number(m[2])) : null }
 
 // --- watching ----------------------------------------------------------------------------
 

@@ -112,7 +112,7 @@ test('soccer: three results, chances that add up and come true, and the draw pay
   const g = game('pitch', 10)
   const mid = stateAt(g, g.start + 5 * 60000)
   const k = clockAt(g, mid)
-  assert.ok(k.running && k.countUp && k.speed === 3)
+  assert.ok(k.running && k.countUp && k.speed === 2)
 
   // Betting on the draw.
   let n = 0
@@ -154,7 +154,7 @@ test('boxing and MMA: fights end inside their slot, chances come true, and any r
     const methods = new Set()
     for (let n = 0; n < 400; n++) {
       const g = game(lg, n)
-      assert.equal(g.id, `${lg}-${n}`)
+      assert.equal(g.id, `${lg}-v2-${n}`)
       assert.ok(g.end - g.start < LEAGUES[lg].every - 60000, 'over before the next fight')
       assert.ok(['home', 'away', 'draw'].includes(g.winner))
       methods.add(g.method)
@@ -194,4 +194,31 @@ test('boxing and MMA: fights end inside their slot, chances come true, and any r
   assert.ok(Math.abs(a.economy.s.sports.history[0].pay - Math.floor(bet.shares * PAYOUT * 100) / 100) < 0.02)
   const view = a.sports.view(g.id)
   assert.ok(view.fight.stats.home.thrown > 0 && view.fighters && view.method === g.method)
+})
+
+test('every sport runs its clock at the same speed, and the next game follows soon after', () => {
+  for (const lg of ['hoops', 'gridiron', 'pitch', 'ring', 'cage']) {
+    const lens = []
+    for (let n = 0; n < 400; n++) {
+      const g = game(lg, n)
+      assert.equal(clockAt(g, stateAt(g, g.start + 1)).speed, 2, `${lg} runs at 2×`)
+      lens.push(g.end - g.start)
+    }
+    lens.sort((a, b) => a - b)
+    const typical = lens[200]
+    const gap = LEAGUES[lg].every - typical
+    assert.ok(gap > 0 && gap <= 3 * 60000, `${lg}: next game ${(gap / 60000).toFixed(1)} min after a typical one ends`)
+  }
+})
+
+test('a bet on a game from the old schedule is refunded', () => {
+  const clock = { t: gameStart('hoops', 3000) }
+  const a = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false }, now: () => new Date(clock.t) })
+  a.economy.devAddCoins(1000)
+  a.economy.s.coins -= 250
+  a.economy.s.sports.bets['hoops-123'] = { home: 5, away: 0, draw: 0, cost: 250, homeCost: 250, awayCost: 0, drawCost: 0 }
+  const before = a.economy.s.coins
+  a.sports.sync()
+  assert.equal(a.economy.s.coins - before, 250)
+  assert.equal(a.economy.s.sports.history[0].how, 'refunded')
 })

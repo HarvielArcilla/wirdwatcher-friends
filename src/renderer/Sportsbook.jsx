@@ -124,7 +124,7 @@ export default function Sportsbook ({ coins }) {
           ? <GameView id={open} coins={coins} trade={trade} onBack={() => setOpen(null)} />
           : (
             <>
-              <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight every 8 minutes' : board.league.sport === 'mma' ? 'a three-round fight every 7 minutes' : board.league.sport === 'basketball' ? 'a game every half hour' : board.league.sport === 'soccer' ? 'a match every 40 minutes' : 'a game every hour, at quarter past'}, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
+              <p className='lede sp-lede'>{board.league.name}: {board.league.sport === 'boxing' ? 'a ten-round fight' : board.league.sport === 'mma' ? 'a three-round fight' : board.league.sport === 'soccer' ? 'a match' : 'a game'} every {Math.round(board.league.every / 60000)} minutes, with every clock at twice real time, played live and the same on every computer. Buy a {board.league.sport === 'soccer' ? 'result (either team, or the draw)' : board.league.sport === 'boxing' || board.league.sport === 'mma' ? 'result (either fighter, or a draw)' : 'team'} at its chance; each contract pays <Coins n={board.payout} /> if it comes true. Sell back any time before the end.</p>
               {board.mine.length > 0 && (
                 <section className='sp-sec'>
                   <h3>Your bets</h3>
@@ -148,7 +148,7 @@ export default function Sportsbook ({ coins }) {
               {board.history.length > 0 && (
                 <section className='sp-sec'>
                   <h3>Settled</h3>
-                  <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.away} @ {h.home}</span><small>{h.how === 'sold' ? 'sold early' : h.method || `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
+                  <div className='sp-hist'>{board.history.map((h, i) => <div key={i}><span>{h.how === 'refunded' ? 'A game from the old schedule' : `${h.away} @ ${h.home}`}</span><small>{h.how === 'sold' ? 'sold early' : h.how === 'refunded' ? 'refunded (schedule changed)' : h.method || `${h.score.away}–${h.score.home}`}</small><b className={h.gain >= 0 ? 'up' : 'down'}>{signed(h.gain)}</b></div>)}</div>
                 </section>
               )}
             </>
