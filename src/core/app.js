@@ -23,6 +23,7 @@ import { Market } from './market.js'
 import { Derivatives } from './derivatives.js'
 import { Sportsbook } from './sportsbook.js'
 import { Leximon } from './leximon.js'
+import { Farm } from './farm.js'
 import { slotWord } from '../shared/slots.js'
 import { Daily } from './daily.js'
 
@@ -59,6 +60,7 @@ export class WirdApp extends EventEmitter {
     this.market.derivs = this.derivs
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
+    this.farm = new Farm({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.on('played', (kind) => this.daily.note(kind))
@@ -95,6 +97,7 @@ export class WirdApp extends EventEmitter {
     // Only new words teach your Leximon (and bring wild words), whatever you gave them.
     if (res.coins) {
       res.leximon = this.leximon.onNewWord(word, { lobby: opts?.source === 'lobby' })
+      res.wordSeed = this.farm.onNewWord(word)
       this.daily.note('words', { topic: this.words.marketFacts(word)?.sector, streak: res.coins.streak?.n })
     }
     return res

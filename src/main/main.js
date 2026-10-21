@@ -124,6 +124,12 @@ function handlers () {
       ww.leximon[action](...args)
       return ww.leximon.view()
     },
+    farm: () => ww.farm.view(),
+    farmAction: (action, ...args) => {
+      if (!['plant', 'water', 'waterAll', 'harvest', 'clear', 'buy', 'sell', 'sellAll', 'forage', 'talk', 'gift', 'cast', 'reel'].includes(action)) throw new Error('Unknown action.')
+      const out = ww.farm[action](...args)
+      return { out: out ?? null, farm: ww.farm.view() }
+    },
     duel: (userId) => ww.duelFriend(userId),
     today: () => ww.daily.view(),
     todayAction: (action, ...args) => {

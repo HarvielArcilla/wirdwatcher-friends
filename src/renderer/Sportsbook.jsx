@@ -45,10 +45,31 @@ function clockText (c, now = Date.now()) {
   const period = c.q > c.periods ? (c.sport === 'football' ? 'OT' : `OT${c.q - c.periods > 1 ? c.q - c.periods : ''}`) : `Q${c.q}`
   return `${period} ${mmss(liveSecs(c, now))}`
 }
+// Redraw the moment the shown second changes. A fixed timer drifts
+// against the game clock (a 250 ms timer on soccer's 3× clock moves it
+// 0.75 s a beat, so whole seconds came in an uneven 1-1-0 rhythm); this
+// waits exactly until the next whole game second instead.
+function useClockNow (c) {
+  const [now, setNow] = useState(Date.now())
+  const k = c.clockInfo
+  const running = c.status === 'live' && k?.running
+  useEffect(() => {
+    let t
+    const tick = () => {
+      const at = Date.now()
+      setNow(at)
+      if (!running) { t = setTimeout(tick, 5000); return }
+      const secs = liveSecs(c, at)
+      const frac = k.countUp ? Math.ceil(secs + 1e-6) - secs : secs - Math.floor(secs)
+      t = setTimeout(tick, Math.max(16, (frac / k.speed) * 1000 + 4))
+    }
+    tick()
+    return () => clearTimeout(t)
+  }, [running, k?.at, k?.clock, k?.speed, c.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  return now
+}
 function Clock ({ c }) {
-  // Fights run fast (six game seconds a second in boxing), so their clock
-  // redraws once a game second.
-  const now = useNow(c.status !== 'live' ? 5000 : c.fighters ? Math.round(1000 / (c.clockInfo?.speed || 4)) : 250)
+  const now = useClockNow(c)
   return <>{c.status === 'live' && <i className='sp-live-dot' />}{clockText(c, now) || startText(c.start)}</>
 }
 const SIDE_ORDER = { home: 2, draw: 1, away: 0 }
