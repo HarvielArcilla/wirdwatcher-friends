@@ -130,3 +130,20 @@ test('soccer: three results, chances that add up and come true, and the draw pay
   const h = a.economy.s.sports.history[0]
   assert.ok(Math.abs(h.pay - Math.floor(bet.shares * PAYOUT * 100) / 100) < 0.02, 'the draw pays 100 a contract, the team nothing')
 })
+
+test('nobody plays two games in a row, everyone plays as often, and scores are told apart', () => {
+  for (const lg of ['hoops', 'gridiron', 'pitch']) {
+    const count = {}
+    for (let n = 0; n < 1320; n++) {
+      const a = game(lg, n)
+      const b = game(lg, n + 1)
+      assert.ok(![a.home, a.away].some((t) => [b.home, b.away].includes(t)), `${lg} game ${n}: back to back`)
+      for (const t of [a.home, a.away]) count[t] = (count[t] || 0) + 1
+    }
+    assert.equal(new Set(Object.values(count)).size, 1, 'a whole number of seasons: everyone equal')
+  }
+  const kinds = new Set()
+  for (let n = 0; n < 60; n++) for (const p of game('gridiron', n).plays) if (p.pts) kinds.add(p.kind)
+  for (const k of ['td-pass', 'td-rush', 'xp', 'fg']) assert.ok(kinds.has(k), `football has ${k}`)
+  assert.ok(game('gridiron', 3).plays.filter((p) => p.kind === 'td-pass').every((p) => p.passer && p.who))
+})

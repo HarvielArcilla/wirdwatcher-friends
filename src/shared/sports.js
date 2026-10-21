@@ -59,9 +59,9 @@ export const LEAGUES = {
   hoops: {
     id: 'hoops', name: 'Word Basketball League', short: 'WBL', sport: 'basketball', emoji: '🏀',
     teams: [
-      ['LAL', 'Los Angeles', 'Lexicons'], ['BOS', 'Boston', 'Bylines'], ['CHI', 'Chicago', 'Syllables'], ['SEA', 'Seattle', 'Semicolons'],
-      ['MIA', 'Miami', 'Metaphors'], ['DEN', 'Denver', 'Diphthongs'], ['AUS', 'Austin', 'Adverbs'], ['PHX', 'Phoenix', 'Phonemes'],
-      ['POR', 'Portland', 'Palindromes'], ['ATL', 'Atlanta', 'Anagrams'], ['NYN', 'New York', 'Neologisms'], ['DET', 'Detroit', 'Dashes']
+      ['LAL', 'Los Angeles', 'Lexicons', '#7a3fc4', '#e8b23a'], ['BOS', 'Boston', 'Bylines', '#1f8a4c', '#c8a45c'], ['CHI', 'Chicago', 'Syllables', '#c8323c', '#2a2a2a'], ['SEA', 'Seattle', 'Semicolons', '#127a86', '#8acf3a'],
+      ['MIA', 'Miami', 'Metaphors', '#e8507a', '#2ab0c8'], ['DEN', 'Denver', 'Diphthongs', '#2a5ab8', '#f0b43c'], ['AUS', 'Austin', 'Adverbs', '#e0782a', '#5a3a8a'], ['PHX', 'Phoenix', 'Phonemes', '#d8582a', '#6a3ab8'],
+      ['POR', 'Portland', 'Palindromes', '#b8202e', '#3a3a3a'], ['ATL', 'Atlanta', 'Anagrams', '#d63a2a', '#c8b45a'], ['NYN', 'New York', 'Neologisms', '#2a6ad8', '#f07a2a'], ['DET', 'Detroit', 'Dashes', '#2a8ad8', '#9aa3b0']
     ],
     every: 30 * MIN,
     offset: 0
@@ -69,9 +69,9 @@ export const LEAGUES = {
   gridiron: {
     id: 'gridiron', name: 'Word Football League', short: 'WFL', sport: 'football', emoji: '🏈',
     teams: [
-      ['DAL', 'Dallas', 'Dictionaries'], ['GB', 'Green Bay', 'Glossaries'], ['KC', 'Kansas City', 'Consonants'], ['PHI', 'Philadelphia', 'Pronouns'],
-      ['PIT', 'Pittsburgh', 'Prepositions'], ['NO', 'New Orleans', 'Nouns'], ['BAL', 'Baltimore', 'Ballads'], ['SF', 'San Francisco', 'Sonnets'],
-      ['HOU', 'Houston', 'Hyphens'], ['MIN', 'Minnesota', 'Morphemes'], ['NSH', 'Nashville', 'Narrators'], ['LV', 'Las Vegas', 'Limericks']
+      ['DAL', 'Dallas', 'Dictionaries', '#2a4a8a', '#9aa3b0'], ['GB', 'Green Bay', 'Glossaries', '#2a6a3a', '#e8b42a'], ['KC', 'Kansas City', 'Consonants', '#d82a3a', '#f0c02a'], ['PHI', 'Philadelphia', 'Pronouns', '#0f6a6a', '#9aa3b0'],
+      ['PIT', 'Pittsburgh', 'Prepositions', '#e8b82a', '#2a2a2a'], ['NO', 'New Orleans', 'Nouns', '#b89a5a', '#2a2a2a'], ['BAL', 'Baltimore', 'Ballads', '#4a2a8a', '#c8a42a'], ['SF', 'San Francisco', 'Sonnets', '#b82a2a', '#c8a45c'],
+      ['HOU', 'Houston', 'Hyphens', '#1f3a6a', '#c8323c'], ['MIN', 'Minnesota', 'Morphemes', '#5a2a8a', '#f0c02a'], ['NSH', 'Nashville', 'Narrators', '#3a8ad8', '#c8323c'], ['LV', 'Las Vegas', 'Limericks', '#a8aeb8', '#c8323c']
     ],
     every: 60 * MIN,
     offset: 15 * MIN
@@ -79,13 +79,22 @@ export const LEAGUES = {
   pitch: {
     id: 'pitch', name: 'Word Football Club League', short: 'WFC', sport: 'soccer', emoji: '⚽',
     teams: [
-      ['LON', 'London', 'Lexemes'], ['MAN', 'Manchester', 'Monosyllables'], ['MAD', 'Madrid', 'Modifiers'], ['BAR', 'Barcelona', 'Barbarisms'],
-      ['MIL', 'Milan', 'Malapropisms'], ['MUN', 'Munich', 'Mnemonics'], ['PAR', 'Paris', 'Paragraphs'], ['LIS', 'Lisbon', 'Lisps'],
-      ['AMS', 'Amsterdam', 'Ampersands'], ['DUB', 'Dublin', 'Digraphs'], ['GLA', 'Glasgow', 'Glyphs'], ['TOR', 'Toronto', 'Tildes']
+      ['LON', 'London', 'Lexemes', '#c8323c', '#2a4a8a'], ['MAN', 'Manchester', 'Monosyllables', '#5ab0e8', '#2a2a2a'], ['MAD', 'Madrid', 'Modifiers', '#c9a44a', '#7a3fc4'], ['BAR', 'Barcelona', 'Barbarisms', '#a8204a', '#2a4ab8'],
+      ['MIL', 'Milan', 'Malapropisms', '#c8202e', '#1f1f1f'], ['MUN', 'Munich', 'Mnemonics', '#d8202e', '#2a5ab8'], ['PAR', 'Paris', 'Paragraphs', '#1f3a7a', '#d8323c'], ['LIS', 'Lisbon', 'Lisps', '#1f8a4c', '#e8e2d0'],
+      ['AMS', 'Amsterdam', 'Ampersands', '#e8402a', '#e8e2d0'], ['DUB', 'Dublin', 'Digraphs', '#2a9a5a', '#e8902a'], ['GLA', 'Glasgow', 'Glyphs', '#1f7a4a', '#e8e2d0'], ['TOR', 'Toronto', 'Tildes', '#c8202e', '#2a5ab8']
     ],
     every: 40 * MIN,
     offset: 5 * MIN
   }
+}
+
+// Two teams' colors for one game: the away team wears its second color if
+// the two are too alike.
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+export function gameColors (home, away) {
+  const [a, b] = [rgb(home.color), rgb(away.color)]
+  const close = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 110
+  return { home: home.color, away: close ? away.alt : away.color }
 }
 
 const teamCache = new Map()
@@ -102,7 +111,7 @@ export function team (league, code) {
   const names = [...pool].sort((a, b) => hashStr(`${key}|${a}`) - hashStr(`${key}|${b}`))
   const roles = L.sport === 'basketball' ? ['G', 'G', 'F', 'F', 'C', 'G', 'F', 'C'] : L.sport === 'soccer' ? ['FW', 'FW', 'MF', 'MF', 'MF', 'DF', 'DF', 'GK'] : ['QB', 'RB', 'WR', 'WR', 'TE', 'K', 'LB', 'CB']
   const players = roles.map((pos, i) => ({ name: `${INITIALS[Math.floor(r() * INITIALS.length)]}. ${names[i % names.length]}`, pos, skill: 0.75 + r() * 0.5 }))
-  const t = { code, city: row[1], name: row[2], full: `${row[1]} ${row[2]}`, strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : L.sport === 'soccer' ? 2.5 : 6), players }
+  const t = { code, city: row[1], name: row[2], full: `${row[1]} ${row[2]}`, color: row[3], alt: row[4], strength: (r() - 0.5) * 2 * (L.sport === 'basketball' ? 7 : L.sport === 'soccer' ? 2.5 : 6), players }
   teamCache.set(key, t)
   return t
 }
@@ -112,13 +121,58 @@ export function team (league, code) {
 export const gameStart = (league, n) => SPORTS_EPOCH + LEAGUES[league].offset + n * LEAGUES[league].every
 export const gameNumberAt = (league, t) => Math.floor((t - SPORTS_EPOCH - LEAGUES[league].offset) / LEAGUES[league].every)
 
+// The schedule: a round-robin season, over and over. Each round is six
+// games that between them use all twelve teams once, so games within a
+// round never share a team, and each round is ordered so its first game
+// avoids the two teams that just played: nobody plays two games in a row.
+// Each season the teams are shuffled (from the season's number) and home
+// and away swap halfway.
+const ROUND = 6
+const SEASON = 11 * ROUND // 11 rounds of 6
+const seasons = new Map() // league -> [season][game] = [home, away] (indexes)
+
+function circleRounds (order) {
+  const n = order.length
+  const fixed = order[0]
+  const rest = order.slice(1)
+  const rounds = []
+  for (let k = 0; k < n - 1; k++) {
+    const ring = [fixed, ...rest.slice(k), ...rest.slice(0, k)]
+    const games = []
+    for (let i = 0; i < n / 2; i++) games.push((k + i) % 2 ? [ring[i], ring[n - 1 - i]] : [ring[n - 1 - i], ring[i]])
+    rounds.push(games)
+  }
+  return rounds
+}
+
+function seasonGames (league, c) {
+  let list = seasons.get(league)
+  if (!list) { list = []; seasons.set(league, list) }
+  while (list.length <= c) {
+    const k = list.length
+    const L = LEAGUES[league]
+    const r = rng(hashStr(`season|v1|${league}|${k}`))
+    const order = L.teams.map((_, i) => i).sort((a, b) => hashStr(`s|${league}|${k}|${a}`) - hashStr(`s|${league}|${k}|${b}`))
+    const rounds = circleRounds(order)
+    const out = []
+    let prev = k ? list[k - 1][SEASON - 1] : null
+    for (const round of rounds) {
+      // Shuffle the round, then lead with a game that shares no team with the last one.
+      const games = [...round].sort(() => r() - 0.5)
+      const first = games.findIndex((g) => !prev || (!g.includes(prev[0]) && !g.includes(prev[1])))
+      const lead = games.splice(first, 1)[0]
+      for (const g of [lead, ...games]) out.push(k % 2 ? [g[1], g[0]] : g)
+      prev = out[out.length - 1]
+    }
+    list.push(out)
+  }
+  return list[c]
+}
+
 function matchup (league, n) {
   const L = LEAGUES[league]
-  const r = rng(hashStr(`match|v1|${league}|${n}`))
-  const a = Math.floor(r() * L.teams.length)
-  let b = Math.floor(r() * (L.teams.length - 1))
-  if (b >= a) b++
-  return { home: L.teams[a][0], away: L.teams[b][0] }
+  const [h, a] = seasonGames(league, Math.floor(n / SEASON))[n % SEASON]
+  return { home: L.teams[h][0], away: L.teams[a][0] }
 }
 
 // --- basketball ----------------------------------------------------------------------------
@@ -285,6 +339,7 @@ function simFoot (n) {
       let stop = true
       let turnover = false
       let who = null // who'd score if this goes in
+      let passer = null
       if (passing) {
         const qb = p(pos, 0)
         const x = r()
@@ -293,6 +348,7 @@ function simFoot (n) {
           gain = Math.max(1, Math.round(5.5 + Math.abs(normal(r)) * 8.5 + (r() < 0.06 ? 20 + r() * 40 : 0) + e * 1.2))
           text = `${qb.name} to ${rec.name}: ${rec.name.split(' ')[1]} ${pickOf(r, CATCHES)}`
           who = rec.name
+          passer = qb.name
           stop = r() < 0.3
         } else { text = `${qb.name}’s pass falls incomplete`; gain = 0 }
       } else {
@@ -316,7 +372,8 @@ function simFoot (n) {
       const before = yl
       yl += gain
       if (yl >= 100) {
-        add(q, clock, pos, `${text} for a touchdown! (${100 - before} yards)`, 6, 'td', who)
+        add(q, clock, pos, passer ? `TOUCHDOWN! ${passer} finds ${who} for a ${100 - before}-yard score` : `TOUCHDOWN! ${who} runs it in from ${100 - before} yards`, 6, passer ? 'td-pass' : 'td-rush', who)
+        if (passer) plays[plays.length - 1].passer = passer
         const xp = r() < 0.94
         add(q, clock, pos, `${p(pos, 5).name} ${xp ? 'adds the extra point' : 'misses the extra point'}`, xp ? 1 : 0, 'xp', p(pos, 5).name)
         if (ot) { ended = true; break }
@@ -360,7 +417,12 @@ function simFoot (n) {
 export const SOCCER_SPEED = 3
 const HALF = 45 * 60
 const PASSES = ['plays it into midfield', 'switches the play', 'carries it forward', 'finds a teammate in space', 'plays a one-two', 'drives down the wing', 'threads a pass forward']
-const BACK = ['recycles it to the back', 'plays it back to the keeper', 'keeps it in midfield']
+const BACK = ['recycles it to the back', 'plays it back to the keeper', 'keeps it in midfield', 'switches it across the back line', 'lays it off sideways']
+const WINS = ['wins it back', 'intercepts a loose pass', 'nicks it off a toe', 'heads it clear', 'steps in and takes it', 'closes down and wins the ball']
+const PASS_TO = [
+  (a, b) => `${a} plays it to ${b}`, (a, b) => `${a} finds ${b} in space`, (a, b) => `${a} slides it through to ${b}`, (a, b) => `${a} swings it wide to ${b}`,
+  (a, b) => `${a} and ${b} play a one-two`, (a, b) => `${a} lofts it over the top for ${b}`, (a, b) => `${a} squares it to ${b}`, (a, b) => `${a} lays it back to ${b}`
+]
 const SHOTS_SAVED = ['shoots, and the keeper saves', 'tests the keeper from distance', 'forces a diving save', 'heads it at the keeper']
 const SHOTS_WIDE = ['shoots wide', 'curls it just over', 'drags a shot past the post', 'heads it over the bar', 'blazes it into the stands']
 const GOALS = ['fires it into the bottom corner', 'heads it in', 'slots it past the keeper', 'curls it into the top corner', 'taps it in at the back post', 'smashes it in from the edge of the box', 'chips the keeper']
@@ -429,26 +491,33 @@ function simSoccer (n) {
         let assist = player(side, true)
         if (assist === scorer) assist = null
         add(half, clock, side, `GOAL! ${scorer.name} ${pickOf(r, GOALS)}${assist ? ` (assist: ${assist.name})` : ''}`, 1, 'goal', scorer.name)
+        if (assist) plays[plays.length - 1].assist = assist.name
         x = 50
         poss = other(side)
         continue
       }
       // Everything else.
       const v = r()
-      if (v < 0.42) {
+      if (v < 0.18) {
         // The other side wins it back.
         poss = other(poss)
         x = Math.max(4, Math.min(96, x - toward(poss) * (5 + r() * 15)))
         const p = player(poss, false)
-        add(half, clock, poss, `${p.name} wins it back`, 0, 'tackle')
-      } else if (v < 0.72) {
-        x = Math.max(4, Math.min(96, x + toward(poss) * (8 + r() * 22)))
-        const p = player(poss, false)
-        add(half, clock, poss, `${p.name} ${pickOf(r, PASSES)}`, 0, 'pass')
-      } else if (v < 0.8) {
+        add(half, clock, poss, `${p.name} ${pickOf(r, WINS)}`, 0, 'tackle')
+      } else if (v < 0.58) {
+        // Passing it about, mostly forward.
+        x = Math.max(4, Math.min(96, x + toward(poss) * (6 + r() * 20)))
+        const a = player(poss, false)
+        let b = player(poss, r() < 0.5)
+        if (b === a) b = T(poss).players[(T(poss).players.indexOf(a) + 1) % 7]
+        add(half, clock, poss, pickOf(r, PASS_TO)(a.name, b.name), 0, 'pass')
+      } else if (v < 0.7) {
         x = Math.max(4, Math.min(96, x - toward(poss) * (5 + r() * 12)))
         add(half, clock, poss, `${player(poss, false).name} ${pickOf(r, BACK)}`, 0, 'pass')
-      } else if (v < 0.9) {
+      } else if (v < 0.76) {
+        x = Math.max(4, Math.min(96, x + toward(poss) * (10 + r() * 25)))
+        add(half, clock, poss, `${player(poss, true).name} ${pickOf(r, PASSES)}`, 0, 'pass')
+      } else if (v < 0.88) {
         // A chance that doesn't go in.
         x = poss === 'away' ? 78 + r() * 16 : 6 + r() * 16
         const p = player(poss, true)

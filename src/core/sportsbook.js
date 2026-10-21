@@ -9,7 +9,7 @@
 // backwards can't bet (the games are known in advance; that's how every copy
 // agrees on them).
 
-import { LEAGUES, game, gameById, stateAt, outcomes, clockAt, slate, team, gameStart } from '../shared/sports.js'
+import { LEAGUES, game, gameById, stateAt, outcomes, clockAt, slate, team, gameStart, gameColors } from '../shared/sports.js'
 
 export const PAYOUT = 100
 export const PM_SPREAD = 0.02 // two points either side of the fair chance
@@ -155,8 +155,8 @@ export class Sportsbook {
       start: g.start,
       end: t >= g.end ? g.end : null,
       status: q.st.status,
-      home: { code: H.code, city: H.city, name: H.name, score: q.st.home },
-      away: { code: A.code, city: A.city, name: A.name, score: q.st.away },
+      home: { code: H.code, city: H.city, name: H.name, score: q.st.home, color: gameColors(H, A).home },
+      away: { code: A.code, city: A.city, name: A.name, score: q.st.away, color: gameColors(H, A).away },
       q: q.st.q,
       clock: q.st.clock,
       periods: g.periods,
@@ -181,21 +181,28 @@ export class Sportsbook {
     // The chance of each team winning over the game (soccer's draw is the gap).
     const point = (at) => { const o = outcomes(g, at); return [at, o.home, o.away] }
     const chart = [point(g.start - 1)]
+    // Who's scored, by what kind of score. A passing touchdown counts for
+    // the passer and the receiver both.
     const box = { home: {}, away: {} }
+    const tally = (side, who, key, n = 1) => { const row = box[side][who] || (box[side][who] = {}); row[key] = (row[key] || 0) + n }
     for (const p of plays) {
-      if (p.kind === 'safety' && p.team) { const d = p.team === 'home' ? 'away' : 'home'; box[d]['Safety (defense)'] = (box[d]['Safety (defense)'] || 0) + 2 } else if (p.team && p.pts) {
-        const who = p.who || 'Team'
-        box[p.team][who] = (box[p.team][who] || 0) + p.pts
-      }
+      if (!p.team) continue
+      if (p.kind === 'safety') tally(p.team === 'home' ? 'away' : 'home', 'Defense', 'safety')
+      else if (p.kind === 'td-pass') { tally(p.team, p.who, 'rec'); if (p.passer) tally(p.team, p.passer, 'pass') } else if (p.kind === 'td-rush') tally(p.team, p.who, 'rush')
+      else if (p.kind === 'fg') tally(p.team, p.who, 'fg')
+      else if (p.kind === 'xp' && p.pts) tally(p.team, p.who, 'xp')
+      else if (p.kind === 'goal') { tally(p.team, p.who, 'goal'); if (p.assist) tally(p.team, p.assist, 'assist') } else if (p.pts && p.who) tally(p.team, p.who, 'pts', p.pts)
     }
+    const order = (rows) => Object.entries(rows).map(([who, r]) => ({ who, ...r })).sort((a, b) => score(b) - score(a))
+    const score = (r) => (r.pts || 0) + 6 * ((r.rec || 0) + (r.rush || 0) + (r.pass || 0)) + 3 * (r.fg || 0) + (r.xp || 0) + 2 * (r.safety || 0) + 10 * (r.goal || 0) + (r.assist || 0)
     const step = Math.max(1, Math.floor(plays.length / 160))
     for (let i = 0; i < plays.length; i += step) chart.push(point(plays[i].at))
     if (plays.length) chart.push([plays[plays.length - 1].at, q.o.home, q.o.away])
     return {
       ...card,
-      plays: plays.slice(-120).reverse().map((p) => ({ at: p.at, q: p.q, clock: p.clock, team: p.team, text: p.text, pts: p.pts, kind: p.kind, home: p.home, away: p.away, x: p.x, yl: p.yl, pos: p.pos })),
+      plays: plays.slice(-120).reverse().map((p) => ({ at: p.at, q: p.q, clock: p.clock, team: p.team, text: p.text, pts: p.pts, kind: p.kind, home: p.home, away: p.away })),
       chart,
-      box: { home: Object.entries(box.home).sort((a, b) => b[1] - a[1]), away: Object.entries(box.away).sort((a, b) => b[1] - a[1]) },
+      box: { home: order(box.home), away: order(box.away) },
       rosters: { home: H.players.map((p) => `${p.name} (${p.pos})`), away: A.players.map((p) => `${p.name} (${p.pos})`) },
       strength: { home: H.strength, away: A.strength },
       startChances: outcomes(g, g.start - 1)

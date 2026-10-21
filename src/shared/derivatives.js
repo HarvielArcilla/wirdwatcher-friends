@@ -352,13 +352,14 @@ export const ETFS = [
   { id: 'WSHT', name: 'Whole Market Short', emoji: '🐻', track: 'all', k: -1, fee: 0.0095, blurb: 'The opposite of the market’s daily move.' },
   { id: 'WSH3', name: 'Whole Market Short 3×', emoji: '🕳️', track: 'all', k: -3, fee: 0.0095, blurb: 'Three times the opposite, reset each day.' },
   ...SECTOR_FUNDS,
-  // Retired before release (2.3.1 builds only): still sellable if held.
-  { id: 'BLUE', name: 'Blue Chips', emoji: '🧱', track: 'basket', pick: 'blue', k: 1, fee: 0.002, retired: true },
-  { id: 'WILD', name: 'Wild Ones', emoji: '🎢', track: 'basket', pick: 'wild', k: 1, fee: 0.006, retired: true },
-  { id: 'LONG', name: 'Long Words', emoji: '📏', track: 'basket', pick: 'long', k: 1, fee: 0.004, retired: true },
-  { id: 'TINY', name: 'Tiny Words', emoji: '🐜', track: 'basket', pick: 'tiny', k: 1, fee: 0.004, retired: true },
-  { id: 'PALI', name: 'Palindromes', emoji: '🪞', track: 'basket', pick: 'pali', k: 1, fee: 0.005, retired: true },
-  { id: 'TWIN', name: 'Double Letters', emoji: '👯', track: 'basket', pick: 'twin', k: 1, fee: 0.004, retired: true }
+  // Sectors of a different kind: words picked by what they're like, not
+  // what they're about (see core/derivatives.js), held equally.
+  { id: 'BLUE', name: 'Blue Chips', emoji: '🧱', track: 'basket', pick: 'blue', k: 1, fee: 0.002, blurb: 'The 25 steadiest everyday words.' },
+  { id: 'WILD', name: 'Wild Ones', emoji: '🎢', track: 'basket', pick: 'wild', k: 1, fee: 0.006, blurb: 'The 25 wildest obscure words.' },
+  { id: 'LONG', name: 'Long Words', emoji: '📏', track: 'basket', pick: 'long', k: 1, fee: 0.004, blurb: '25 everyday words of eleven letters or more.' },
+  { id: 'TINY', name: 'Tiny Words', emoji: '🐜', track: 'basket', pick: 'tiny', k: 1, fee: 0.004, blurb: '25 everyday words of four letters or fewer.' },
+  { id: 'PALI', name: 'Palindromes', emoji: '🪞', track: 'basket', pick: 'pali', k: 1, fee: 0.005, blurb: 'Words that read the same backwards.' },
+  { id: 'TWIN', name: 'Double Letters', emoji: '👯', track: 'basket', pick: 'twin', k: 1, fee: 0.004, blurb: '25 everyday words with a letter twice in a row.' }
 ]
 export const etfById = (id) => ETFS.find((e) => e.id === id)
 

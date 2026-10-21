@@ -339,7 +339,7 @@ export function Funds ({ coins, toast, onChange, onPick }) {
   if (!list) return null
   const groups = [
     ['The whole market', 'Every sector, plain, geared or upside down.', list.filter((f) => f.track === 'all')],
-    ['Sectors', 'Thirty words of a topic, held equally. Words in a sector lean the same way a little.', list.filter((f) => f.track !== 'all')]
+    ['Sectors', 'Words held equally, by topic or by what they’re like. Words in a sector lean the same way a little.', [...list.filter((f) => f.track === 'basket'), ...list.filter((f) => f.track !== 'all' && f.track !== 'basket')]]
   ]
   const tile = (f) => (
     <button key={f.id} className={`dv-fund ${open === f.id ? 'open' : ''} ${f.k !== 1 ? 'geared' : ''} ${f.shares > 0 ? 'held' : ''}`} onClick={() => setOpen(open === f.id ? null : f.id)} aria-expanded={open === f.id}>
@@ -440,7 +440,8 @@ function FundDetail ({ id, coins, toast, onTraded, onPick, onClose }) {
               ))}
             </tbody>
           </table>
-          {f.track !== 'all' && <small className='dv-fd-note'>Each word’s price is mostly its own, with a little of its sector’s mood mixed in, so a sector’s words lean the same way on the same days without moving in lockstep.</small>}
+          {f.track !== 'all' && f.track !== 'basket' && <small className='dv-fd-note'>Each word’s price is mostly its own, with a little of its sector’s mood mixed in, so a sector’s words lean the same way on the same days without moving in lockstep.</small>}
+          {f.track === 'basket' && <small className='dv-fd-note'>These words come from every topic, so they move together only as much as the whole market does.</small>}
         </div>
       )}
     </div>

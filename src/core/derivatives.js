@@ -450,7 +450,6 @@ export class Derivatives {
   buyEtf (id, coins) {
     const e = etfById(id)
     if (!e) throw new Error('No such fund.')
-    if (e.retired) throw new Error('That fund has closed. You can still sell it.')
     const q = this._etfQuote(e, this.now())
     const paid = this._pay(Math.floor(Number(coins) * 100) / 100)
     const h = this.m.etfs[id] || { shares: 0, cost: 0 }

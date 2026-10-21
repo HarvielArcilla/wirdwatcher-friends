@@ -45,6 +45,8 @@ function Clock ({ c }) {
   return <>{c.status === 'live' && <i className='sp-live-dot' />}{clockText(c, now) || startText(c.start)}</>
 }
 const SIDE_ORDER = { home: 2, draw: 1, away: 0 }
+// The two teams' colors, as CSS variables for everything under it.
+const teamVars = (c) => ({ '--hc': c.home?.color || 'var(--accent)', '--ac': c.away?.color || '#4a9ee8' })
 const sideList = (c) => [...(c.sides || ['home', 'away'])].sort((a, b) => SIDE_ORDER[a] - SIDE_ORDER[b])
 const sideName = (c, side) => (side === 'draw' ? 'Draw' : c[side].code)
 
@@ -153,7 +155,7 @@ function GameCard ({ c, trade, coins, onOpen }) {
   const n = Number(amt) || 0
   const lead = c.home.score > c.away.score ? 'home' : c.away.score > c.home.score ? 'away' : null
   return (
-    <div className={`sp-card ${c.status}`} onClick={onOpen} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
+    <div className={`sp-card ${c.status}`} style={teamVars(c)} onClick={onOpen} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
       <div className='sp-card-top'>
         <span className={`sp-clock ${c.status}`}><Clock c={c} /></span>
         {c.bet && <span className='sp-yours'>Yours: <Coins n={c.bet.worth} /> <i className={c.bet.worth - c.bet.cost >= 0 ? 'up' : 'down'}>{signed(c.bet.worth - c.bet.cost)}</i></span>}
@@ -161,7 +163,7 @@ function GameCard ({ c, trade, coins, onOpen }) {
       <div className='sp-teams'>
         {['away', 'home'].map((side) => (
           <div key={side} className={`sp-team ${lead === side ? 'lead' : ''}`}>
-            <span className='sp-tname'><small>{c[side].city}</small><b>{c[side].name}</b></span>
+            <span className='sp-tname'><small>{c[side].city}</small><b><i className={`sp-swatch ${side}`} />{c[side].name}</b></span>
             <span className='sp-score'>{c.status === 'pre' ? '–' : c[side].score}</span>
           </div>
         ))}
@@ -182,7 +184,7 @@ function GameCard ({ c, trade, coins, onOpen }) {
 
 function UpcomingRow ({ c, onOpen }) {
   return (
-    <button className='sp-row' onClick={onOpen}>
+    <button className='sp-row' style={teamVars(c)} onClick={onOpen}>
       <span className='sp-when'>{startText(c.start)}</span>
       <span className='sp-match'><b>{c.away.city} {c.away.name}</b> <small>at</small> <b>{c.home.city} {c.home.name}</b></span>
       <span className='sp-odds'>{sideList(c).map((s) => `${sideName(c, s)} ${Math.round((c.chances || { home: c.chance, away: 1 - c.chance })[s] * 100)}%`).join(' · ')}</span>
@@ -212,10 +214,10 @@ function GameView ({ id, coins, trade, onBack }) {
   const n = Number(amt) || 0
   const b = g.bet
   return (
-    <div className='sp-game'>
+    <div className='sp-game' style={teamVars(g)}>
       <button className='btn small ghost sp-back' onClick={onBack}>← All games</button>
       <div className='sp-board'>
-        <div className='sp-bteam'><small>{g.away.city}</small><b>{g.away.name}</b><span className='sp-bscore'>{g.status === 'pre' ? '–' : g.away.score}</span></div>
+        <div className='sp-bteam away'><small>{g.away.city}</small><b>{g.away.name}</b><span className='sp-bscore'>{g.status === 'pre' ? '–' : g.away.score}</span></div>
         <div className='sp-bmid'>
           <span className={`sp-clock ${g.status}`}><Clock c={g} /></span>
           {g.ball && <small>{ballText(g)}</small>}
@@ -267,7 +269,7 @@ function GameView ({ id, coins, trade, onBack }) {
           {['away', 'home'].map((s) => (
             <div key={s} className='sp-box-team'>
               <b>{g[s].city} {g[s].name}</b>
-              {g.box[s].length ? g.box[s].map(([who, pts]) => <div key={who} className='sp-box-row'><span>{who}</span><b>{g.sport === 'soccer' ? '⚽'.repeat(Math.min(pts, 5)) : pts}</b></div>) : <small className='sp-note'>{g.sport === 'soccer' ? 'No goals yet.' : 'No points yet.'}</small>}
+              {g.box[s].length ? g.box[s].map((row) => <div key={row.who} className='sp-box-row'><span>{row.who}</span><span className='sp-tags'>{scoreTags(row).map(([k, label]) => <i key={k} className={`sp-tag ${k}`}>{label}</i>)}</span></div>) : <small className='sp-note'>{g.sport === 'soccer' ? 'No goals yet.' : 'No points yet.'}</small>}
               <details><summary>Roster</summary><small>{g.rosters[s].join(' · ')}</small></details>
             </div>
           ))}
@@ -275,6 +277,22 @@ function GameView ({ id, coins, trade, onBack }) {
       </div>
     </div>
   )
+}
+
+// What a player has scored, as little labels.
+function scoreTags (r) {
+  const n = (x, one, many) => (x > 1 ? `${x} ${many}` : one)
+  const out = []
+  if (r.pts) out.push(['pts', `${r.pts} pts`])
+  if (r.pass) out.push(['pass', n(r.pass, 'Passing TD', 'passing TDs')])
+  if (r.rec) out.push(['rec', n(r.rec, 'Receiving TD', 'receiving TDs')])
+  if (r.rush) out.push(['rush', n(r.rush, 'Rushing TD', 'rushing TDs')])
+  if (r.fg) out.push(['fg', n(r.fg, 'Field goal', 'field goals')])
+  if (r.xp) out.push(['xp', n(r.xp, 'Extra point', 'extra points')])
+  if (r.safety) out.push(['safety', n(r.safety, 'Safety', 'safeties')])
+  if (r.goal) out.push(['goal', `${'⚽'.repeat(Math.min(r.goal, 4))}${r.goal > 4 ? ` ×${r.goal}` : ''}`])
+  if (r.assist) out.push(['assist', n(r.assist, 'Assist', 'assists')])
+  return out
 }
 
 function WinChart ({ g }) {

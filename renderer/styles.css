@@ -2017,3 +2017,34 @@ html.calm .fbar-ball { transition: none; }
 
 .sp-bfield { width: 240px; max-width: 100%; margin-top: 2px; }
 .sp-field-panel { display: none; }
+
+/* Team colors (set per game as --hc and --ac) */
+.sp-chance .away { background: var(--ac, #4a9ee8); }
+.sp-chance .home { background: var(--hc, var(--accent)); }
+.btn.sp-side.away { box-shadow: inset 0 0 0 1.5px var(--ac, #4a9ee8); }
+.btn.sp-side.home { box-shadow: inset 0 0 0 1.5px var(--hc, var(--accent)); }
+
+.sp-chart .home-line { stroke: var(--hc, var(--accent)); }
+.sp-chart .away-line { stroke: var(--ac, #4a9ee8); }
+.sp-key i.home { background: var(--hc, var(--accent)); } .sp-key i.away { background: var(--ac, #4a9ee8); }
+.fbar-end.away { color: var(--ac, #4a9ee8); } .fbar-end.home { color: var(--hc, var(--accent)); }
+.fbar-ball { box-shadow: 0 0 0 2px var(--ac, #4a9ee8); }
+.fbar-ball.home { box-shadow: 0 0 0 2px var(--hc, var(--accent)); }
+.sp-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: 2px; }
+.sp-swatch.home { background: var(--hc); } .sp-swatch.away { background: var(--ac); }
+.sp-bteam.away b { box-shadow: inset 0 -3px 0 var(--ac); }
+.sp-bteam.home b { box-shadow: inset 0 -3px 0 var(--hc); }
+.sp-row .sp-chance .away { background: var(--ac); } .sp-row .sp-chance .home { background: var(--hc); }
+.sp-box-row { align-items: center; gap: 8px; }
+.sp-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.sp-tag { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; background: var(--panel-raise); color: var(--dim); white-space: nowrap; }
+.sp-tag.pass { background: color-mix(in oklab, #4a9ee8 20%, transparent); color: #3a7ec8; }
+.sp-tag.rec { background: color-mix(in oklab, #3fbf9a 22%, transparent); color: #2a9a7a; }
+.sp-tag.rush { background: color-mix(in oklab, #e8a03a 24%, transparent); color: #b8781a; }
+.sp-tag.fg, .sp-tag.xp { background: color-mix(in oklab, #a66bd8 20%, transparent); color: #8a4ac0; }
+.sp-tag.safety { background: color-mix(in oklab, var(--bad) 18%, transparent); color: var(--bad); }
+.sp-tag.goal { background: none; padding: 0; font-size: 13px; }
+.sp-tag.assist { background: color-mix(in oklab, #3fbf9a 22%, transparent); color: #2a9a7a; }
+.sp-tag.pts { background: none; color: var(--text); font-size: 13px; padding: 0; }
+body[data-scheme="dark"] .sp-tag.pass { color: #8ac4ff; } body[data-scheme="dark"] .sp-tag.rec, body[data-scheme="dark"] .sp-tag.assist { color: #7fe0c0; }
+body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark"] .sp-tag.fg, body[data-scheme="dark"] .sp-tag.xp { color: #c8a0f0; }
