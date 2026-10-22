@@ -2570,8 +2570,9 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
   92% { transform: translateY(0) scale(1.12, .86); }
   100% { transform: translateY(0) scale(1, 1); }
 }
-.pc-jumper.jump .pc-flip { animation: pc-flap .14s ease-in-out 3; transform-box: fill-box; transform-origin: 50% 10%; }
-@keyframes pc-flap { 0%, 100% { transform: rotate(18deg); } 50% { transform: rotate(-40deg); } }
+.pc-flip { transform-box: fill-box; transform-origin: 70% 4%; transform: rotate(-22deg); }
+.pc-jumper.jump .pc-flip { animation: pc-flap .14s ease-in-out 3; }
+@keyframes pc-flap { 0%, 100% { transform: rotate(-22deg); } 50% { transform: rotate(30deg); } }
 .pc-jumper.sink { animation: pc-sinking .9s cubic-bezier(.5,0,.9,.5) forwards !important; }
 @keyframes pc-sinking { 0% { transform: translateY(0) rotate(0); opacity: 1; } 25% { transform: translateY(-10px) rotate(-12deg); opacity: 1; } 100% { transform: translateY(80px) rotate(25deg); opacity: 0; } }
 .pc-jumper.home { animation: pc-dance .5s ease-in-out .45s 3 !important; }

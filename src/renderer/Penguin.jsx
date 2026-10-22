@@ -65,7 +65,9 @@ function PenguinFigure () {
       <ellipse className='pc-foot' cx='6' cy='0' rx='6.5' ry='2.6' fill='#f59e2b' />
       <ellipse cx='0' cy='-23' rx='15' ry='22' fill='#1d2433' />
       <ellipse cx='3' cy='-20' rx='10' ry='16.5' fill='#f8f7f1' />
-      <ellipse className='pc-flip' cx='-11' cy='-23' rx='4' ry='12' fill='#141a26' transform='rotate(18 -11 -23)' />
+      <g transform='translate(-9 -35)'>
+        <path className='pc-flip' d='M-3 -1 C-10 4 -12 17 -8 27 C-4 24 2 12 3 1 C1 -2 -1 -2 -3 -1 Z' fill='#121722' />
+      </g>
       <circle cx='2' cy='-44' r='11.5' fill='#1d2433' />
       <ellipse cx='6.5' cy='-43' rx='6' ry='6.5' fill='#fff' />
       <circle cx='8.5' cy='-45' r='2' fill='#151515' />
