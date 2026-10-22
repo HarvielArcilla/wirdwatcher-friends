@@ -1,23 +1,34 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
-import { rarityFor, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/leximon.js'
+import { rarityFor, rarityRoll, duel, power, levelCap, xpToNext, TRAIN_MAX_HOURS, RATING_XP, cleanTeam } from '../src/shared/leximon.js'
 import { newDuel, playTurn, movesFor, validAction, choosers } from '../src/shared/duel.js'
 import { effects } from '../src/shared/economy.js'
 import { tmp, network, until } from './helpers.js'
 
-test('rarity is by rank among your own ratings, both ends equally rare', () => {
-  const spread = Array.from({ length: 100 }, (_, i) => i / 20) // 0.0 to 4.95
-  assert.deepEqual(rarityFor(4.95, spread), { tier: 4, side: 'love', pct: 0.995 })
-  assert.equal(rarityFor(0, spread).tier, 4)
-  assert.equal(rarityFor(0, spread).side, 'hate')
-  assert.equal(rarityFor(2.5, spread).tier, 0)
-  // Rating everything 5.0 makes nothing special.
-  const generous = new Array(100).fill(5)
-  assert.equal(rarityFor(5, generous).tier, 0)
-  // A generous rater and a harsh one get the same spread.
-  const high = spread.map((x) => 3 + x / 2.5)
-  assert.equal(rarityFor(high[99], high).tier, rarityFor(spread[99], spread).tier)
+test('rarity comes from the score, and crowding a band makes its tier harder', () => {
+  const r1 = (x) => Math.round(x * 10) / 10
+  const even = Array.from({ length: 510 }, (_, i) => r1((i % 51) / 10)) // every score, evenly
+  // A careful rater: every word at the ends gets the top tier, on its side.
+  assert.deepEqual(rarityFor(4.9, even, 0.99), { tier: 4, side: 'love', chance: 1 })
+  assert.deepEqual(rarityFor(0.1, even, 0.99), { tier: 4, side: 'hate', chance: 1 })
+  assert.equal(rarityFor(4.5, even, 0.5).tier, 3)
+  assert.equal(rarityFor(2.5, even, 0).tier, 0, 'the middle is Common')
+  // The score decides: a 4.5 can't be Beloved however you rate.
+  assert.notEqual(rarityFor(4.5, even, 0).tier, 4)
+  // Rating almost everything 5.0: Beloved is possible, but rare.
+  const spam = [...new Array(450).fill(5), ...even.slice(0, 50)]
+  const c = rarityFor(5, spam, 0).chance
+  assert.ok(c > 0 && c < 0.01, `chance ${c}`)
+  assert.equal(rarityFor(5, spam, 0.5).tier, 0)
+  // Spamming both ends gets almost nothing, anywhere.
+  const both = Array.from({ length: 400 }, (_, i) => (i % 2 ? 5 : 0))
+  let rare = 0
+  for (let i = 0; i < 400; i++) if (rarityFor(both[i], both, rarityRoll(`w${i}`)).tier) rare++
+  assert.ok(rare / 400 < 0.03, `${rare} of 400`)
+  // The same word always rolls the same.
+  assert.equal(rarityRoll('gravy', 'me'), rarityRoll('gravy', 'me'))
+  assert.notEqual(rarityRoll('gravy', 'me'), rarityRoll('gravy', 'you'))
   // Too few ratings to tell: everything's common.
   assert.equal(rarityFor(5, [5, 0, 2]).tier, 0)
 })

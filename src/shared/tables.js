@@ -3,9 +3,9 @@
 // the wheel keep a small house edge; Wordjack has none.
 //
 // Letter Roulette: 27 pockets, A to Z and a star. Bet on a letter, a
-// colour, vowels or consonants, a half of the alphabet, or a whole word:
-// a word bet wins if the ball lands on any of its letters, and pays more
-// the fewer letters it has.
+// colour, vowels or consonants, or a half of the alphabet. Betting a word
+// puts a chip on each of its letters. Every bet returns 26 of every 27
+// coins on average (the star is the house's pocket).
 //
 // Wordjack: letter tiles instead of cards, each worth its Scrabble points
 // plus 3. A hand is worth its best word: the highest-scoring word some of
@@ -30,20 +30,17 @@ export function rouletteBet (kind, pick) {
     case 'letter': { const p = String(pick || '').toUpperCase(); if (!/^[A-Z★]$/.test(p)) return null; return { wins: [p], pays: 25 } }
     case 'red': return { wins: all.filter((_, i) => pocketColor(i) === 'red'), pays: 1 }
     case 'black': return { wins: all.filter((_, i) => pocketColor(i) === 'black'), pays: 1 }
-    case 'vowel': return { wins: [...VOWELS], pays: 4.2 }
-    case 'consonant': return { wins: all.filter((l) => !VOWELS.has(l)), pays: 0.25 }
+    case 'vowel': return { wins: [...VOWELS], pays: 21 / 5 }
+    case 'consonant': return { wins: all.filter((l) => !VOWELS.has(l)), pays: 5 / 21 }
     case 'low': return { wins: all.slice(0, 13), pays: 1 } // A–M
     case 'high': return { wins: all.slice(13), pays: 1 } // N–Z
-    case 'word': {
-      const letters = [...new Set(String(pick || '').toUpperCase().replace(/[^A-Z]/g, ''))]
-      if (letters.length < 1 || letters.length > 13) return null
-      // Fair odds would be 26 / letters - 1 to 1; the star keeps the edge.
-      return { wins: letters, pays: Math.floor(((26 / letters.length) - 1) * 100) / 100 }
-    }
     default: return null
   }
 }
-export const ROULETTE_KINDS = ['letter', 'word', 'red', 'black', 'vowel', 'consonant', 'low', 'high']
+export const ROULETTE_KINDS = ['letter', 'red', 'black', 'vowel', 'consonant', 'low', 'high']
+// Every bet pays so it returns 26 of every 27 coins on average: the star is
+// the house's pocket. A word is a chip on each of its letters.
+export const wordLetters = (word) => [...new Set(String(word || '').toUpperCase().replace(/[^A-Z]/g, ''))]
 // What a bet pays back in all (stake included), on the pocket that came up.
 export function roulettePayout (bet, pocket) {
   const b = rouletteBet(bet.kind, bet.pick)
@@ -167,11 +164,14 @@ export function dealerHand (bag, byLetters, start = null) {
 //   Solve     type the word: right, and the bank is yours; wrong is a miss.
 // Six misses and the word's gone, bank and all. Played well, it pays back
 // about what goes in (measured over thousands of words).
+export const WF_MIN_STAKE = 20 // so every space on the wheel is worth whole coins
 export const WF_MISSES = 6
 export const WF_VOWEL = 0.25
 export const WF_SEGMENTS = [0.25, 0.15, 0.6, 0.2, 'bankrupt', 0.3, 0.25, 0.9, 0.2, 0.4, 'lose', 0.15, 0.5, 0.25, 1.25, 0.3, 'bankrupt', 0.4, 0.6]
 export const WF_VOWELS = new Set([...'AEIOU'])
 // The word as it stands: letters called so far shown, the rest blank.
+// What a space is worth, in whole coins, for a stake (at least 1).
+export const wfValue = (v, stake) => Math.max(1, Math.round(v * stake))
 export const wfPattern = (word, called) => [...word.toUpperCase()].map((l) => (called.includes(l) ? l : null))
 
 // --- one round, from shared randomness --------------------------------------------------

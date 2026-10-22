@@ -26,7 +26,7 @@ import { Leximon } from './leximon.js'
 import { Valley } from './valley.js'
 import { Tables } from './tables.js'
 import { DuelHost, DuelClient } from './duel.js'
-import { slotWord } from '../shared/slots.js'
+import { withForms } from '../shared/slots.js'
 import { Daily } from './daily.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -61,10 +61,10 @@ export class WirdApp extends EventEmitter {
     this.derivs = new Derivatives({ market: this.market, economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.market.derivs = this.derivs
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
-    this.economy.isWord = (w) => slotWord(w) && this.words.has(w)
+    this.economy.isWord = withForms((w) => this.words.has(w))
     this.tables = new Tables({ economy: this.economy, byLetters: this.words.wordjack, wordFor: () => this.words.wheelWord() })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now(), rated: () => this.store.ratings() })
-    this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters') })
+    this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters'), salt: () => this.identity?.userId || '' })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.on('played', (kind) => this.daily.note(kind))
     this.economy.beforePrestige = () => { this._sellBets(); this.derivs.sync(); this.derivs.closeAll(); for (const w of Object.keys(this.economy.s.market.holdings)) this.market.sell(w, 'all') }
@@ -518,8 +518,10 @@ export class WirdApp extends EventEmitter {
         if (!res.seeds?.[s.you]) { const back = this.tables.lobbyRefund(key); if (back) this._stakeNote('↩️', 'Your bet came back', `${back.toLocaleString()} coins. It wasn’t counted this round.`); continue }
         const out = this.tables.lobbySettle(key, res, s.you)
         if (!out) continue
-        if (!out.ok) this._stakeNote('⚠️', 'That round didn’t add up', `Your ${out.total.toLocaleString()} coins came back instead.`)
-        else if (out.paid > 0) this._stakeNote(out.word ? '📝' : '🎉', `You won ${out.paid.toLocaleString()} coins`, out.word ? `${out.word.toUpperCase()}: a word, so the win paid double.` : out.net > 0 ? `${out.net.toLocaleString()} more than you bet.` : out.net === 0 ? 'Your bet back, no more.' : 'Some of your bet back.')
+        // At roulette, say how it went once the wheel has stopped.
+        const note = (...a) => (res.pocket !== undefined ? setTimeout(() => this._stakeNote(...a), 4600) : this._stakeNote(...a))
+        if (!out.ok) note('⚠️', 'That round didn’t add up', `Your ${out.total.toLocaleString()} coins came back instead.`)
+        else if (out.paid > 0) note('🎉', `You won ${out.paid.toLocaleString()} coins`, out.result === 'push' ? 'A push: your stake back.' : out.net > 0 ? `${out.net.toLocaleString()} more than you bet.` : out.net === 0 ? 'Your bet back, no more.' : 'Some of your bet back.')
         continue
       }
       const back = this.tables.lobbyRefund(key)

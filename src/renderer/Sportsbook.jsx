@@ -8,6 +8,15 @@ import { RaceBoard, RaceView } from './Races.jsx'
 // on a schedule and play out live, the same on every computer. A contract
 // pays 100 coins if its team wins; its price is the chance, in coins.
 
+// How much to bet, with all in.
+export function AmountInput ({ amt, setAmt, coins }) {
+  return (
+    <span className='sp-amt' onClick={(e) => e.stopPropagation()}>
+      <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+      <button className='btn small ghost allin' disabled={!(coins >= 1)} onClick={() => setAmt(String(Math.floor(coins)))} title='Bet everything you have'>All in</button>
+    </span>
+  )
+}
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
 const LEAGUE_TABS = [['hoops', '🏀 Basketball'], ['gridiron', '🏈 Football'], ['pitch', '⚽ Soccer'], ['ring', '🥊 Boxing'], ['cage', '🥋 MMA'], ['f1', '🏎️ Formula 1'], ['derby', '🏇 Horse racing'], ['vote', '🗳️ Politics'], ['pop', '🎬 Pop culture']]
 
@@ -222,7 +231,7 @@ function EventCard ({ c, trade, coins, onOpen }) {
       {c.bet && <span className='sp-yours'>Yours: <Coins n={c.bet.worth} /> <i className={c.bet.worth - c.bet.cost >= 0 ? 'up' : 'down'}>{signed(c.bet.worth - c.bet.cost)}</i></span>}
       {c.open && (
         <div className='sp-ticket' onClick={(e) => e.stopPropagation()}>
-          <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+          <AmountInput amt={amt} setAmt={setAmt} coins={coins} />
           <BuyButtons c={c} trade={trade} coins={coins} amount={n} />
         </div>
       )}
@@ -262,7 +271,7 @@ function EventView ({ id, coins, trade, onBack }) {
           {g.open
             ? (
               <>
-                <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+                <AmountInput amt={amt} setAmt={setAmt} coins={coins} />
                 <div className='mk-presets'>{[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setAmt(String(x))}>{formatCoins(x)}</button>)}<button className='btn small ghost' onClick={() => setAmt(String(Math.floor(coins * 0.1)))}>10%</button></div>
                 <BuyButtons c={g} trade={trade} coins={coins} amount={n} />
                 {n > 0 && <small className='sp-note'>{['home', 'away'].map((s) => `${g.sideNames[s]} pays ${formatCoins((n / g.quotes[s].ask) * 100)}`).join(' · ')}</small>}
@@ -354,7 +363,7 @@ function GameCard ({ c, trade, coins, onOpen }) {
       {c.last && <p className='sp-last'>{c.last.text}</p>}
       {c.open && (
         <div className='sp-ticket' onClick={(e) => e.stopPropagation()}>
-          <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+          <AmountInput amt={amt} setAmt={setAmt} coins={coins} />
           <BuyButtons c={c} trade={trade} coins={coins} amount={n} />
         </div>
       )}
@@ -427,7 +436,7 @@ function GameView ({ id, coins, trade, onBack }) {
           {g.open
             ? (
               <>
-                <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+                <AmountInput amt={amt} setAmt={setAmt} coins={coins} />
                 <div className='mk-presets'>{[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setAmt(String(x))}>{formatCoins(x)}</button>)}<button className='btn small ghost' onClick={() => setAmt(String(Math.floor(coins * 0.1)))}>10%</button></div>
                 <BuyButtons c={g} trade={trade} coins={coins} amount={n} />
                 {n > 0 && <small className='sp-note'>{sideList(g).map((s) => `${sideName(g, s)} pays ${formatCoins((n / g.quotes[s].ask) * 100)}`).join(' · ')}</small>}

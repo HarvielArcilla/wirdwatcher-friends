@@ -72,11 +72,12 @@ export function RaceBoard ({ board, coins, trade, onOpen }) {
   )
 }
 
-function Ticket ({ amt, setAmt }) {
+function Ticket ({ amt, setAmt, coins }) {
   return (
     <label className='rc-amt' onClick={(e) => e.stopPropagation()}>
       <span>Bet</span>
       <input className='field' inputMode='numeric' value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^\d]/g, ''))} aria-label='Coins to bet' />
+      <button className='btn small ghost allin' disabled={!(coins >= 1)} onClick={() => setAmt(String(Math.floor(coins)))}>All in</button>
     </label>
   )
 }
@@ -128,7 +129,7 @@ function F1Card ({ c, trade, coins, onOpen }) {
         ))}
       </div>
       {c.feed?.length > 0 && <p className='sp-last'>{c.feed[0].text}</p>}
-      {c.open && <div className='rc-foot' onClick={(e) => e.stopPropagation()}><Ticket amt={amt} setAmt={setAmt} /><small>Prices are coins a contract; each pays 100.</small></div>}
+      {c.open && <div className='rc-foot' onClick={(e) => e.stopPropagation()}><Ticket amt={amt} setAmt={setAmt} coins={coins} /><small>Prices are coins a contract; each pays 100.</small></div>}
     </div>
   )
 }
@@ -145,7 +146,7 @@ function F1View ({ g, trade, coins }) {
         <span><small>Laps</small><b>{pre ? g.laps : `${g.lap} / ${g.laps}`}</b></span>
         <span><small>Remaining</small><b>{pre ? g.laps : g.status === 'final' ? 0 : g.laps - g.lap + 1}</b></span>
         <span><small>Fastest lap</small><b>{g.fastest ? `${lapText(g.fastest.t)}` : '–'}</b>{g.fastest && <small>{byI[g.fastest.d].name}, lap {g.fastest.lap}</small>}</span>
-        {g.open && <Ticket amt={amt} setAmt={setAmt} />}
+        {g.open && <Ticket amt={amt} setAmt={setAmt} coins={coins} />}
       </div>
       <div className='rc-tower full'>
         <div className='rc-trow head'><span>Pos</span><span>Driver</span><span>Gap</span><span>Int</span><span>Last lap</span><span>Best</span><span>Tyre</span><span title='Stops made (and still to make)'>Stops</span><span>Win</span>{g.open && <span />}</div>
@@ -229,7 +230,7 @@ function DerbyCard ({ c, trade, coins, onOpen }) {
           </div>
         ))}
       </div>
-      {c.open && <div className='rc-foot' onClick={(e) => e.stopPropagation()}><Ticket amt={amt} setAmt={setAmt} /><small>Prices are coins a contract; each pays 100.</small></div>}
+      {c.open && <div className='rc-foot' onClick={(e) => e.stopPropagation()}><Ticket amt={amt} setAmt={setAmt} coins={coins} /><small>Prices are coins a contract; each pays 100.</small></div>}
     </div>
   )
 }

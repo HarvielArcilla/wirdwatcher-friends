@@ -4,7 +4,7 @@
 
 import crypto from 'node:crypto'
 import {
-  rarityFor, rarityName, stanceFor, STANCES, RATING_XP, LOBBY_XP, xpToNext, levelCap, ascendCost, power,
+  rarityFor, rarityRoll, RARITY_WINDOW, rarityName, stanceFor, STANCES, RATING_XP, LOBBY_XP, xpToNext, levelCap, ascendCost, power,
   TRAIN_XP_PER_HOUR, TRAIN_MAX_HOURS, TRAIN_SLOTS, trainCostPerHour, FOCUS, nextEncounterIn,
   DUELS_PER_DAY, DUEL_XP, duel, cleanTeam, leximonBonus
 } from '../shared/leximon.js'
@@ -17,7 +17,9 @@ export const blankLeximon = () => ({ cards: {}, team: [], encounter: null, since
 export class Leximon {
   // economy: the Economy (its s.leximon is ours). store: for your ratings.
   // encounters(): whether wild words appear (a setting).
-  constructor ({ economy, store, now = () => Date.now(), encounters = () => true }) {
+  // salt(): something of yours (your id), so your rolls aren't everyone's.
+  constructor ({ economy, store, now = () => Date.now(), encounters = () => true, salt = () => '' }) {
+    this.salt = salt
     this.economy = economy
     this.store = store
     this.now = now
@@ -98,7 +100,9 @@ export class Leximon {
     const open = mine.filter((x) => x.word !== justRated && !this.s.cards[x.word])
     if (!open.length) return null
     const pick = open[crypto.randomInt(open.length)]
-    const rarity = rarityFor(pick.r, mine.map((x) => x.r))
+    // Your latest ratings decide how crowded each band is.
+    const recent = [...mine].sort((a, b) => (b.t || 0) - (a.t || 0)).slice(0, RARITY_WINDOW).map((x) => x.r)
+    const rarity = rarityFor(pick.r, recent, rarityRoll(pick.word, this.salt?.() || ''))
     this.s.encounter = { word: pick.word, rarity, at: t }
     return { word: pick.word, rarity: { ...rarity, name: rarityName(rarity) } }
   }

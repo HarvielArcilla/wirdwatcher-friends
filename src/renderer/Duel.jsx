@@ -121,8 +121,11 @@ function LiveBattle ({ d, settings, toast }) {
     if (!shown && st) setShown(snapshot(st))
   }, [d]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Play the queue, one event at a time.
-  const busy = queue.length > 0
+  // Play the queue, one event at a time. A turn that's arrived but not yet
+  // queued counts as playing too, so the HP shown never jumps ahead of the
+  // attack that causes it.
+  const unseen = d.log.filter((x) => x.t === 'turn').length > seenTurns.current
+  const busy = queue.length > 0 || unseen
   useEffect(() => {
     if (!queue.length || !shown) return
     const e = queue[0]

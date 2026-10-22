@@ -348,14 +348,14 @@ export function upgradeList (s) {
   return UPGRADES.map(({ apply, req, ...u }) => ({ ...u, owned: s.upgrades.includes(u.id), open: s.upgrades.includes(u.id) || req(s) }))
 }
 
-// A short form for tight columns: 12,345 · 123.4K · 12.3M · 1.23B · 4.5T.
+// A short form for tight columns: 9,999 · 12.3K · 1M · 1.23B · 4.5T.
 export const shortCoins = (n) => {
   if (n === null || n === undefined || !Number.isFinite(n)) return '0'
   const a = Math.abs(n)
   if (a < 1000) return a < 10 && a % 1 ? n.toFixed(2) : Math.trunc(n).toLocaleString('en-US')
   if (a < 1e4) return Math.trunc(n).toLocaleString('en-US')
   const units = [[1e33, 'Dc'], [1e30, 'No'], [1e27, 'Oc'], [1e24, 'Sp'], [1e21, 'Sx'], [1e18, 'Qi'], [1e15, 'Qa'], [1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']]
-  for (const [v, name] of units) if (a >= v) { const x = n / v; return `${x.toFixed(Math.abs(x) >= 100 ? 0 : Math.abs(x) >= 10 ? 1 : 2)}${name}` }
+  for (const [v, name] of units) if (a >= v) { const x = n / v; return `${Number(x.toFixed(Math.abs(x) >= 100 ? 0 : Math.abs(x) >= 10 ? 1 : 2))}${name}` }
   return n.toExponential(2)
 }
 export const formatCoins = (n) => {

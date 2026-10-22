@@ -1,12 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
-import { LETTERS, LETTER_WEIGHTS, WEIGHT_TOTAL, evaluate, PAYS, slotWord } from '../src/shared/slots.js'
+import { LETTERS, LETTER_WEIGHTS, WEIGHT_TOTAL, evaluate, PAYS, withForms } from '../src/shared/slots.js'
 import { tmp } from './helpers.js'
+
+test('Wird Slots counts everyday forms, and pays for the longest word', () => {
+  const has = (w) => ['cat', 'run', 'box', 'try', 'bake', 'fly', 'go'].includes(w)
+  const isWord = withForms(has)
+  for (const w of ['cats', 'boxes', 'tries', 'baked', 'tried', 'ran', 'went', 'flies']) assert.ok(isWord(w), w)
+  for (const w of ['catss', 'ca', 'zzz']) assert.equal(isWord(w), false, w)
+  // CATS beats CAT.
+  assert.equal(evaluate(['c', 'a', 't', 's', 'x'], isWord).word, 'cats')
+})
 
 test('Wird Slots pays back about 95%, worked out over every possible spin', () => {
   const app = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
-  const isWord = (w) => slotWord(w) && app.words.has(w)
+  const isWord = withForms((w) => app.words.has(w))
   // Every combination of five letters, weighted by how likely it is.
   const p = LETTERS.map((k) => LETTER_WEIGHTS[k] / WEIGHT_TOTAL)
   let rtp = 0

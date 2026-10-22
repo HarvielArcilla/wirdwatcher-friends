@@ -6,15 +6,15 @@ import { tmp } from './helpers.js'
 
 const app = () => new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
 
-test('Letter Roulette: every bet keeps the house edge between 2% and 4%', () => {
-  for (const [kind, pick] of [['letter', 'Q'], ['red'], ['black'], ['vowel'], ['consonant'], ['low'], ['high'], ['word', 'cat'], ['word', 'quiz'], ['word', 'a']]) {
+test('Letter Roulette: every bet returns the same 26 of 27', () => {
+  for (const [kind, pick] of [['letter', 'Q'], ['red'], ['black'], ['vowel'], ['consonant'], ['low'], ['high']]) {
     assert.ok(ROULETTE_KINDS.includes(kind))
     let back = 0
     for (let p = 0; p < POCKETS.length; p++) back += roulettePayout({ kind, pick, amount: 100 }, p)
     const rtp = back / POCKETS.length / 100
-    assert.ok(rtp > 0.955 && rtp < 0.98, `${kind} ${pick}: returns ${rtp.toFixed(3)}`)
+    assert.ok(Math.abs(rtp - 26 / 27) < 1e-9, `${kind} ${pick}: returns ${rtp.toFixed(4)}, not 26/27`)
   }
-  assert.equal(rouletteBet('word', '!!'), null)
+  assert.equal(rouletteBet('word', 'cat'), null, 'a word is a chip on each letter, not a bet of its own')
   assert.equal(rouletteBet('letter', 'AB'), null)
 })
 
@@ -84,7 +84,7 @@ test('playing against the house: bets come out, winnings go back, nothing goes n
   a.economy.devAddCoins(1e6)
   const t = a.tables
   const before = a.economy.s.coins
-  const r = t.roulette([{ kind: 'red', amount: 100 }, { kind: 'word', pick: 'wird', amount: 50 }])
+  const r = t.roulette([{ kind: 'red', amount: 100 }, { kind: 'letter', pick: 'W', amount: 50 }])
   assert.equal(Math.round(a.economy.s.coins - before), Math.round(r.paid - 150))
   assert.ok(POCKETS[r.pocket] === r.letter)
   assert.throws(() => t.roulette([{ kind: 'letter', pick: 'A', amount: 1e12 }]), /coins/)

@@ -88,7 +88,7 @@ export default function Leximon ({ econ, friends, settings }) {
       <div className='lx-head'>
         <div>
           <h1>Leximon</h1>
-          <p className='lede'>Every few new words, one of the words you’ve rated shows up to be caught. How rare it is depends on how you feel about it, among all your ratings: your most-loved are <b>Beloved</b>, your most-hated are <b>Nemesis</b>. Your team of three learns from every new word you rate.</p>
+          <p className='lede'>Every few new words, one of the words you’ve rated shows up to be caught. How rare it is depends on the score you gave it: only words rated 4.8 or more can be <b>Beloved</b>, and 0.2 or less <b>Nemesis</b>. Keep the ends of the scale for the words that really belong there: the more of your ratings you crowd into one end, the rarer its cards. Your team of three learns from every new word you rate.</p>
         </div>
         <div className='mk-summary'>
           <div><small>Caught</small><b>{v.caught.toLocaleString()}</b><small>of {v.rated.toLocaleString()} rated</small></div>

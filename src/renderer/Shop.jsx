@@ -103,7 +103,7 @@ export function Preview ({ c, me }) {
       </div>
     )
   }
-  if (c.kind === 'reactions') return <div className='mini-confetti'>{c.emoji.length ? c.emoji.join(' ') : '😂 😮 🔥 💀'}</div>
+  if (c.kind === 'reactions') return <div className='mini-react'>{(c.emoji.length ? c.emoji : ['😂', '😮', '🔥', '💀']).map((e, i) => <span key={i}>{e}</span>)}</div>
   if (c.kind === 'table') {
     return (
       <div className={`mini-table felt-${c.id}`}>

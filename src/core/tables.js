@@ -8,7 +8,7 @@ import crypto from 'node:crypto'
 import {
   POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS,
   shuffledBag, lexicon, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
-  WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, wfPattern, pickFrom
+  WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, WF_MIN_STAKE, wfValue, wfPattern, pickFrom
 } from '../shared/tables.js'
 
 const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, words: 0, solved: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, jacks: 0, net: 0, biggest: 0 }, bj: null, wf: null, held: {} })
@@ -84,7 +84,8 @@ export class Tables {
       maxMisses: WF_MISSES,
       bank: Math.floor(g.bank),
       segment: g.segment ?? null, // where the last spin landed
-      value: g.value ?? null, // a value waiting for a consonant
+      value: g.value ?? null, // a value waiting for a consonant (a share of the stake)
+      coinsUp: g.value ? wfValue(g.value, g.stake) : null, // the same, in coins
       vowelCost: Math.ceil(g.stake * WF_VOWEL),
       consonantsLeft: [...new Set(g.word.toUpperCase())].some((l) => !WF_VOWELS.has(l) && !g.called.includes(l)),
       done: g.done,
@@ -103,6 +104,7 @@ export class Tables {
 
   wfStart (stake) {
     if (this.s.wf && !this.s.wf.done) throw new Error('Finish this word first.')
+    if (!(Math.floor(Number(stake)) >= WF_MIN_STAKE)) throw new Error(`The Wheel of Words starts at ${WF_MIN_STAKE} coins.`)
     const pick = this.wordFor()
     if (!pick?.word) throw new Error('No words to play with.')
     const { total } = this._stake([{ kind: 'word', amount: stake }], () => true)
@@ -131,7 +133,7 @@ export class Tables {
     if (v === 'bankrupt') { g.bank = 0; g.last = { kind: 'bankrupt' }; this._commit(); return this.wfView() }
     if (v === 'lose') return this._miss(g, { kind: 'lose' })
     g.value = v
-    g.last = { kind: 'value', value: Math.round(v * g.stake) }
+    g.last = { kind: 'value', value: wfValue(v, g.stake) }
     this._commit()
     return this.wfView()
   }
@@ -147,8 +149,10 @@ export class Tables {
     const value = g.value
     g.value = null
     if (!n) return this._miss(g, { kind: 'none', letter: l })
-    g.bank += value * g.stake * n
-    g.last = { kind: 'hit', letter: l, n, won: Math.floor(value * g.stake * n) }
+    // Each time the letter's in the word pays what the space was worth.
+    const each = wfValue(value, g.stake)
+    g.bank += each * n
+    g.last = { kind: 'hit', letter: l, n, each, won: each * n }
     this._commit()
     return this.wfView()
   }
@@ -164,7 +168,7 @@ export class Tables {
     g.bank -= cost
     g.called.push(l)
     const n = [...g.word.toUpperCase()].filter((x) => x === l).length
-    g.last = { kind: 'vowel', letter: l, n }
+    g.last = { kind: 'vowel', letter: l, n, cost }
     this._commit()
     return this.wfView()
   }

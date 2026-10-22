@@ -2489,3 +2489,28 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .vl-seedword { grid-template-columns: auto minmax(80px, 1fr) auto; }
 .sp-stat-tables { align-items: start; }
 .vl-sw-pick { grid-row: 1; grid-column: 3; }
+.wf-last { margin: 0; font-weight: 600; color: var(--dim); min-height: 1.4em; }
+.wf-last.hit { color: var(--good); } .wf-last.none, .wf-last.bankrupt, .wf-last.lose, .wf-last.wrong { color: var(--bad); }
+/* Chips: the biggest few that fit, a custom chip and all in */
+.tb-chip.c0 { background: #7a3ab8; } .tb-chip.c1 { background: #2f7ad0; } .tb-chip.c2 { background: #23794a; } .tb-chip.c3 { background: #b8322e; } .tb-chip.c4 { background: #1e1e26; } .tb-chip.c5 { background: #b8862e; }
+.tb-chip.custom { display: grid; place-items: center; background: #3a3a48; cursor: text; }
+.tb-chip.custom input { width: 46px; border: 0; background: transparent; color: #fff; font: 700 11px var(--font-ui); text-align: center; outline: none; }
+.tb-chip.custom input::placeholder { color: rgba(255,255,255,.65); }
+.tb-chip.allin { background: linear-gradient(135deg, #e8b82a, #e8602a); font-size: 11px; }
+.btn.allin { color: var(--accent); }
+/* A bigger wheel at the lobby's roulette table */
+.tb-lobby-wheel, .tb-lobby-wheel .tb-wheelwrap { width: min(300px, 34vh); max-width: none; }
+.sp-amt { display: flex; gap: 4px; align-items: stretch; min-width: 0; }
+.sp-amt .field { min-width: 0; flex: 1; }
+.sp-amt .btn { padding: 2px 6px; font-size: 11px; white-space: nowrap; }
+.sp-ticket { grid-template-columns: minmax(140px, 170px) 1fr; }
+.ev-card .sp-ticket { grid-template-columns: 1fr; }
+/* Shop: reaction packs sit in one even row however wide the card is, and
+   badges like Wird Valley stay on one line (a long name wraps instead). */
+.mini-react { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; padding: 0 8px; justify-items: center; font-size: clamp(21px, 2.4vw, 28px); line-height: 1; }
+.shop-item .rarity { white-space: nowrap; flex: none; }
+.shop-item .meta { align-items: flex-start; }
+.shop-item .meta strong { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.shop-item .meta .rarity { margin-top: 1px; }
+.tb-side .tb-chip.custom, .tb-side .tb-chip.allin { width: 58px; border-radius: 999px; }
+.tb-side .tb-chip.custom input { width: 50px; }

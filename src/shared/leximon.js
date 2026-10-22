@@ -2,11 +2,12 @@
 // app and (for friends' teams and duels) every other copy.
 //
 // What a word is never matters: "the" can become as mighty as "serendipity".
-//   - Rarity comes from how YOU feel about it: where it sits among your own
-//     ratings (by rank, so generous and harsh raters get the same spread).
-//     Your most-loved words are Beloved, your most-hated are Nemesis, and
-//     both are equally rare, so there's nothing to gain by rating up or
-//     down. It's fixed when you catch the word.
+//   - Rarity comes from how YOU feel about it: the score you gave it. Only
+//     the very ends of the scale can be Beloved (4.8 and up) or Nemesis
+//     (0.2 and down), and so on inward for the other tiers. Crowding a band
+//     makes its tier harder to get, so a careful, varied rater does best
+//     and rating everything 5.0 or 0.0 gets almost nothing (see
+//     rarityFor). It's fixed when you catch the word.
 //   - Everything else is growth. Your team of three gains XP every time you
 //     rate a new word, the score never matters. Coins can only help a
 //     little: training is capped at a few hours a day per word however rich
@@ -25,19 +26,50 @@ export const RARITIES = [
 export const rarityName = (r) => (r.side === 'love' ? RARITIES[r.tier].love : r.side === 'hate' ? RARITIES[r.tier].hate : RARITIES[r.tier].name)
 
 export const MIN_RATINGS_FOR_RARITY = 20 // before that, everything's Common
+export const RARITY_WINDOW = 300 // rarity looks at your latest ratings, so habits can change
 
-// Where `r` sits among `all` (your ratings), counting ties as the middle of
-// the tie, so rating everything the same makes nothing stand out.
-export function rarityFor (r, all) {
+// Rarity comes from the score you gave the word. Each tier has a band at
+// each end of the scale (they don't overlap), and a share of your ratings
+// it expects to see there: about what someone who uses the whole scale has.
+//   [tier, love from, love to, hate from, hate to, target share, steepness]
+export const RARITY_BANDS = [
+  [4, 4.8, 5, 0, 0.2, 0.06, 2],
+  [3, 4.4, 4.7, 0.3, 0.6, 0.08, 2],
+  [2, 4.0, 4.3, 0.7, 1.0, 0.08, 1],
+  [1, 3.4, 3.9, 1.1, 1.6, 0.12, 1]
+]
+
+// A word gets one try at its band's tier. Its chance is the band's target
+// over the share of your ratings that are in that band (capped at 1), so
+// if you keep a band for the words that really belong there, every one of
+// them gets it; if you pile ratings into it, each gets less. At the very
+// ends the chance falls off with the square, so rating everything 5.0 (or
+// 0.0) makes Beloved (or Nemesis) rare, but never impossible. A word that
+// misses its try is Common. `roll` is the word's own number in [0, 1) (see
+// rarityRoll), so the same word always rolls the same.
+export function rarityFor (r, all, roll = 0) {
   const n = all.length
-  if (n < MIN_RATINGS_FOR_RARITY) return { tier: 0, side: null, pct: 0.5 }
-  let below = 0
-  let same = 0
-  for (const x of all) { if (x < r) below++; else if (x === r) same++ }
-  const pct = (below + same / 2) / n
-  const d = Math.abs(pct - 0.5) * 2 // 0 in the middle, 1 at the very ends
-  const tier = d >= 0.94 ? 4 : d >= 0.8 ? 3 : d >= 0.6 ? 2 : d >= 0.3 ? 1 : 0
-  return { tier, side: tier === 0 ? null : pct > 0.5 ? 'love' : 'hate', pct: Math.round(pct * 1000) / 1000 }
+  if (n < MIN_RATINGS_FOR_RARITY) return { tier: 0, side: null, chance: 0 }
+  for (const [tier, la, lb, ha, hb, target, k] of RARITY_BANDS) {
+    const love = r >= la - 1e-9 && r <= lb + 1e-9
+    const hate = r >= ha - 1e-9 && r <= hb + 1e-9
+    if (!love && !hate) continue
+    const inBand = all.filter((x) => (love ? x >= la - 1e-9 && x <= lb + 1e-9 : x >= ha - 1e-9 && x <= hb + 1e-9)).length
+    const share = Math.max(inBand, 1) / n
+    const chance = Math.min(1, (target / share) ** k)
+    return roll < chance ? { tier, side: love ? 'love' : 'hate', chance: Math.round(chance * 1000) / 1000 } : { tier: 0, side: null, chance: Math.round(chance * 1000) / 1000 }
+  }
+  return { tier: 0, side: null, chance: 0 }
+}
+
+// A word's own number for its rarity roll: the same every time for the
+// same player and word, so nothing is gained by trying again.
+export function rarityRoll (word, salt = '') {
+  let h = 2166136261
+  const s = `rarity|${salt}|${word}`
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15
+  return (h >>> 0) / 4294967296
 }
 
 // Stances: chosen by you, not the word. Charm beats Spite, Spite beats

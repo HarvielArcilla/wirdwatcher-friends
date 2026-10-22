@@ -228,7 +228,7 @@ export function Coinflip ({ v, coins, act, look }) {
           <input className='field' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value)} placeholder='How many coins' onKeyDown={(e) => { if (e.key === 'Enter') go() }} />
         </label>
         <div className='seg'>
-          {[['10%', 0.1], ['Half', 0.5], ['All', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor(whole * frac))))}>{label}</button>)}
+          {[['10%', 0.1], ['Half', 0.5], ['All in', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor(whole * frac))))}>{label}</button>)}
           <button onClick={() => setStake(String(Math.min(whole, Math.max(1, amount * 2))))}>×2</button>
         </div>
         <div className='seg call'>

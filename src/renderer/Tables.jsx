@@ -1,21 +1,48 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, Coins } from './ui.jsx'
-import { formatCoins } from '../shared/economy.js'
-import { POCKETS, pocketColor, rouletteBet, TILE_POINTS, WF_SEGMENTS } from '../shared/tables.js'
+import { formatCoins, shortCoins } from '../shared/economy.js'
+import { POCKETS, pocketColor, wordLetters, TILE_POINTS, WF_SEGMENTS, WF_MIN_STAKE, wfValue } from '../shared/tables.js'
 
 // The Casino's word tables: Letter Roulette, Wordjack and the Wheel of
 // Words, played against the house. The wheels and tiles here are also used
 // by the lobby tables.
 
-const CHIPS = [10, 100, 1000, 10000, 100000]
+// Chips go up by tens; you see the ones that fit your coins (the biggest few).
+const CHIPS = [10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
+const SHOWN_CHIPS = 6
+export const chipsFor = (coins) => {
+  const fit = CHIPS.filter((c) => c <= Math.max(10, coins))
+  return fit.slice(Math.max(0, fit.length - SHOWN_CHIPS))
+}
 const signed = (n) => `${n >= 0 ? '+' : '−'}${formatCoins(Math.abs(n))}`
-const SPIN_MS = 4200
+export const SPIN_MS = 4200
 
-function Chips ({ chip, setChip, coins }) {
+// The chips, a custom chip of any size, and all in (everything not already
+// on the table). left: coins you have that aren't on the table yet.
+function Chips ({ chip, setChip, coins, left = coins }) {
+  const list = chipsFor(coins)
+  const [custom, setCustom] = useState('')
+  const isCustom = !list.includes(chip)
   return (
     <div className='tb-chips' role='radiogroup' aria-label='Chip size'>
-      {CHIPS.map((c) => <button key={c} className={`tb-chip ${chip === c ? 'on' : ''}`} disabled={c > coins} onClick={() => setChip(c)} aria-pressed={chip === c}>{formatCoins(c)}</button>)}
+      {list.map((c, i) => <button key={c} className={`tb-chip c${(CHIPS.indexOf(c)) % 6} ${chip === c ? 'on' : ''}`} disabled={c > coins} onClick={() => setChip(c)} aria-pressed={chip === c}>{shortCoins(c)}</button>)}
+      <label className={`tb-chip custom ${isCustom && chip !== Math.floor(left) ? 'on' : ''}`} title='A chip of any size'>
+        <input inputMode='numeric' placeholder='Custom' value={custom} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ''); setCustom(v); if (Number(v) >= 1) setChip(Number(v)) }} onFocus={() => { if (Number(custom) >= 1) setChip(Number(custom)) }} aria-label='Custom chip' />
+      </label>
+      <button className={`tb-chip allin ${chip === Math.floor(left) && left >= 1 ? 'on' : ''}`} disabled={left < 1} onClick={() => setChip(Math.floor(left))} title='Everything you have that isn’t on the table'>All in</button>
     </div>
+  )
+}
+
+// A stake: type it, pick a round amount that fits your coins, or go all in.
+export function StakePicker ({ stake, setStake, coins, min = 1 }) {
+  const presets = [100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13].filter((x) => x <= coins && x >= min)
+  return (
+    <>
+      <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
+      {presets.slice(-3).map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{shortCoins(x)}</button>)}
+      <button className='btn small ghost allin' disabled={coins < min} onClick={() => setStake(String(Math.floor(coins)))}>All in</button>
+    </>
   )
 }
 
@@ -25,7 +52,7 @@ function addBet (bets, kind, pick, amount) {
   if (i < 0) return [...bets, { kind, pick: pick || null, amount }]
   return bets.map((b, j) => (j === i ? { ...b, amount: b.amount + amount } : b))
 }
-const betLabel = (b) => ({ letter: b.pick, word: `“${b.pick}”`, red: 'Red', black: 'Black', vowel: 'Vowels', consonant: 'Consonants', low: 'A–M', high: 'N–Z' })[b.kind] || b.pick
+const betLabel = (b) => ({ letter: b.pick, red: 'Red', black: 'Black', vowel: 'Vowels', consonant: 'Consonants', low: 'A–M', high: 'N–Z' })[b.kind] || b.pick
 
 // --- Letter Roulette ------------------------------------------------------------------------
 export function LetterWheel ({ pocket, spinning }) {
@@ -67,24 +94,24 @@ export function RouletteBoard ({ bets, setBets, chip, disabled, hit = null }) {
   const [word, setWord] = useState('')
   const on = (kind, pick) => bets.find((b) => b.kind === kind && (b.pick || null) === (pick || null))?.amount || 0
   const add = (kind, pick) => { if (!disabled) setBets(addBet(bets, kind, pick, chip)) }
-  const wb = rouletteBet('word', word)
+  const letters = wordLetters(word)
   return (
     <div className='tb-board'>
       <div className='tb-letters'>
         {POCKETS.map((l, i) => {
           const n = on('letter', l)
-          return <button key={l} className={`tb-cell ${pocketColor(i)} ${hit === l ? 'hit' : ''}`} onClick={() => add('letter', l)} disabled={disabled} title={`${l}: pays 25 to 1`}>{l}{n > 0 && <i className='tb-stack'>{formatCoins(n)}</i>}</button>
+          return <button key={l} className={`tb-cell ${pocketColor(i)} ${hit === l ? 'hit' : ''}`} onClick={() => add('letter', l)} disabled={disabled} title={`${l}: pays 25 to 1`}>{l}{n > 0 && <i className='tb-stack'>{shortCoins(n)}</i>}</button>
         })}
       </div>
       <div className='tb-outside'>
-        {[['red', 'Red', '1 to 1'], ['black', 'Black', '1 to 1'], ['low', 'A–M', '1 to 1'], ['high', 'N–Z', '1 to 1'], ['vowel', 'Vowels', '4.2 to 1'], ['consonant', 'Consonants', '1 to 4']].map(([k, label, pays]) => (
-          <button key={k} className={`tb-cell wide ${k}`} onClick={() => add(k)} disabled={disabled}>{label}<small>{pays}</small>{on(k) > 0 && <i className='tb-stack'>{formatCoins(on(k))}</i>}</button>
+        {[['red', 'Red', '1 to 1'], ['black', 'Black', '1 to 1'], ['low', 'A–M', '1 to 1'], ['high', 'N–Z', '1 to 1'], ['vowel', 'Vowels', '21 to 5'], ['consonant', 'Consonants', '5 to 21']].map(([k, label, pays]) => (
+          <button key={k} className={`tb-cell wide ${k}`} onClick={() => add(k)} disabled={disabled}>{label}<small>{pays}</small>{on(k) > 0 && <i className='tb-stack'>{shortCoins(on(k))}</i>}</button>
         ))}
       </div>
-      <form className='tb-wordbet' onSubmit={(e) => { e.preventDefault(); if (wb) { add('word', word.toUpperCase()); setWord('') } }}>
+      <form className='tb-wordbet' onSubmit={(e) => { e.preventDefault(); if (letters.length && !disabled) { let next = bets; for (const l of letters) next = addBet(next, 'letter', l, chip); setBets(next); setWord('') } }}>
         <input className='field' value={word} onChange={(e) => setWord(e.target.value.replace(/[^a-z]/gi, '').slice(0, 13))} placeholder='Bet on a word' disabled={disabled} aria-label='A word to bet on' />
-        <button className='btn small' disabled={!wb || disabled}>Bet {formatCoins(chip)}</button>
-        <small>{wb ? `Wins if the ball lands on any of ${[...new Set(word.toUpperCase())].join(' ')}: pays ${wb.pays} to 1` : 'Wins if the ball lands on any of its letters. Fewer letters pay more.'}</small>
+        <button className='btn small' disabled={!letters.length || disabled}>Bet {letters.length > 1 ? `${letters.length} × ` : ''}{shortCoins(chip)}</button>
+        <small>{letters.length ? `A chip on each of ${letters.join(' ')}: ${shortCoins(chip * letters.length)} in all. The letter that comes up pays 25 to 1.` : 'Type a word to put a chip on each of its letters.'}</small>
       </form>
     </div>
   )
@@ -118,7 +145,7 @@ export function Roulette ({ coins, hold, toast }) {
         <div className='tb-history'>{history.map((h, i) => <span key={i} className={`tb-pip ${h.color}`}>{h.letter}</span>)}</div>
       </div>
       <div className='tb-right'>
-        <Chips chip={chip} setChip={setChip} coins={coins} />
+        <Chips chip={chip} setChip={setChip} coins={coins} left={coins - total} />
         <RouletteBoard bets={bets} setBets={setBets} chip={chip} disabled={spinning} hit={spinning ? null : spin?.letter} />
         <div className='tb-actions'>
           <span className='tb-total'>{bets.length ? <>On the table: <Coins n={total} /> <small>({bets.map(betLabel).join(', ')})</small></> : 'Click letters, colours or groups to place chips.'}</span>
@@ -132,7 +159,7 @@ export function Roulette ({ coins, hold, toast }) {
 
 // --- Wheel of Words ----------------------------------------------------------------------
 const SEG_COLORS = ['#4a9ee8', '#3fbf9a', '#e8a03a', '#a66bd8', '#e8648f', '#5bbf5b', '#e86a4a', '#3fa8c8']
-const segLabel = (v, stake) => (v === 'bankrupt' ? 'BANKRUPT' : v === 'lose' ? 'LOSE A TURN' : stake ? formatCoins(Math.round(v * stake)) : `×${v}`)
+const segLabel = (v, stake) => (v === 'bankrupt' ? 'BANKRUPT' : v === 'lose' ? 'LOSE A TURN' : stake ? shortCoins(wfValue(v, stake)) : `×${v}`)
 export function WordsWheel ({ segment, spinning, stake }) {
   const turn = useRef(0)
   const [angle, setAngle] = useState(0)
@@ -168,6 +195,16 @@ export function WordsWheel ({ segment, spinning, stake }) {
 }
 
 const WF_SPIN_MS = 3200
+// What just happened, in a line under the bank.
+function lastText (x) {
+  if (x.kind === 'hit') return x.n > 1 ? `${x.n} ${x.letter}s × ${formatCoins(x.each)} = +${formatCoins(x.won)} to your bank` : `One ${x.letter}: +${formatCoins(x.won)} to your bank`
+  if (x.kind === 'none') return `No ${x.letter} in it: a miss, and the spin’s value is lost.`
+  if (x.kind === 'vowel') return `Bought ${x.letter} for ${formatCoins(x.cost)}: ${x.n ? `${x.n} in the word` : 'not in the word'}.`
+  if (x.kind === 'bankrupt') return 'Bankrupt! The bank’s back to nothing.'
+  if (x.kind === 'lose') return 'Lose a turn: that counts as a miss.'
+  if (x.kind === 'wrong') return `Not “${x.guess}”: a miss.`
+  return ''
+}
 const CONSONANTS = [...'BCDFGHJKLMNPQRSTVWXYZ']
 const VOWEL_KEYS = [...'AEIOU']
 
@@ -201,13 +238,11 @@ export function Wheel ({ coins, hold, toast }) {
     setTimeout(() => {
       setSpinning(false)
       after(o)
-      if (o.last?.kind === 'bankrupt') toast({ emoji: '💸', title: 'Bankrupt!', text: 'Your bank is empty. Keep going.' })
-      if (o.last?.kind === 'lose') toast({ emoji: '⏭️', title: 'Lose a turn', text: 'That counts as a miss.' })
     }, WF_SPIN_MS)
   }
-  const call = async (l) => { const o = await act('wfCall', l); if (o) { after(o); if (o.last?.kind === 'none') toast({ emoji: '✖️', title: `No ${l}`, text: 'That’s a miss.' }) } }
+  const call = async (l) => { const o = await act('wfCall', l); if (o) after(o) }
   const vowel = async (l) => { const o = await act('wfVowel', l); if (o) after(o) }
-  const solve = async (e) => { e.preventDefault(); const o = await act('wfSolve', guess); if (o) { after(o); setGuess(''); if (!o.done) { toast({ emoji: '✖️', title: 'Not it', text: 'That’s a miss.' }) } else setSolving(false) } }
+  const solve = async (e) => { e.preventDefault(); const o = await act('wfSolve', guess); if (o) { after(o); setGuess(''); if (o.done) setSolving(false) } }
   const n = Math.floor(Number(stake) || 0)
   const live = g && !g.done
   const waiting = live && g.value !== null
@@ -223,7 +258,8 @@ export function Wheel ({ coins, hold, toast }) {
             <>
               <div className='wf-clue'>{g.clue} · {g.pattern.length} letters</div>
               <div className={`wf-board ${g.done ? (g.solved ? 'won' : 'lost') : ''}`}>{g.pattern.map((l, i) => <span key={i} className={`wf-cell ${l ? 'open' : ''}`}>{l || ''}</span>)}</div>
-              <div className='wf-bank'><small>Bank</small><b><Coins n={g.bank} /></b>{waiting && !spinning && <span className='wf-value'>Landed on {formatCoins(Math.round(g.value * g.stake))}: call a consonant</span>}</div>
+              <div className='wf-bank'><small>Bank</small><b><Coins n={g.bank} /></b>{waiting && !spinning && <span className='wf-value'>Landed on {formatCoins(g.coinsUp)}: call a consonant</span>}</div>
+              {!spinning && g.last && <p className={`wf-last ${g.last.kind}`}>{lastText(g.last)}</p>}
             </>
             )
           : <p className='lede'>A hidden word, a wheel and your stake. Spin for a value and call consonants: each one in the word adds the value to your bank. Buy vowels from your bank, and solve the word to keep it all. Six misses and it’s gone.</p>}
@@ -234,7 +270,7 @@ export function Wheel ({ coins, hold, toast }) {
             </div>
             <div className='wf-keys vowels'>
               {VOWEL_KEYS.map((l) => <button key={l} className='wf-key vowel' disabled={waiting || spinning || g.called.includes(l) || g.bank < g.vowelCost} onClick={() => vowel(l)} title={`Buy for ${formatCoins(g.vowelCost)}`}>{l}</button>)}
-              <small>Vowels cost {formatCoins(g.vowelCost)} from your bank.</small>
+              <small>{waiting ? 'Call a consonant first, then you can buy a vowel.' : g.bank < g.vowelCost ? `Vowels cost ${formatCoins(g.vowelCost)} from your bank, and it has ${formatCoins(g.bank)}: call some right consonants first.` : `Vowels cost ${formatCoins(g.vowelCost)} from your bank.`}</small>
             </div>
             {solving
               ? (
@@ -255,9 +291,8 @@ export function Wheel ({ coins, hold, toast }) {
         )}
         {!live && (
           <div className='tb-actions'>
-            <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
-            {[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{formatCoins(x)}</button>)}
-            <button className='btn primary' onClick={start} disabled={!(n >= 1) || n > coins}>{g ? 'Next word' : 'Play'}</button>
+            <StakePicker stake={stake} setStake={setStake} coins={coins} min={WF_MIN_STAKE} />
+            <button className='btn primary' onClick={start} disabled={!(n >= WF_MIN_STAKE) || n > coins}>{n > 0 && n < WF_MIN_STAKE ? `At least ${WF_MIN_STAKE}` : g ? 'Next word' : 'Play'}</button>
           </div>
         )}
         {stats && <p className='tb-stats'>{stats.words || 0} word{stats.words === 1 ? '' : 's'} · {stats.solved || 0} solved · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
@@ -335,8 +370,7 @@ export function Wordjack ({ coins, hold, toast }) {
             )
           : (
             <>
-              <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
-              {[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{formatCoins(x)}</button>)}
+              <StakePicker stake={stake} setStake={setStake} coins={coins} />
               <button className='btn primary' onClick={() => act('bjDeal', n)} disabled={!(n >= 1) || n > coins}>Deal</button>
             </>
             )}
@@ -392,7 +426,7 @@ export function LobbySeatTable ({ c, phase, res, id }) {
       {hand && <span className='tb-seat-tiles'><WordHand tiles={hand.tiles} used={hand.used} small /><b className={hand.total > 21 ? 'down' : ''}>{hand.word ? `${hand.word.toUpperCase()} ` : ''}{hand.total}</b></span>}
       {bet === null && phase !== 'reveal' && <span className='tag'>sitting out</span>}
       {bet && net === undefined && <span className='tag'>{c.style === 'roulette' ? `bet ${formatCoins(bet.total)}` : `stake ${formatCoins(bet.total)}${bet.doubled ? ' ×2' : ''}`}</span>}
-      {net !== undefined && <span className={`tag ${net > 0 ? 'ok' : net < 0 ? 'lo' : ''}`}>{net > 0 ? `won ${formatCoins(net)}` : net < 0 ? `lost ${formatCoins(-net)}` : 'push'}</span>}
+      {net !== undefined && <span className={`tag ${net > 0 ? 'ok' : net < 0 ? 'lo' : ''}`}>{net > 0 ? `won ${formatCoins(net)}` : net < 0 ? `lost ${formatCoins(-net)}` : c.style === 'roulette' ? 'even' : 'push'}</span>}
     </span>
   )
 }
@@ -407,8 +441,7 @@ export function LobbyTableControls ({ c, phase, act, coins, waiting, name, toast
     if (mine.bet !== undefined) return <div className='rate-help' style={{ textAlign: 'center' }}><span className='prompt'>{mine.bet ? <>You’re in for <b>{formatCoins(mine.bet.total)}</b>.</> : 'Sitting this hand out.'}</span><span>Waiting on {left}</span></div>
     return (
       <div className='tb-actions center'>
-        <input className='field tb-stake' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value.replace(/[^\d]/g, ''))} aria-label='Stake' />
-        {[100, 1000, 10000].map((x) => <button key={x} className='btn small ghost' onClick={() => setStake(String(x))}>{formatCoins(x)}</button>)}
+        <StakePicker stake={stake} setStake={setStake} coins={coins} />
         <button className='btn primary' onClick={() => act('tableBet', { stake: n })} disabled={!(n >= 1) || n > coins}>Deal me in</button>
         <button className='btn ghost' onClick={() => act('tableBet', { skip: true })}>Sit out</button>
       </div>
@@ -448,7 +481,7 @@ export function LobbyRouletteBets ({ c, act, coins }) {
   return (
     <div className='sect tb-side'>
       <h3>Place your bets</h3>
-      <Chips chip={chip} setChip={setChip} coins={coins} />
+      <Chips chip={chip} setChip={setChip} coins={coins} left={coins - total} />
       <RouletteBoard bets={bets} setBets={setBets} chip={chip} disabled={false} />
       <div className='tb-actions'>
         <span className='tb-total'>{bets.length ? <>On the table: <Coins n={total} /></> : 'Click to place chips.'}</span>

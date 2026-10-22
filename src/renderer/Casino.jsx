@@ -18,7 +18,8 @@ export default function Casino ({ econ, settings }) {
   const [v, setV] = useState(null)
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('casino-tab') || 'slots' } catch { return 'slots' } })
   const [tablesNet, setTablesNet] = useState(0)
-  const load = useCallback(() => { api('economy').then(setV).catch(() => {}); api('tables').then((t) => setTablesNet(t.roulette.net + t.wheel.net + t.blackjack.net)).catch(() => {}) }, [])
+  const spinUntil = useRef(0) // while a wheel spins, the totals wait
+  const load = useCallback(() => { api('economy').then(setV).catch(() => {}); if (Date.now() >= spinUntil.current) api('tables').then((t) => setTablesNet(t.roulette.net + t.wheel.net + t.blackjack.net)).catch(() => {}) }, [])
   useEffect(() => { load() }, [load])
   useInterval(load, 8000)
   useEffect(() => { try { localStorage.setItem('casino-tab', tab) } catch {} }, [tab])
@@ -41,8 +42,8 @@ export default function Casino ({ econ, settings }) {
   }
   const coins = useShownCoins(live)
   // The word tables hold the coin count while a wheel spins, then reload.
-  const hold = (ms) => (ms ? holdCoins(live, ms) : releaseCoins())
-  const tableToast = (t) => { toast(t); load() }
+  const hold = (ms) => { spinUntil.current = ms ? Date.now() + ms : 0; return ms ? holdCoins(live, ms) : releaseCoins() }
+  const tableToast = (t) => { spinUntil.current = 0; toast(t); load() }
   if (!v) return null
   const real = v
   const shown = frozen || real
@@ -142,7 +143,7 @@ function Slots ({ v, live, coins, play, settings }) {
           <input className='field' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') go() }} />
         </label>
         <div className='seg'>
-          {[['1%', 0.01], ['10%', 0.1], ['Half', 0.5], ['All', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor(whole * frac))))}>{label}</button>)}
+          {[['1%', 0.01], ['10%', 0.1], ['Half', 0.5], ['All in', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor(whole * frac))))}>{label}</button>)}
           <button onClick={() => setStake(String(Math.min(whole, Math.max(1, amount * 2))))}>×2</button>
         </div>
         <button className='btn primary big' disabled={spinning || amount < 1 || amount > whole} onClick={() => go()}>{amount > whole ? 'You don’t have that many' : `Spin for ${formatCoins(amount)}`}</button>

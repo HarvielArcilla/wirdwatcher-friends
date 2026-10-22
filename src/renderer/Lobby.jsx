@@ -5,7 +5,7 @@ import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 import { titleText, packEmoji } from '../shared/cosmetics.js'
 import { WildWord } from './Leximon.jsx'
-import { LobbyTableCenter, LobbySeatTable, LobbyTableControls, LobbyRouletteBets } from './Tables.jsx'
+import { LobbyTableCenter, LobbySeatTable, LobbyTableControls, LobbyRouletteBets, SPIN_MS } from './Tables.jsx'
 
 // Lobbies. Before you're in one: host or join. In one: a round table with a
 // seat per player and a card on the felt in front of each seat. What happens
@@ -112,6 +112,16 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
   const style = c?.style || lobby.options.style
   const phase = lobby.phase
   const casino = TABLES.includes(style) // Letter Roulette or Wordjack
+  // At the roulette table, nothing about the spin shows until the wheel stops.
+  const [stopped, setStopped] = useState(null)
+  const spinKey = style === 'roulette' && phase === 'reveal' && res ? res.key : null
+  useEffect(() => {
+    if (!spinKey) return
+    const t = setTimeout(() => setStopped(spinKey), SPIN_MS)
+    return () => clearTimeout(t)
+  }, [spinKey])
+  const wheeling = Boolean(spinKey && stopped !== spinKey)
+  const net = (p) => (wheeling ? p.score - (res?.net?.[p.id] || 0) : p.score)
   const mine = c?.mine || {}
   const waiting = new Set(lobby.waitingOn || [])
   const iMustAct = waiting.has(you)
@@ -405,7 +415,7 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
                   </span>
                   <span className='slvl'>
                     {c && phase !== 'results' && p.role ? ({ seat: 'in the hot seat', picker: 'picking', defendant: 'the defendant' })[p.role] : titleText(p.look?.title) || `Level ${p.level}`}
-                    {phase !== 'waiting' && scored && <b className={`pts ${casino && p.score < 0 ? 'neg' : ''}`}> · {casino ? `${signedCoins(p.score)} coins` : `${p.score} pts`}</b>}
+                    {phase !== 'waiting' && scored && <b className={`pts ${casino && net(p) < 0 ? 'neg' : ''}`}> · {casino ? `${signedCoins(net(p))} coins` : `${p.score} pts`}</b>}
                   </span>
                   <span className='seat-tags'>
                     {p.away && <span className='tag away'>reconnecting…</span>}
@@ -422,7 +432,7 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
                     {phase === 'reveal' && style === 'jury' && res?.tally?.[p.id] > 0 && <span className={`tag ${p.id === res.defendant ? 'hi' : 'lo'}`}>{res.tally[p.id]} vote{res.tally[p.id] === 1 ? '' : 's'}</span>}
                     {phase === 'reveal' && p.next && <span className='tag ok'>ready</span>}
                   </span>
-                  {casino && inRound && phase !== 'waiting' && phase !== 'results' && <LobbySeatTable c={c} phase={phase} res={res} id={p.id} />}
+                  {casino && inRound && phase !== 'waiting' && phase !== 'results' && <LobbySeatTable c={c} phase={wheeling ? 'drawing' : phase} res={res} id={p.id} />}
                   {juryVote && <span className='guess-line'>voted <b className={juryVote === res.defendant ? 'hit' : 'miss'}>{name(juryVote)}</b></span>}
                   {phase === 'reveal' && g && <span className='guess-line'><b className={g.hitHigh ? 'hit' : 'miss'}>↑{name(g.high)}</b> <b className={g.hitLow ? 'hit' : 'miss'}>↓{name(g.low)}</b></span>}
                 </div>
@@ -557,7 +567,7 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
         {scored && phase !== 'waiting' && (
           <div className='sect'>
             <h3>Scores</h3>
-            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{casino ? signedCoins(p.score) : p.score}</b></div>)}</div>
+            <div className='scores'>{[...lobby.players].sort((a, b) => b.score - a.score).map((p) => <div key={p.id}><Avatar name={p.name} color={p.color} /><span className={`nm-${p.look?.name || 'plain'}`}>{p.me ? 'You' : p.name}</span><b>{casino ? signedCoins(net(p)) : p.score}</b></div>)}</div>
           </div>
         )}
         {phase !== 'results' && phase !== 'waiting' && lobby.history.length > (phase === 'reveal' ? 1 : 0) && <Rounds history={phase === 'reveal' ? lobby.history.slice(0, -1) : lobby.history} name={name} you={you} />}

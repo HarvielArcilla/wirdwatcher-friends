@@ -438,7 +438,7 @@ test('Letter Roulette at the lobby: everyone bets on the same spin, and each app
   const before = apps.map((a) => a.economy.s.coins)
   const nets = apps.map((a) => a.tables.net())
   host.lobbyAction('tableBet', { bets: [{ kind: 'red', amount: 100 }] })
-  pip.lobbyAction('tableBet', { bets: [{ kind: 'word', pick: 'wird', amount: 50 }, { kind: 'letter', pick: 'Q', amount: 10 }] })
+  pip.lobbyAction('tableBet', { bets: [{ kind: 'letter', pick: 'W', amount: 50 }, { kind: 'letter', pick: 'Q', amount: 10 }] })
   await until(() => quinn.lobbyState.current.bets[idOf(pip)])
   assert.equal(quinn.lobbyState.current.bets[idOf(pip)].total, 60, 'bets are on show')
   assert.equal(pip.economy.s.coins, before[1] - 60, 'the coins leave when the bet is placed')
