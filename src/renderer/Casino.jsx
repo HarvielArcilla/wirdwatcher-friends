@@ -75,7 +75,7 @@ export default function Casino ({ econ, settings }) {
             {tab === 'roulette' && <Roulette coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'blackjack' && <Wordjack coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'wheel' && <Wheel coins={coins} hold={hold} toast={tableToast} />}
-            {tab === 'penguin' && <Penguin coins={coins} hold={hold} toast={tableToast} />}
+            {tab === 'penguin' && <Penguin coins={coins} hold={hold} toast={tableToast} settings={settings} />}
             {tab === 'sports' && <Sportsbook coins={coins} />}
             {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}
           </>

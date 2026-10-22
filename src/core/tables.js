@@ -10,7 +10,7 @@ import {
   shuffledBag, lexicon, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
   WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, WF_MIN_STAKE, wfValue, wfPattern, pickFrom
 } from '../shared/tables.js'
-import { PC_LEVELS, PC_MIN_STAKE, pcMult, pcPayout, pcFirstCar } from '../shared/penguin.js'
+import { PC_LEVELS, PC_MIN_STAKE, pcMult, pcPayout, pcFirstCrack } from '../shared/penguin.js'
 
 const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, words: 0, solved: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, jacks: 0, net: 0, biggest: 0 }, penguin: { runs: 0, crossed: 0, best: 0, net: 0, biggest: 0 }, pc: null, bj: null, wf: null, held: {} })
 const MAX_BETS = 12
@@ -280,7 +280,7 @@ export class Tables {
   }
 
   // --- Penguin Cross ---
-  // (Rules in src/shared/penguin.js.) Where the car is gets decided when you
+  // (Rules in src/shared/penguin.js.) Which island crumbles gets decided when you
   // start, and stays on this computer until the run ends.
   pcView () {
     const g = this.s.pc
@@ -296,7 +296,7 @@ export class Tables {
       mults: Array.from({ length: lanes }, (_, i) => pcMult(g.level, i + 1)),
       cashNow: g.at > 0 && !g.done ? pcPayout(g.stake, g.level, g.at) : null,
       done: g.done,
-      hit: g.done && g.hit !== null ? g.hit : null, // the lane with the car that got you
+      hit: g.done && g.hit !== null ? g.hit : null, // the island that crumbled
       crossed: g.done && g.at === lanes,
       word: g.done ? g.word : null,
       paid: g.paid ?? null
@@ -305,14 +305,14 @@ export class Tables {
 
   pcStart (stake, level = 'medium') {
     if (this.s.pc && !this.s.pc.done) throw new Error('Finish this crossing first.')
-    if (!PC_LEVELS[level]) throw new Error('Pick a road.')
+    if (!PC_LEVELS[level]) throw new Error('Pick the ice.')
     if (!(Math.floor(Number(stake)) >= PC_MIN_STAKE)) throw new Error('Bet at least 1 coin.')
     const pick = this.wordFor()
     if (!pick?.word) throw new Error('No words to play with.')
     const { total } = this._stake([{ kind: 'run', amount: stake }], () => true)
     const word = pick.word.toLowerCase()
-    const car = pcFirstCar(level, word.length, () => crypto.randomInt(1e9) / 1e9)
-    this.s.pc = { stake: total, level, word, clue: pick.clue || null, car, at: 0, hit: null, done: false }
+    const crack = pcFirstCrack(level, word.length, () => crypto.randomInt(1e9) / 1e9)
+    this.s.pc = { stake: total, level, word, clue: pick.clue || null, crack, at: 0, hit: null, done: false }
     this.s.penguin.runs++
     this._commit()
     return this.pcView()
@@ -326,7 +326,7 @@ export class Tables {
 
   pcHop () {
     const g = this._pc()
-    if (g.car === g.at) { g.hit = g.at; return this._pcEnd(g, 0) }
+    if ((g.crack ?? g.car) === g.at) { g.hit = g.at; return this._pcEnd(g, 0) }
     g.at++
     if (g.at === g.word.length) { this.s.penguin.crossed++; return this._pcEnd(g, pcPayout(g.stake, g.level, g.at)) }
     this._commit()
@@ -335,7 +335,7 @@ export class Tables {
 
   pcCash () {
     const g = this._pc()
-    if (g.at < 1) throw new Error('Cross a lane first.')
+    if (g.at < 1) throw new Error('Hop to an island first.')
     return this._pcEnd(g, pcPayout(g.stake, g.level, g.at))
   }
 

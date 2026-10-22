@@ -13,7 +13,7 @@ export const SETTING_FIELDS = {
   ratingSound: { group: 'sound', kind: 'choice', default: 'arcade', options: ['arcade', 'coin', 'gem', 'harp', 'kalimba', 'chime', 'marimba', 'pop', 'bubble', 'typewriter', 'original', 'custom', 'off'], label: 'Sound when you rate a word' },
   celebrate: { group: 'sound', kind: 'bool', default: true, label: 'Fanfare and trombone at the ends', hint: 'From 4.5 up a fanfare plays after the sound; from 0.5 down, a sad trombone. Biggest at 5.0 and 0.0.' },
   animations: { group: 'sound', kind: 'choice', default: 'all', options: ['all', 'ends', 'off'], label: 'Animations when you rate', hint: 'Every rating gets a small reaction; the ends get confetti or a crumble.' },
-  tableSounds: { group: 'sound', kind: 'bool', default: true, label: 'Sounds at the lobby table', hint: 'Someone sitting down, cards going down, your turn, the reveal and the end of a game, so you can hear the game from another tab.' },
+  tableSounds: { group: 'sound', kind: 'bool', default: true, label: 'Table sounds', hint: 'At the lobby table: someone sitting down, cards going down, your turn, the reveal and the end of a game, so you can hear the game from another tab. In the casino: the penguin.' },
   soundVolume: { group: 'sound', kind: 'count', default: 70, min: 0, max: 100, label: 'Volume' },
   soundPitch: { group: 'sound', kind: 'bool', default: true, label: 'Higher ratings sound higher', hint: 'The pitch climbs with the rating, so a 5.0 rings and a 0.0 thuds.' },
   voice: { group: 'sound', kind: 'text', default: '', max: 120, label: 'Voice for saying words', hint: 'Empty picks the best English voice on this computer.' },

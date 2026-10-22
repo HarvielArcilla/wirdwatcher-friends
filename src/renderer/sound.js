@@ -327,6 +327,95 @@ export function playLevelUp (settings) {
   } catch {}
 }
 
+// A penguin's honk: a buzzy, nasal call. A sawtooth through two vowel-like
+// resonances, its pitch rising then sagging, with a little flutter.
+function honk (c, out, { start = 0, freq = 330, dur = 0.2, gain = 0.32, rise = 1.35 }) {
+  const t = c.currentTime + start
+  const o = c.createOscillator()
+  o.type = 'sawtooth'
+  o.frequency.setValueAtTime(freq * 0.85, t)
+  o.frequency.exponentialRampToValueAtTime(freq * rise, t + dur * 0.35)
+  o.frequency.exponentialRampToValueAtTime(freq * 0.9, t + dur)
+  const lfo = c.createOscillator()
+  const depth = c.createGain()
+  lfo.frequency.value = 28
+  depth.gain.value = freq * 0.06
+  lfo.connect(depth).connect(o.frequency)
+  const g = c.createGain()
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.015)
+  g.gain.setValueAtTime(gain, t + dur * 0.7)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+  for (const [f, q, lvl] of [[950, 5, 1], [2300, 7, 0.5]]) {
+    const bp = c.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.setValueAtTime(f * 0.8, t)
+    bp.frequency.exponentialRampToValueAtTime(f * 1.15, t + dur * 0.4)
+    bp.Q.value = q
+    const lg = c.createGain()
+    lg.gain.value = lvl
+    o.connect(bp).connect(lg).connect(g)
+  }
+  g.connect(out)
+  o.start(t); lfo.start(t)
+  o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05)
+}
+
+// Water: low filtered noise, a long tail.
+function wash (c, out, { start = 0, decay = 0.6, gain = 0.5, freq = 700 }) {
+  const t = c.currentTime + start
+  const len = Math.ceil(c.sampleRate * (decay + 0.05))
+  const buf = c.createBuffer(1, len, c.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.min(1, i / (c.sampleRate * 0.01)) * (1 - i / len) ** 2
+  const src = c.createBufferSource()
+  src.buffer = buf
+  const lp = c.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.frequency.setValueAtTime(freq * 3, t)
+  lp.frequency.exponentialRampToValueAtTime(freq * 0.4, t + decay)
+  const g = c.createGain()
+  g.gain.value = gain
+  src.connect(lp).connect(g).connect(out)
+  src.start(t)
+}
+
+// Penguin Cross: a honk as it jumps (never quite the same twice), a soft
+// crunch on landing, ice cracking and a splash, and a happy chorus at the
+// far shore.
+export const PENGUIN = {
+  hop: (c, out) => {
+    const f = 300 + Math.random() * 110
+    honk(c, out, { freq: f, dur: 0.16 + Math.random() * 0.06 })
+    if (Math.random() < 0.4) honk(c, out, { freq: f * 1.12, start: 0.13, dur: 0.1, gain: 0.22 })
+  },
+  land: (c, out) => { noise(c, out, { decay: 0.05, gain: 0.35, freq: 3200 }); voice(c, out, { type: 'sine', freq: 160, glide: 110, decay: 0.08, gain: 0.25 }) },
+  crack: (c, out) => {
+    for (let i = 0; i < 5; i++) noise(c, out, { start: i * 0.045 + Math.random() * 0.02, decay: 0.03, gain: 0.5, freq: 2600 + Math.random() * 2400 })
+    voice(c, out, { type: 'sine', freq: 120, glide: 60, start: 0.05, decay: 0.25, gain: 0.3 })
+  },
+  splash: (c, out) => {
+    wash(c, out, { decay: 0.7, gain: 0.7, freq: 900 })
+    for (let i = 0; i < 6; i++) voice(c, out, { type: 'sine', freq: 500 + Math.random() * 700, glide: 1400 + Math.random() * 900, start: 0.15 + i * 0.07 + Math.random() * 0.04, decay: 0.05, gain: 0.08 })
+    honk(c, out, { freq: 260, start: 0.02, dur: 0.28, gain: 0.25, rise: 0.8 })
+  },
+  home: (c, out) => {
+    ;[330, 392, 440, 523].forEach((f, i) => honk(c, out, { freq: f, start: i * 0.13, dur: 0.14, gain: 0.26 }))
+    bell(c, out, { freq: 1567.98, start: 0.55, decay: 0.9, gain: 0.2 })
+  },
+  cash: (c, out) => { bell(c, out, { freq: 1318.5, decay: 0.5, gain: 0.2 }); bell(c, out, { freq: 1760, start: 0.08, decay: 0.7, gain: 0.18 }); honk(c, out, { freq: 380, start: 0.05, dur: 0.12, gain: 0.18 }) }
+}
+
+export function playPenguin (kind, settings) {
+  try {
+    if (!settings || settings.tableSounds === false || !settings.soundVolume || !PENGUIN[kind]) return
+    const c = audio()
+    if (!bus) { bus = c.createGain(); bus.connect(c.destination) }
+    bus.gain.value = (settings.soundVolume / 100) * 0.9
+    PENGUIN[kind](c, chain(c, bus))
+  } catch {}
+}
+
 // --- the lobby table ---------------------------------------------------------------
 //
 // Little sounds for what happens at a table, so you can be on another tab

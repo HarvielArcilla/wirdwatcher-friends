@@ -2523,33 +2523,65 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .choice.face-down { opacity: .75; }
 
 /* Penguin Cross */
-.pc-game { display: grid; gap: 14px; padding-top: 8px; max-width: 860px; }
+.pc-game { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 8px; max-width: 900px; min-width: 0; }
 .pc-sign { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pc-sign-plate { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; background: #1f6f43; border: 3px solid #f2f2ea; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
-.pc-sign-plate b { width: 22px; height: 28px; display: grid; place-items: center; font: 700 20px var(--font-ui); color: #f2f2ea; border-bottom: 2px solid rgba(242,242,234,.45); }
-.pc-sign-plate b.open { border-bottom-color: transparent; animation: wf-turn .4s ease-out; }
-.pc-sign-plate small { color: #f2f2ea; font-weight: 600; margin-left: 4px; }
+.pc-tiles { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+.pc-tiles b { width: 32px; height: 38px; border-radius: 8px; display: grid; place-items: center; font: 700 21px var(--font-ui); color: #2b6f93; background: linear-gradient(#ffffff, #d7eef9); box-shadow: inset 0 -3px 0 #a9d6ea, 0 1px 2px rgba(0,0,0,.15); }
+.pc-tiles b:not(.open) { background: linear-gradient(#e3f2f9, #c4e2f0); color: transparent; }
+.pc-tiles b.open { animation: wf-turn .4s ease-out; }
 .pc-clue { color: var(--dim); font-weight: 500; }
-.pc-road { position: relative; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); height: 230px; border-radius: var(--r-md); overflow: hidden; background: #3a3d45; }
-.pc-kerb { background: repeating-linear-gradient(0deg, #c9c4b6 0 18px, #b6b1a3 18px 20px); box-shadow: inset -4px 0 0 #8f8a7d; }
-.pc-kerb.far { box-shadow: inset 4px 0 0 #8f8a7d; display: grid; place-items: start center; padding-top: 8px; font-size: 18px; }
-.pc-lane { position: relative; background: #3a3d45; border-left: 2px dashed rgba(255,255,255,.35); display: grid; place-items: start center; padding-top: 8px; transition: background .3s; }
-.pc-lane:first-of-type, .pc-kerb + .pc-lane { border-left: 0; }
-.pc-road.medium .pc-lane { background: #34363d; }
-.pc-road.hard .pc-lane { background: #2c2d33; }
-.pc-road .pc-lane.safe { background: color-mix(in oklab, #3a3d45 75%, var(--good)); }
-.pc-road .pc-lane.hit { background: color-mix(in oklab, #3a3d45 70%, var(--bad)); }
-.pc-mult { font-size: 12px; font-weight: 700; color: #f2f2ea; background: rgba(0,0,0,.35); border-radius: 10px; padding: 1px 6px; white-space: nowrap; }
-.pc-lane.safe .pc-mult { color: #c8f5dc; }
-.pc-car { position: absolute; left: 50%; top: -40px; font-size: 30px; transform: translateX(-50%) rotate(90deg); animation: pc-drive linear forwards; }
-@keyframes pc-drive { from { top: -40px; } to { top: calc(100% + 10px); } }
-.pc-bird { position: absolute; bottom: 70px; font-size: 34px; transform: translateX(-50%); transition-property: left, transform; transition-timing-function: cubic-bezier(.3,1.6,.5,1); filter: drop-shadow(0 3px 2px rgba(0,0,0,.35)); }
-.pc-bird.flat { transform: translateX(-50%) scaleY(.25) scaleX(1.4); bottom: 60px; transition-duration: .15s !important; }
-.pc-bird.home { animation: pc-wiggle .6s ease-in-out 2; }
-@keyframes pc-wiggle { 0%, 100% { transform: translateX(-50%) rotate(0); } 25% { transform: translateX(-50%) rotate(-14deg); } 75% { transform: translateX(-50%) rotate(14deg); } }
+.pc-scene { border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 6px 20px rgba(10,50,80,.25); background: #0f4d78; }
+.pc-scene svg { display: block; width: 100%; height: auto; }
+.pc-waves path { fill: none; stroke: #e8f7ff; stroke-width: 2; stroke-linecap: round; }
+.pc-waves.far { animation: pc-drift 9s linear infinite; }
+.pc-waves.near { animation: pc-drift 6s linear infinite reverse; }
+@keyframes pc-drift { from { transform: translateX(0); } to { transform: translateX(-120px); } }
+.pc-bob { animation: pc-bob 3.2s ease-in-out infinite; animation-delay: calc(var(--d, 0s) * -1); }
+.pc-bob.still { animation: none; }
+@keyframes pc-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.pc-letter { font: 700 22px var(--font-ui); fill: #3f8db5; text-anchor: middle; paint-order: stroke; stroke: rgba(255,255,255,.7); stroke-width: 1; animation: pc-carve .5s ease-out; }
+@keyframes pc-carve { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.pc-tag rect { fill: rgba(15,60,95,.55); }
+.pc-tag text { font: 700 13px var(--font-ui); fill: #fff; text-anchor: middle; }
+.pc-isle.safe .pc-tag rect { fill: rgba(40,140,90,.8); }
+.pc-isle.safe .pc-bob polygon:last-child { fill: #f2fff7; }
+.pc-isle.crack .pc-bob { animation: pc-shudder .09s linear infinite; }
+@keyframes pc-shudder { 0% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, 1px); } 100% { transform: translate(1px, 0); } }
+.pc-isle.sink .pc-bob { animation: none; }
+.pc-isle.sink .pc-shard { transform-box: fill-box; transform-origin: 50% 30%; animation: pc-shard 0.9s cubic-bezier(.5,0,.8,.6) forwards; }
+.pc-isle.sink .pc-shard.s0 { --r: -24deg; --x: -14px; }
+.pc-isle.sink .pc-shard.s1 { --r: 8deg; --x: 2px; animation-delay: .06s; }
+.pc-isle.sink .pc-shard.s2 { --r: 28deg; --x: 16px; animation-delay: .03s; }
+@keyframes pc-shard { 0% { transform: none; opacity: 1; } 30% { transform: translate(var(--x), 8px) rotate(calc(var(--r) * .5)); opacity: 1; } 100% { transform: translate(calc(var(--x) * 1.6), 70px) rotate(var(--r)); opacity: 0; } }
+.pc-isle.sink .pc-tag rect { fill: rgba(200,70,60,.85); }
+.pc-splash ellipse { fill: none; stroke: #e8f7ff; stroke-width: 2.5; animation: pc-ring .9s ease-out forwards; }
+.pc-splash ellipse.b { animation-delay: .25s; opacity: 0; }
+@keyframes pc-ring { from { transform: scale(.4); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
+.pc-splash .drop { fill: #e8f7ff; animation: pc-drop .7s ease-out forwards; }
+.pc-splash .d0 { --dx: -18px; --dy: -34px; } .pc-splash .d1 { --dx: -6px; --dy: -46px; } .pc-splash .d2 { --dx: 7px; --dy: -40px; } .pc-splash .d3 { --dx: 18px; --dy: -30px; }
+@keyframes pc-drop { 0% { transform: translate(0, 0); opacity: 1; } 60% { transform: translate(var(--dx), var(--dy)); opacity: 1; } 100% { transform: translate(calc(var(--dx) * 1.4), 6px); opacity: 0; } }
+.pc-mover { transition-property: transform; transition-timing-function: linear; }
+.pc-jumper.jump { animation-name: pc-jump; animation-timing-function: linear; }
+@keyframes pc-jump {
+  0% { transform: translateY(0) scale(1.08, .9); }
+  15% { transform: translateY(-14px) scale(.94, 1.08) rotate(-6deg); }
+  50% { transform: translateY(-44px) scale(1, 1) rotate(4deg); }
+  85% { transform: translateY(-10px) scale(.98, 1.03) rotate(0); }
+  92% { transform: translateY(0) scale(1.12, .86); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+.pc-jumper.jump .pc-flip { animation: pc-flap .14s ease-in-out 3; transform-box: fill-box; transform-origin: 50% 10%; }
+@keyframes pc-flap { 0%, 100% { transform: rotate(18deg); } 50% { transform: rotate(-40deg); } }
+.pc-jumper.sink { animation: pc-sinking .9s cubic-bezier(.5,0,.9,.5) forwards !important; }
+@keyframes pc-sinking { 0% { transform: translateY(0) rotate(0); opacity: 1; } 25% { transform: translateY(-10px) rotate(-12deg); opacity: 1; } 100% { transform: translateY(80px) rotate(25deg); opacity: 0; } }
+.pc-jumper.home { animation: pc-dance .5s ease-in-out .45s 3 !important; }
+@keyframes pc-dance { 0%, 100% { transform: rotate(0) translateY(0); } 25% { transform: rotate(-12deg) translateY(-8px); } 75% { transform: rotate(12deg) translateY(-8px); } }
+.pc-flag { transform-box: fill-box; transform-origin: 0 50%; animation: pc-flag 1.4s ease-in-out infinite; }
+@keyframes pc-flag { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.8) skewY(4deg); } }
+.pc-scene.hard .pc-isle .pc-bob { animation-duration: 2.2s; }
 .pc-controls { display: grid; gap: 12px; }
 .pc-levels { max-width: 560px; }
 .pc-levels button small { opacity: .75; font-weight: 400; margin-left: 4px; }
 .pc-help { margin: 0; }
-@media (max-width: 560px) { .pc-road { height: 190px; } .pc-bird { font-size: 26px; bottom: 56px; } .pc-mult { font-size: 10px; padding: 1px 3px; } .pc-levels button small { display: none; } }
-@media (prefers-reduced-motion: reduce) { .pc-bird { transition: none !important; } .pc-car { animation-duration: 1ms !important; } }
+@media (max-width: 560px) { .pc-tiles b { width: 24px; height: 30px; font-size: 16px; } .pc-levels button small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .pc-waves, .pc-bob, .pc-flag { animation: none !important; } .pc-mover { transition: none !important; } }

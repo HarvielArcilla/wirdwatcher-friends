@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
 import { POCKETS, rouletteBet, roulettePayout, ROULETTE_KINDS, freshBag, lexicon, bestWord, wjResult, wjPayout, dealerHand, shuffledBag, pickFrom } from '../src/shared/tables.js'
-import { PC_LEVELS, pcMult, pcPayout, pcFirstCar } from '../src/shared/penguin.js'
+import { PC_LEVELS, pcMult, pcPayout, pcFirstCrack } from '../src/shared/penguin.js'
 import { tmp } from './helpers.js'
 
 const app = () => new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
@@ -105,7 +105,7 @@ test('playing against the house: bets come out, winnings go back, nothing goes n
   assert.throws(() => t.roulette([{ kind: 'red', amount: 1 }]), /bankrupt/)
 })
 
-test('Penguin Cross: no house edge, a letter a lane, and cash out whenever', () => {
+test('Penguin Cross: no house edge, a letter an island, and cash out whenever', () => {
   // Stopping after any number of lanes pays back the stake on average,
   // less only the rounding down.
   for (const level of Object.keys(PC_LEVELS)) {
@@ -121,7 +121,7 @@ test('Penguin Cross: no house edge, a letter a lane, and cash out whenever', () 
   const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
   let paid = 0
   const N = 200000
-  for (let i = 0; i < N; i++) { const car = pcFirstCar('medium', 8, rand); if (car === null || car >= 3) paid += pcPayout(1000, 'medium', 3) }
+  for (let i = 0; i < N; i++) { const crack = pcFirstCrack('medium', 8, rand); if (crack === null || crack >= 3) paid += pcPayout(1000, 'medium', 3) }
   assert.ok(Math.abs(paid / N / 1000 - 1) < 0.02, `returned ${(paid / N / 1000).toFixed(3)}`)
 
   const a = app()
@@ -130,14 +130,14 @@ test('Penguin Cross: no house edge, a letter a lane, and cash out whenever', () 
   const before = a.economy.s.coins
   let g = t.pcStart(1000, 'easy')
   assert.equal(g.letters.length, g.lanes)
-  assert.ok(g.letters.every((l) => l === null), 'the road’s name starts hidden')
+  assert.ok(g.letters.every((l) => l === null), 'the word starts hidden')
   assert.equal(g.word, null)
-  assert.throws(() => t.pcCash(), /lane first/)
+  assert.throws(() => t.pcCash(), /island first/)
   assert.throws(() => t.pcStart(10), /Finish/)
   assert.equal(a.economy.s.coins, before - 1000)
   g = t.pcHop()
   if (!g.done) {
-    assert.ok(g.letters[0] && !g.letters[1], 'one lane, one letter')
+    assert.ok(g.letters[0] && !g.letters[1], 'one island, one letter')
     g = t.pcCash()
     assert.equal(g.paid, pcPayout(1000, 'easy', 1))
   } else assert.equal(g.paid, 0)
@@ -148,5 +148,5 @@ test('Penguin Cross: no house edge, a letter a lane, and cash out whenever', () 
   while (!g.done) g = t.pcHop()
   assert.ok(g.crossed ? g.paid === pcPayout(100, 'hard', g.lanes) : g.paid === 0 && g.hit === g.at)
   assert.equal(t.view().penguin.runs, 2)
-  assert.throws(() => t.pcStart(100, 'motorway'), /road/)
+  assert.throws(() => t.pcStart(100, 'motorway'), /ice/)
 })
