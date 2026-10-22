@@ -57,7 +57,7 @@ export default function Search ({ onOpen: openWord, onClose }) {
           {words.length > 0 && <>{meanings.length > 0 && <div className='search-group'>Words</div>}{words.map(row)}</>}
           {meanings.length > 0 && <><div className='search-group'>Words that mean “{q}”</div>{meanings.map(row)}</>}
         </div>
-        <div className='search-foot'><span><Kbd>↑</Kbd><Kbd>↓</Kbd> choose</span><span><Kbd>Enter</Kbd> open and rate</span><span><Kbd>Esc</Kbd> close</span></div>
+        <div className='search-foot'><span><Kbd>↑</Kbd><Kbd>↓</Kbd> choose</span><span><Kbd>Enter</Kbd> open</span><span><Kbd>Esc</Kbd> close</span></div>
       </div>
     </div>
   )

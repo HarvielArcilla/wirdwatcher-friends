@@ -4,6 +4,7 @@ import { playRating, playTable } from './sound.js'
 import { burst, centerOf, fxFor, burstFor } from './effects.js'
 import { api, Avatar, Kbd, ratingColor, useToast, useInterval, wordSize, speak } from './ui.jsx'
 import { titleText, packEmoji } from '../shared/cosmetics.js'
+import { MAX_STAKE } from '../shared/stakes.js'
 import { WildWord } from './Leximon.jsx'
 import { LobbyTableCenter, LobbySeatTable, LobbyTableControls, LobbyRouletteBets, SPIN_MS } from './Tables.jsx'
 
@@ -24,6 +25,32 @@ export const STYLES = [
 const TABLES = ['roulette', 'blackjack']
 const signedCoins = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString()}`
 const coins = (n) => (n >= 1e6 ? `${n / 1e6}M` : n >= 1e3 ? `${n / 1e3}K` : String(n))
+
+// Any stake the host likes, beyond the quick picks. Applies on Enter or
+// when you click away.
+function CustomStake ({ stake, presets, disabled, onSet }) {
+  const custom = stake > 0 && !presets.includes(stake)
+  const [text, setText] = useState(custom ? String(stake) : '')
+  useEffect(() => { if (custom) setText(String(stake)) }, [stake]) // eslint-disable-line react-hooks/exhaustive-deps
+  const apply = () => {
+    const n = Math.floor(Number(String(text).replace(/[^0-9.e]/gi, '')))
+    if (n >= 1 && n <= MAX_STAKE && n !== stake) onSet(n)
+  }
+  return (
+    <input
+      className={`field stake-custom ${custom ? 'on' : ''}`}
+      inputMode='numeric'
+      disabled={disabled}
+      placeholder='Any other amount'
+      aria-label='Stake: any amount'
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={apply}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); apply() } }}
+      title={`Any amount up to ${MAX_STAKE.toLocaleString()}`}
+    />
+  )
+}
 const cluePoints = (clue, wrong) => Math.max(10, 100 - 12 * clue - 10 * wrong)
 const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0]
 
@@ -551,7 +578,10 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
                 {lobby.options.timer > 0 && lobby.options.style === 'hive' && <small className='opt-hint'>Finding a word gets {lobby.options.timer * 3}s.</small>}
               </label>
               {!TABLES.includes(lobby.options.style) && <label>Stakes
-                <div className='seg'>{choices.stakes.map((x) => <button key={x} disabled={lobby.options.style === 'classic' && x > 0} className={lobby.options.stake === x && (x === 0 || lobby.options.style !== 'classic') ? 'on' : ''} onClick={() => act('configure', { stake: x })}>{x ? coins(x) : 'None'}</button>)}</div>
+                <div className='seg'>
+                  {choices.stakes.map((x) => <button key={x} disabled={lobby.options.style === 'classic' && x > 0} className={lobby.options.stake === x && (x === 0 || lobby.options.style !== 'classic') ? 'on' : ''} onClick={() => act('configure', { stake: x })}>{x ? coins(x) : 'None'}</button>)}
+                </div>
+                <CustomStake stake={lobby.options.stake} presets={choices.stakes} disabled={lobby.options.style === 'classic'} onSet={(x) => act('configure', { stake: x })} />
                 <small className='opt-hint'>{lobby.options.style === 'classic' ? 'Classic has no points, so nothing to stake on.' : lobby.stake ? `Players who buy in put ${lobby.stake.toLocaleString()} coins each in the pot. Highest score takes it; ties split. Leaving mid-game leaves your stake behind.` : 'Players can buy in to a pot of coins. Highest score takes it.'}</small>
               </label>}
             </div>
@@ -721,11 +751,13 @@ function Center ({ lobby, c, res, style, phase, mine, you, name, Name, act, setP
       <>
         <div className='tsub'>{mePicking ? <>Pick a word for <b>{name(c.seat)}</b></> : <>{Name(c.picker)} is picking a word for {name(c.seat)}</>}</div>
         <div className='choices'>
-          {c.choices.map((x, i) => (
-            <button key={x.word} className='choice' disabled={!mePicking} onClick={() => act('pick', i)} onMouseEnter={() => setPeek(x)} onFocus={() => setPeek(x)} title={x.info?.senses?.[0]?.def}>
-              <span className='ck'>{i + 1}</span><b>{x.word}</b><small>{x.info?.senses?.[0]?.def}</small>
-            </button>
-          ))}
+          {c.choices.map((x, i) => x
+            ? (
+              <button key={x.word} className='choice' disabled={!mePicking} onClick={() => act('pick', i)} onMouseEnter={() => setPeek(x)} onFocus={() => setPeek(x)} title={x.info?.senses?.[0]?.def}>
+                <span className='ck'>{i + 1}</span><b>{x.word}</b><small>{x.info?.senses?.[0]?.def}</small>
+              </button>
+              )
+            : <div key={i} className='choice face-down' aria-label='A word only the picker can see'><span className='ck'>{i + 1}</span><b>?</b><small>Only {name(c.picker)} can see this</small></div>)}
         </div>
       </>
     )

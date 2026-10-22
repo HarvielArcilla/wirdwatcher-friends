@@ -31,8 +31,11 @@
 // that dies between promising and payout) loses those coins rather than
 // copying them.
 
+// Quick picks for the host; any whole amount up to MAX_STAKE works too.
+// MAX_STAKE is as high as the pot can go and still add up to the exact
+// coin with a table of 64 (stake × members stays a safe whole number).
 export const STAKES = [0, 100, 1000, 10000, 100000, 1000000]
-export const MAX_STAKE = 1e12
+export const MAX_STAKE = 1e14
 
 export const validStake = (n) => Number.isSafeInteger(n) && n > 0 && n <= MAX_STAKE
 
@@ -46,7 +49,7 @@ export function balanced (stake, payouts) {
     if (!Number.isSafeInteger(v) || v < 0) return false
     sum += v
   }
-  return sum === stake * values.length
+  return Number.isSafeInteger(sum) && sum === stake * values.length
 }
 
 // The pot, stake × members, goes to the highest score among those who can

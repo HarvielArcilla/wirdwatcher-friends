@@ -140,3 +140,18 @@ test('rating sound settings, and a custom sound file', () => {
   assert.equal(app.customSound(), null)
   assert.equal(app.settings.get('ratingSound'), 'arcade')
 })
+
+test('words come to you: only a dealt word gets a new rating from Play', () => {
+  const app = offline()
+  const dealt = app.game.deal('everyday').word
+  const other = app.words.wheelWord().word
+  assert.ok(app.game.wordInfo(dealt).canRate)
+  assert.equal(app.game.wordInfo(other).canRate, other === dealt)
+  if (other !== dealt) assert.throws(() => app.rate(other, 4, { dealtOnly: true }), /when it comes up/)
+  app.rate(dealt, 3, { dealtOnly: true })
+  // A word you've rated (anywhere) stays yours to change.
+  app.rate(other, 2, { source: 'lobby' })
+  assert.ok(app.game.wordInfo(other).canRate)
+  app.rate(other, 4.5, { dealtOnly: true })
+  assert.equal(app.store.rating(other), 4.5)
+})

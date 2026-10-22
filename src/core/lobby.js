@@ -93,7 +93,7 @@ import { verify } from './identity.js'
 import { roundVerdict } from '../shared/progress.js'
 import { netlog, short } from './netlog.js'
 import { cleanLook, ALL_REACTIONS } from '../shared/cosmetics.js'
-import { STAKES, splitPot } from '../shared/stakes.js'
+import { STAKES, splitPot, validStake } from '../shared/stakes.js'
 import { POCKETS, pocketColor, rouletteBet, roulettePayout, ROULETTE_KINDS, lexicon, bestWord, wjResult, wjPayout, handDone, playHand } from '../shared/tables.js'
 import { goodCommit, goodSeed, tableOutcome } from './tables.js'
 
@@ -1174,7 +1174,7 @@ export class LobbyHost extends EventEmitter {
       if (c.style === 'classic' || c.style === 'highlow') {
         Object.assign(current, { word: c.word, info: c.info, mine: { r: c.ratings.get(forId) ?? null, guess: c.guesses.get(forId) || null } })
       } else if (c.style === 'hotseat') {
-        Object.assign(current, { seat: c.seat, picker: c.picker, choices: c.choices.map(({ word, info }) => ({ word, info })), word: c.word, info: c.info, mine: { r: (forId === c.seat ? c.ratings.get(forId) : c.predictions.get(forId)) ?? null } })
+        Object.assign(current, { seat: c.seat, picker: c.picker, choices: forId === c.picker || this.phase !== 'picking' ? c.choices.map(({ word, info }) => ({ word, info })) : c.choices.map(() => null), word: c.word, info: c.info, mine: { r: (forId === c.seat ? c.ratings.get(forId) : c.predictions.get(forId)) ?? null } })
       } else if (c.style === 'hive') {
         const a = c.assign.get(forId)
         const pick = c.picks.get(forId)
@@ -1265,7 +1265,7 @@ function pickOptions (o = {}) {
   if (LOBBY_TIMERS.includes(Number(o.timer))) out.timer = Number(o.timer)
   if (typeof o.mode === 'string' && o.mode.length < 80) out.mode = o.mode
   if (LOBBY_STYLES.includes(o.style)) out.style = o.style
-  if (STAKES.includes(Number(o.stake))) out.stake = Number(o.stake)
+  if (Number(o.stake) === 0 || validStake(Number(o.stake))) out.stake = Number(o.stake)
   return out
 }
 

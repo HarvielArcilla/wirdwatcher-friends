@@ -87,8 +87,20 @@ export class Game extends EventEmitter {
       }
     }
     if (!word) return { mode, empty: 'You’ve rated every word here. Impressive. Try another playlist.' }
+    this._dealt(word)
     return { mode, word, info: this.wordInfo(word), chain, note }
   }
+
+  // Words come to you; you don't go and get them. Only a word the game dealt
+  // can get a new rating from the Play screen. Searching, synonyms and the
+  // Collection only open words to look at. Words you've rated stay editable.
+  _dealt (word) {
+    const p = this.store.progress
+    p.dealt = [word, ...(p.dealt || []).filter((w) => w !== word)].slice(0, 500)
+    this.store.saveProgress()
+  }
+
+  canRate (word) { return this.store.rating(word) !== null || (this.store.progress.dealt || []).includes(word) }
 
   _dealChain (rated) {
     let c = this.chain
@@ -124,7 +136,8 @@ export class Game extends EventEmitter {
       friends: this.store.friendsOn(word).map((f) => (this.settings.get('showFriendComments') ? f : { ...f, comment: null })),
       inPlaylists: this.store.playlists().filter((p) => p.words.includes(word)).map((p) => p.id),
       daily: word === this.words.daily(utcDay(this.now())),
-      compare: this.store.rating(word) !== null ? this.compare(word, this.store.rating(word)) : null
+      compare: this.store.rating(word) !== null ? this.compare(word, this.store.rating(word)) : null,
+      canRate: this.canRate(word)
     }
   }
 
@@ -132,8 +145,9 @@ export class Game extends EventEmitter {
 
   // Rates a word. Returns what it earned: { r, xp:[{amount, why}], level,
   // levelUp, badges:[new badges], twins:[names], chainDone, friends }.
-  rate (word, r, { source = 'solo' } = {}) {
+  rate (word, r, { source = 'solo', dealtOnly = false } = {}) {
     if (!this.words.has(word)) throw new Error('That word isn’t in the list.')
+    if (dealtOnly && !this.canRate(word)) throw new Error('You can rate this word when it comes up.')
     if (!(typeof r === 'number' && r >= 0 && r <= 5)) throw new Error('Ratings go from 0.0 to 5.0.')
     r = Math.round(r * 10) / 10
     const before = levelFor(this.store.progress.xp)

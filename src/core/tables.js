@@ -10,8 +10,9 @@ import {
   shuffledBag, lexicon, bestWord, wjResult, wjPayout, handDone, playHand, dealerHand, WJ_TARGET, MAX_TILES,
   WF_SEGMENTS, WF_MISSES, WF_VOWEL, WF_VOWELS, WF_MIN_STAKE, wfValue, wfPattern, pickFrom
 } from '../shared/tables.js'
+import { PC_LEVELS, PC_MIN_STAKE, pcMult, pcPayout, pcFirstCar } from '../shared/penguin.js'
 
-const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, words: 0, solved: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, jacks: 0, net: 0, biggest: 0 }, bj: null, wf: null, held: {} })
+const blankStats = () => ({ roulette: { spins: 0, net: 0, biggest: 0 }, wheel: { spins: 0, words: 0, solved: 0, net: 0, biggest: 0 }, blackjack: { hands: 0, wins: 0, jacks: 0, net: 0, biggest: 0 }, penguin: { runs: 0, crossed: 0, best: 0, net: 0, biggest: 0 }, pc: null, bj: null, wf: null, held: {} })
 const MAX_BETS = 12
 
 export class Tables {
@@ -23,7 +24,7 @@ export class Tables {
     this.wordFor = wordFor
     const b = blankStats()
     const s = economy.s.tables || {}
-    economy.s.tables = { ...b, ...s, held: {}, roulette: { ...b.roulette, ...(s.roulette || {}) }, wheel: { ...b.wheel, ...(s.wheel || {}) }, blackjack: { ...b.blackjack, ...(s.blackjack || {}) } }
+    economy.s.tables = { ...b, ...s, held: {}, roulette: { ...b.roulette, ...(s.roulette || {}) }, wheel: { ...b.wheel, ...(s.wheel || {}) }, blackjack: { ...b.blackjack, ...(s.blackjack || {}) }, penguin: { ...b.penguin, ...(s.penguin || {}) } }
     // At startup no lobby is open, so bets still held at a lobby table come back.
     for (const h of Object.values(s.held || {})) { economy.s.coins += h.total || 0; economy.dirty = true }
   }
@@ -278,12 +279,81 @@ export class Tables {
     return this.bjView()
   }
 
-  view () {
-    const s = this.s
-    return { roulette: s.roulette, wheel: s.wheel, blackjack: s.blackjack, bj: this.bjView(), wf: this.wfView(), coins: this.economy.s.coins }
+  // --- Penguin Cross ---
+  // (Rules in src/shared/penguin.js.) Where the car is gets decided when you
+  // start, and stays on this computer until the run ends.
+  pcView () {
+    const g = this.s.pc
+    if (!g) return null
+    const lanes = g.word.length
+    return {
+      stake: g.stake,
+      level: g.level,
+      lanes,
+      at: g.at, // lanes crossed safely
+      letters: [...g.word.toUpperCase()].map((l, i) => (i < g.at || g.done ? l : null)),
+      clue: g.clue,
+      mults: Array.from({ length: lanes }, (_, i) => pcMult(g.level, i + 1)),
+      cashNow: g.at > 0 && !g.done ? pcPayout(g.stake, g.level, g.at) : null,
+      done: g.done,
+      hit: g.done && g.hit !== null ? g.hit : null, // the lane with the car that got you
+      crossed: g.done && g.at === lanes,
+      word: g.done ? g.word : null,
+      paid: g.paid ?? null
+    }
   }
 
-  net () { return (this.s.roulette.net || 0) + (this.s.wheel.net || 0) + (this.s.blackjack.net || 0) }
+  pcStart (stake, level = 'medium') {
+    if (this.s.pc && !this.s.pc.done) throw new Error('Finish this crossing first.')
+    if (!PC_LEVELS[level]) throw new Error('Pick a road.')
+    if (!(Math.floor(Number(stake)) >= PC_MIN_STAKE)) throw new Error('Bet at least 1 coin.')
+    const pick = this.wordFor()
+    if (!pick?.word) throw new Error('No words to play with.')
+    const { total } = this._stake([{ kind: 'run', amount: stake }], () => true)
+    const word = pick.word.toLowerCase()
+    const car = pcFirstCar(level, word.length, () => crypto.randomInt(1e9) / 1e9)
+    this.s.pc = { stake: total, level, word, clue: pick.clue || null, car, at: 0, hit: null, done: false }
+    this.s.penguin.runs++
+    this._commit()
+    return this.pcView()
+  }
+
+  _pc () {
+    const g = this.s.pc
+    if (!g || g.done) throw new Error('Start a crossing first.')
+    return g
+  }
+
+  pcHop () {
+    const g = this._pc()
+    if (g.car === g.at) { g.hit = g.at; return this._pcEnd(g, 0) }
+    g.at++
+    if (g.at === g.word.length) { this.s.penguin.crossed++; return this._pcEnd(g, pcPayout(g.stake, g.level, g.at)) }
+    this._commit()
+    return this.pcView()
+  }
+
+  pcCash () {
+    const g = this._pc()
+    if (g.at < 1) throw new Error('Cross a lane first.')
+    return this._pcEnd(g, pcPayout(g.stake, g.level, g.at))
+  }
+
+  _pcEnd (g, paid) {
+    g.done = true
+    g.paid = paid
+    if (paid) this.s.penguin.best = Math.max(this.s.penguin.best || 0, pcMult(g.level, g.at))
+    this._settle('penguin', g.stake, paid)
+    this._commit()
+    return this.pcView()
+  }
+
+  view () {
+    const s = this.s
+    return { roulette: s.roulette, wheel: s.wheel, blackjack: s.blackjack, penguin: s.penguin, bj: this.bjView(), wf: this.wfView(), pc: this.pcView(), coins: this.economy.s.coins }
+  }
+
+  net () { return (this.s.roulette.net || 0) + (this.s.wheel.net || 0) + (this.s.blackjack.net || 0) + (this.s.penguin.net || 0) }
 
   // --- lobby tables ----------------------------------------------------------------
   //

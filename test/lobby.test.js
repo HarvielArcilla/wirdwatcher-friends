@@ -177,13 +177,16 @@ test('Hot seat: the picker chooses a word, the seat rates it, everyone else pred
   assert.equal(c.seat, h, 'the first word is the host’s')
   assert.equal(c.picker, p, 'and the next player picks it')
   assert.equal(c.choices.length, 3)
-  assert.ok(c.choices[0].info.senses.length, 'choices come with definitions')
+  assert.ok(c.choices.every((x) => x === null), 'only the picker sees the choices')
+  assert.equal(host.lobbyState.current.choices.filter(Boolean).length, 0, 'the seat doesn’t see them either')
+  const offered = pip.lobbyState.current.choices
+  assert.ok(offered[0].info.senses.length, 'choices come with definitions')
   host.lobbyAction('pick', 1) // not the picker: ignored
   await new Promise((resolve) => setTimeout(resolve, 300))
   assert.equal(quinn.lobbyState.phase, 'picking')
   pip.lobbyAction('pick', 2)
   await until(() => quinn.lobbyState.phase === 'rating')
-  assert.equal(quinn.lobbyState.current.word, c.choices[2].word)
+  assert.equal(quinn.lobbyState.current.word, offered[2].word)
   host.lobbyAction('rate', 4.6) // the seat's rating
   pip.lobbyAction('rate', 4.5) // predictions
   quinn.lobbyAction('rate', 2)

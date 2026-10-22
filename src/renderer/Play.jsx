@@ -159,6 +159,9 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
   }, [text, card, settings, toast, refreshTop, next, stampKey])
 
   const isRated = rated && ratingValue(text) === rated.r
+  // A word you opened yourself (search, synonyms, Collection) that the game
+  // hasn't dealt you: look, don't rate.
+  const viewOnly = Boolean(card?.info && card.info.canRate === false)
 
   // Keys are ignored only while you're typing in a real text box (a comment,
   // a playlist name) or the playlist picker is open. A side panel left open
@@ -177,6 +180,11 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     if (loading.current) {
       if (/^[0-9.]$/.test(k)) { e.preventDefault(); pending.current += k }
       else if (k === 'Enter') e.preventDefault()
+      return
+    }
+    if (viewOnly && (/^[0-9.]$/.test(k) || k === 'Enter' || k === 'ArrowUp' || k === 'ArrowDown' || k === 'Backspace')) {
+      e.preventDefault()
+      if (k === 'Enter') next()
       return
     }
     if (k === 'Enter') {
@@ -207,7 +215,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
       const t = trail.current
       const atNewest = t.pos >= t.items.length - 1
       const hasRating = isRated || (card?.info?.mine?.r ?? null) !== null
-      if (atNewest && !hasRating) skip()
+      if (atNewest && !hasRating && !viewOnly) skip()
       else next()
     } else if (k === 'f' || k === 'F') {
       toggleFav()
@@ -218,7 +226,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
     } else if (k === 'm' || k === 'M') {
       e.preventDefault(); setPanel('modes')
     }
-  }, [active, panel, card, text, rated, isRated, next, back, skip, submit]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, panel, card, text, rated, isRated, viewOnly, next, back, skip, submit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [onKey])
 
@@ -282,7 +290,14 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                   <span className='pos'>{[...new Set(info.senses.map((s) => s.posName))].join(', ')}</span>
                 </div>
 
-                <div className='rate-row'>
+                {viewOnly && (
+                  <div className='view-only'>
+                    <b>Just looking</b>
+                    <span>Words come to you. You can rate “{card.word}” when it comes up while you play.</span>
+                    <span><Kbd>Enter</Kbd> or <Kbd>→</Kbd> back to playing</span>
+                  </div>
+                )}
+                <div className='rate-row' hidden={viewOnly}>
                   <div className='rating-box'>
                     <input
                       ref={inputRef}
@@ -405,7 +420,7 @@ function Friends ({ info, revealed }) {
   const cmp = Object.fromEntries((info.compare?.friends || []).map((f) => [f.userId, f]))
   return (
     <div>
-      <h3>Friends {takes.length > 0 && !revealed && <span style={{ fontWeight: 400, fontSize: 13 }}>Rate it to see theirs</span>}</h3>
+      <h3>Friends {takes.length > 0 && !revealed && <span style={{ fontWeight: 400, fontSize: 13 }}>Shown once you rate it</span>}</h3>
       {!takes.length && <div className='empty'>None of your friends has rated this one yet.</div>}
       {takes.map((f) => (
         <div key={f.userId} className='friend-take'>

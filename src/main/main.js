@@ -82,7 +82,7 @@ function handlers () {
     setProfile: (patch) => ww.setProfile(patch),
     deal: (mode, after) => g.deal(mode, { after }),
     wordInfo: (word) => g.wordInfo(word),
-    rate: (word, r) => ww.rate(word, r),
+    rate: (word, r) => ww.rate(word, r, { dealtOnly: true }),
     unrate: (word) => g.unrate(word),
     comment: (word, text) => g.comment(word, text),
     favorite: (word, on) => g.favorite(word, on),
@@ -127,7 +127,7 @@ function handlers () {
     },
     tables: () => ww.tables.view(),
     tablesAction: (action, ...args) => {
-      if (!['roulette', 'wfStart', 'wfSpin', 'wfCall', 'wfVowel', 'wfSolve', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble'].includes(action)) throw new Error('Unknown action.')
+      if (!['roulette', 'wfStart', 'wfSpin', 'wfCall', 'wfVowel', 'wfSolve', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble', 'pcStart', 'pcHop', 'pcCash'].includes(action)) throw new Error('Unknown action.')
       return { out: ww.tables[action](...args), tables: ww.tables.view() }
     },
     valley: () => ww.valley.view(),
