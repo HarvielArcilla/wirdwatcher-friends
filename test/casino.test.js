@@ -63,3 +63,20 @@ test('spins: bets, wins, stats, a free spin a day, and no ink from luck', () => 
   t += 864e5
   app.economy.spin(0, { free: true })
 })
+
+test('several slot machines at once: one bet each, each pays on its own', () => {
+  const app = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
+  app.economy.isWord = (w) => app.words.has(w)
+  app.economy.devAddCoins(1e6)
+  const before = app.economy.s.coins
+  const spins0 = app.economy.s.slots.spins
+  const r = app.economy.spinMany(100, 5)
+  assert.equal(r.spins.length, 5)
+  assert.equal(r.total, 500)
+  assert.equal(r.won, r.spins.reduce((a, x) => a + x.won, 0))
+  for (const x of r.spins) assert.equal(x.won, x.len ? Math.floor(100 * PAYS[x.len]) : 0)
+  assert.equal(Math.round(app.economy.s.coins - before), r.won - 500)
+  assert.equal(app.economy.s.slots.spins, spins0 + 5)
+  assert.throws(() => app.economy.spinMany(100, 11), /Between 1 and 10/)
+  assert.throws(() => app.economy.spinMany(1e6, 2), /don’t have/)
+})

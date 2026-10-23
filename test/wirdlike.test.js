@@ -196,3 +196,31 @@ test('pits and blocks stop walkers but not fliers', () => {
   for (let i = 0; i < 60; i++) step(run, { mx: 1 })
   assert.ok(run.p.x < 40 + 7 * 40, 'stopped at the pit')
 })
+
+test('play testers: swapping actives reuses the pedestal, and a boss room stays on its floor', () => {
+  const run = newRun({ seed: 'swap', pool })
+  const actives = pool.filter((i) => i.kind === 'active')
+  giveItem(run, actives[0])
+  run.room.peds = [{ item: actives[1], x: 300, y: 200 }]
+  run.p.x = 300; run.p.y = 210
+  step(run, {})
+  assert.equal(run.p.active.item.word, actives[1].word)
+  assert.equal(run.room.peds.length, 1, 'no new pedestal')
+  assert.equal(run.room.peds[0].item.word, actives[0].word, 'the old one sits where the new one was')
+  for (let i = 0; i < 60; i++) step(run, {})
+  assert.equal(run.p.active.item.word, actives[1].word, 'standing still doesn’t swap it straight back')
+  // A boss's word and its hatch don't follow you down.
+  const boss = Object.values(run.floor.rooms).find((r) => r.type === 'boss')
+  enterRoom(run, boss.key, null)
+  for (const e of run.room.foes) e.dead = true
+  step(run, {})
+  assert.ok(run.room.peds.length >= 1)
+  run.p.x = boss.trap.x; run.p.y = boss.trap.y
+  step(run, {})
+  assert.equal(run.fi, 1)
+  for (const r of Object.values(run.floor.rooms)) {
+    if (r.key === run.room.key) continue
+    assert.equal(r.items.length, 0, `${r.type} room ${r.key} starts empty`)
+  }
+  assert.equal(run.room.peds.length, 0, 'the new floor’s first room is empty')
+})

@@ -275,7 +275,7 @@ export const FOES = {
     init (e, a) { e.data.trail = []; e.data.g = 0; let prev = e; for (let i = 0; i < 4; i++) prev = a.spawn('runSeg', e.x, e.y, { boss: true, parent: e, data: { i: i + 1, text: ['then', 'so', 'and', 'but'][i] } }) || prev },
     update: snake(85, 0.9)
   },
-  runSeg: { name: 'a run-on clause', hp: 9999, r: 12, color: '#7a4a9a', art: word('then', '#fff', '#7a4a9a'), boss: true, update: segment, onHit: passToParent },
+  runSeg: { name: 'a run-on clause', hp: 9999, r: 12, noBar: true, color: '#7a4a9a', art: word('then', '#fff', '#7a4a9a'), boss: true, update: segment, onHit: passToParent },
   sinFragment: {
     name: 'The Fragment', title: 'a grammar sin', boss: true, mini: true, hp: 110, r: 16, color: '#8a4a3a', art: word('Because', '#fff', '#8a4a3a'),
     update (e, a, dt) { a.chase(e, 50, dt); if (a.every(e, 'cd', 2.2)) a.spread(e, a.ang(e), 5, 1, 130); const k = e.hp / e.maxHp; if (k < 0.66 && !e.data.a) { e.data.a = 1; for (let i = 0; i < 2; i++) a.spawn('shard', e.x, e.y, { boss: true }) } if (k < 0.33 && !e.data.b) { e.data.b = 1; for (let i = 0; i < 2; i++) a.spawn('shard', e.x, e.y, { boss: true }) } }
@@ -332,7 +332,7 @@ export const FOES = {
     },
     onDeath (e, a) { for (const s of a.kin(e, ['runonSeg'])) { s.dead = true; a.ev({ k: 'die', x: s.x, y: s.y, col: '#3a3f8b', r: s.r }) } }
   },
-  runonSeg: { name: 'The Run-On Sentence', hp: 99999, r: 13, boss: true, color: '#4a4f9b', art: word('then', '#fff', '#4a4f9b', { fromData: true }), update (e, a, dt) { segment(e, a, dt); if (a.every(e, 'drip', 3)) a.creep(e.x, e.y, 12, 2.5) }, onHit: passToParent },
+  runonSeg: { name: 'The Run-On Sentence', hp: 99999, r: 13, noBar: true, boss: true, color: '#4a4f9b', art: word('then', '#fff', '#4a4f9b', { fromData: true }), update (e, a, dt) { segment(e, a, dt); if (a.every(e, 'drip', 3)) a.creep(e.x, e.y, 12, 2.5) }, onHit: passToParent },
   typo: {
     name: 'Typo', title: 'teh mispelt', boss: true, hp: 170, r: 24, color: '#c84a4a', art: word('TEH', '#fff', '#c84a4a', { blob: true }),
     init (e, a) { const g = a.range(0, TAU); e.vx = Math.cos(g) * 80; e.vy = Math.sin(g) * 80 },

@@ -2679,3 +2679,40 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .wl-rewards span { background: rgba(255,255,255,.75); padding: 5px 10px; border-radius: 8px; font-weight: 600; font-size: 13px; }
 .wl-rewards span.new { background: #2b3050; color: #fff6d8; }
 .wl-note-card .btn.ghost { color: #2b3050; }
+
+/* Several slot machines at once. */
+.reels-area { display: grid; gap: 12px; }
+.reels-area.multi { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.reels-area.multi.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.reels-area.multi .machine { padding: 10px 10px 8px; gap: 8px; border-radius: 16px; box-shadow: inset 0 0 0 3px #f2b84b, inset 0 0 0 5px #7a4a12, 0 10px 24px var(--shadow); }
+.reels-area.multi .marquee { font-size: 11px; padding: 2px 10px; letter-spacing: .2em; }
+.reels-area.multi .reels { gap: 4px; padding: 7px; border-radius: 10px; }
+.reels-area.multi .reel { width: 34px; height: 46px; font-size: 24px; border-radius: 7px; }
+.reels-area.multi.n2 .reel { width: 52px; height: 68px; font-size: 36px; }
+.reels-area.multi .slot-result { font-size: 12px; min-height: 18px; text-align: center; }
+.reels-area.multi .machine.dud { opacity: .72; }
+.reels-area.multi .machine.paid { box-shadow: inset 0 0 0 3px #ffe08a, inset 0 0 0 5px #7a4a12, 0 0 22px rgba(242,184,75,.55); }
+.slot-total { font-weight: 600; padding: 8px 14px; border-radius: var(--r-md); background: var(--raise); box-shadow: inset 0 0 0 1px var(--line); }
+.slot-total.up b { color: var(--good); } .slot-total.down b { color: var(--bad); }
+
+/* Card packs open like a crate. */
+.crate { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-lg); background: linear-gradient(180deg, #1a1626, #0e0c16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 20px 50px var(--shadow); overflow: hidden; }
+.crate-row { position: relative; height: 128px; overflow: hidden; border-radius: 12px; background: #08070c; box-shadow: inset 0 0 22px rgba(0,0,0,.9); }
+.crate-row::before, .crate-row::after { content: ''; position: absolute; top: 0; bottom: 0; width: 18%; z-index: 2; pointer-events: none; }
+.crate-row::before { left: 0; background: linear-gradient(90deg, #08070c, transparent); }
+.crate-row::after { right: 0; background: linear-gradient(-90deg, #08070c, transparent); }
+.crate-label { position: absolute; top: 6px; left: 10px; z-index: 3; font-size: 11px; font-weight: 600; color: #bdb6d6; letter-spacing: .05em; text-transform: uppercase; }
+.crate-strip { display: flex; height: 100%; will-change: transform; }
+.crate-tile { flex: none; width: 120px; margin-right: 8px; height: 100%; box-sizing: border-box; display: grid; grid-template-rows: 1fr auto; justify-items: center; align-items: center; padding: 10px 6px 8px; border-radius: 8px; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 22%, #1c1a26), #14121c 70%); border-bottom: 4px solid var(--rc); color: #eeeaf8; }
+.crate-tile b { font-size: 11px; font-weight: 600; text-align: center; line-height: 1.2; max-height: 2.4em; overflow: hidden; }
+.crate-art { transform: scale(.72); transform-origin: center; display: grid; place-items: center; max-height: 70px; }
+.crate-marker { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; transform: translateX(-50%); background: #f2b84b; box-shadow: 0 0 12px #f2b84b; z-index: 4; }
+.crate-marker::before, .crate-marker::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%); border: 8px solid transparent; }
+.crate-marker::before { top: 0; border-top-color: #f2b84b; }
+.crate-marker::after { bottom: 0; border-bottom-color: #f2b84b; }
+.crate-row.landed .crate-tile.win { box-shadow: 0 0 0 3px var(--rc), 0 0 28px var(--rc); animation: crate-win .6s ease-out; }
+.crate-row.landed .crate-tile:not(.win) { opacity: .45; transition: opacity .4s; }
+@keyframes crate-win { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
+.crate-foot { display: flex; justify-content: space-between; align-items: center; color: #bdb6d6; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .crate-strip { transition-duration: .3s !important; } }
+.slots-main { display: grid; gap: 12px; min-width: 0; }

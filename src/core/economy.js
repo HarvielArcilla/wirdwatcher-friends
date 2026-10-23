@@ -64,6 +64,9 @@ const blank = (now) => ({
 
 const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` }
 
+// How many slot machines you can play at once.
+export const MAX_MACHINES = 10
+
 export class Economy extends EventEmitter {
   // now(): milliseconds. friendsOnline(): how many friends are online.
   constructor ({ dir, now = () => Date.now(), friendsOnline = () => 0, hasBadge = () => false, level = () => 1, dev = false }) {
@@ -349,6 +352,32 @@ export class Economy extends EventEmitter {
       if (amount > Math.floor(this.s.coins)) throw new Error('You don’t have that many coins.')
       this.s.coins -= amount
     }
+    const out = this._spinOne(amount, free)
+    this.dirty = true
+    this.emit('changed')
+    this.emit('played', 'spin')
+    return { ...out, coins: this.s.coins, slots: { ...sl } }
+  }
+
+  // Several machines at once, the same bet on each. Each pays on its own.
+  spinMany (stake, count) {
+    this.tick()
+    this._casinoOpen()
+    const n = Math.floor(Number(count))
+    if (!(n >= 1 && n <= MAX_MACHINES)) throw new Error(`Between 1 and ${MAX_MACHINES} machines.`)
+    const amount = Math.floor(Number(stake))
+    if (!(amount >= 1)) throw new Error('Bet at least 1 coin on each.')
+    if (amount * n > Math.floor(this.s.coins)) throw new Error(`That’s ${(amount * n).toLocaleString('en-US')} coins for ${n} machines. You don’t have that many.`)
+    this.s.coins -= amount * n
+    const spins = Array.from({ length: n }, () => this._spinOne(amount, false))
+    this.dirty = true
+    this.emit('changed')
+    this.emit('played', 'spin')
+    return { spins, stake: amount, total: amount * n, won: spins.reduce((a, x) => a + x.won, 0), coins: this.s.coins, slots: { ...this.s.slots } }
+  }
+
+  _spinOne (amount, free) {
+    const sl = this.s.slots
     const reels = Array.from({ length: 5 }, () => letterAt(crypto.randomInt(WEIGHT_TOTAL)))
     const hit = evaluate(reels, this.isWord || (() => false))
     const won = Math.floor(amount * hit.mult)
@@ -360,10 +389,7 @@ export class Economy extends EventEmitter {
     if (hit.len === 5) sl.jackpots++
     if (hit.word && (hit.mult > sl.bestMult || (hit.mult === sl.bestMult && won > sl.biggest - 1))) { sl.bestWord = hit.word; sl.bestMult = hit.mult }
     sl.last = [{ reels: reels.join(''), word: hit.word, won, at: this.now() }, ...(sl.last || [])].slice(0, 12)
-    this.dirty = true
-    this.emit('changed')
-    this.emit('played', 'spin')
-    return { reels, ...hit, stake: amount, won, free, coins: this.s.coins, slots: { ...sl } }
+    return { reels, ...hit, stake: amount, won, free }
   }
 
   // --- the Word Exchange ------------------------------------------------------------

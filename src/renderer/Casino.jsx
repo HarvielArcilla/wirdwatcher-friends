@@ -77,7 +77,7 @@ export default function Casino ({ econ, settings }) {
             {tab === 'wheel' && <Wheel coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'penguin' && <Penguin coins={coins} hold={hold} toast={tableToast} settings={settings} />}
             {tab === 'sports' && <Sportsbook coins={coins} />}
-            {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}
+            {tab === 'packs' && <Packs v={shown} coins={coins} settings={settings} act={(action, ...a) => (action === 'openPack' ? play(7900, action, ...a) : act(action, ...a))} />}
           </>
           )}
     </div>
@@ -87,68 +87,99 @@ export default function Casino ({ econ, settings }) {
 const REEL_SPIN_MS = 900
 const REEL_GAP_MS = 260
 
+const MACHINES = [1, 2, 3, 5, 10]
+const randomReels = () => Array.from({ length: 5 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)])
+
 function Slots ({ v, live, coins, play, settings }) {
   const [stake, setStake] = useState('100')
-  const [res, setRes] = useState(null)
-  const [stopped, setStopped] = useState(5) // reels that have stopped
-  const [blur, setBlur] = useState(['w', 'i', 'r', 'd', 's'])
+  const [count, setCount] = useState(() => { try { const n = Number(localStorage.getItem('slot-machines')); return MACHINES.includes(n) ? n : 1 } catch { return 1 } })
+  const [res, setRes] = useState(null) // { spins: [...], won, total, free }
+  const [stopped, setStopped] = useState(5) // reels that have stopped (on every machine)
+  const [blur, setBlur] = useState(() => [['w', 'i', 'r', 'd', 's']])
   const spinning = stopped < 5
   const timer = useRef(null)
   const whole = Math.floor(coins)
   const amount = Math.floor(Number(String(stake).replace(/[^0-9]/g, '')) || 0)
+  const total = amount * count
+  useEffect(() => { try { localStorage.setItem('slot-machines', String(count)) } catch {} if (!spinning) { setRes(null); setBlur((b) => Array.from({ length: count }, (_, i) => b[i] || randomReels())) } }, [count]) // eslint-disable-line react-hooks/exhaustive-deps
   // While spinning, the reels flicker through letters.
   useEffect(() => {
     if (!spinning) return
-    timer.current = setInterval(() => setBlur((b) => b.map((x, i) => (i < stopped ? x : LETTERS[Math.floor(Math.random() * LETTERS.length)]))), 55)
+    timer.current = setInterval(() => setBlur((all) => all.map((b) => b.map((x, i) => (i < stopped ? x : LETTERS[Math.floor(Math.random() * LETTERS.length)])))), 55)
     return () => clearInterval(timer.current)
   }, [spinning, stopped])
   const go = async (free = false) => {
-    if (spinning || (!free && (amount < 1 || amount > whole))) return
-    const out = await play(REEL_SPIN_MS + 5 * REEL_GAP_MS + 60, 'spin', free ? 0 : amount, { free })
+    if (spinning || (!free && (amount < 1 || total > whole))) return
+    const many = !free && count > 1
+    const out = await play(REEL_SPIN_MS + 5 * REEL_GAP_MS + 60, many ? 'spinMany' : 'spin', free ? 0 : amount, many ? count : { free })
     if (!out) return
+    const spins = many ? out.spins : [out]
+    const r = { spins, won: many ? out.won : out.won, total: many ? out.total : (free ? 0 : out.stake), free }
     setRes(null)
+    setBlur(spins.map(() => randomReels()))
     setStopped(0)
-    out.reels.forEach((ch, i) => setTimeout(() => { setBlur((b) => b.map((x, j) => (j === i ? ch : x))); setStopped(i + 1); playTick(settings, i) }, REEL_SPIN_MS + i * REEL_GAP_MS))
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => { setBlur((all) => all.map((b, m) => b.map((x, j) => (j === i ? spins[m].reels[i] : x)))); setStopped(i + 1); playTick(settings, i) }, REEL_SPIN_MS + i * REEL_GAP_MS)
+    }
     setTimeout(() => {
-      setRes(out)
-      if (out.won) {
-        const at = centerOf(document.querySelector('.reels'))
-        burst(at.x, at.y, out.len === 5 ? 'confetti' : 'confetti-small')
-        playRating(out.len === 5 ? 5 : out.len === 4 ? 4.6 : 3.8, settings)
+      setRes(r)
+      const best = spins.reduce((m, x) => Math.max(m, x.len || 0), 0)
+      if (r.won > 0) {
+        const at = centerOf(document.querySelector('.reels-area'))
+        burst(at.x, at.y, best === 5 ? 'confetti' : 'confetti-small')
+        playRating(best === 5 ? 5 : best === 4 ? 4.6 : 3.8, settings)
       }
     }, REEL_SPIN_MS + 5 * REEL_GAP_MS + 60)
   }
   useEffect(() => {
-    const onKey = (e) => { if (e.key === ' ' && !['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) { e.preventDefault(); go() } }
+    const onKey = (e) => { if (e.key === ' ' && !['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(e.target.tagName)) { e.preventDefault(); go() } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
   const sl = v.slots
-  const lit = res?.word ? new Set(Array.from({ length: res.len }, (_, i) => res.at + i)) : new Set()
   return (
     <div className='slots'>
-      <div className={`machine ${res?.len === 5 ? 'jackpot' : ''}`}>
-        <div className='marquee'>WIRD SLOTS</div>
-        <div className='reels' aria-live='polite' aria-label={spinning ? 'Spinning' : res ? `${res.reels.join(' ')}${res.word ? `: ${res.word}` : ''}` : 'Ready'}>
-          {blur.map((ch, i) => <div key={i} className={`reel ${i >= stopped ? 'spinning' : ''} ${!spinning && lit.has(i) ? 'lit' : ''}`}><span>{ch.toUpperCase()}</span></div>)}
+      <div className='slots-main'>
+      <div className={`reels-area ${blur.length > 1 ? 'multi' : ''} n${blur.length}`}>
+        {blur.map((reels, m) => {
+          const one = res?.spins[m]
+          const lit = one?.word && !spinning ? new Set(Array.from({ length: one.len }, (_, i) => one.at + i)) : new Set()
+          return (
+            <div key={m} className={`machine ${one?.len === 5 && !spinning ? 'jackpot' : ''} ${one && !spinning ? (one.word ? 'paid' : 'dud') : ''}`}>
+              <div className='marquee'>{blur.length > 1 ? `#${m + 1}` : 'WIRD SLOTS'}</div>
+              <div className='reels' aria-live='polite' aria-label={spinning ? 'Spinning' : one ? `${one.reels.join(' ')}${one.word ? `: ${one.word}` : ''}` : 'Ready'}>
+                {reels.map((ch, i) => <div key={i} className={`reel ${i >= stopped ? 'spinning' : ''} ${lit.has(i) ? 'lit' : ''}`}><span>{ch.toUpperCase()}</span></div>)}
+              </div>
+              <div className='slot-result'>
+                {one && !spinning && (one.word
+                  ? <span className='win'>{one.len === 5 ? '🎰 JACKPOT! ' : ''}<b>{one.word.toUpperCase()}</b> ×{one.mult}{blur.length > 1 ? '' : <>: +<Coins n={one.won} /></>}</span>
+                  : <span className='loss'>No word{blur.length > 1 || one.free ? '' : <> this time. −<Coins n={one.stake} /></>}</span>)}
+                {spinning && <span>…</span>}
+                {!one && !spinning && <span className='dim'>{blur.length > 1 ? 'Ready' : 'Spell a word across the reels. Space spins.'}</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {res && !spinning && res.spins.length > 1 && (
+        <div className={`slot-total ${res.won >= res.total ? 'up' : 'down'}`}>
+          {res.spins.filter((x) => x.word).length} of {res.spins.length} machines paid: <Coins n={res.won} /> back on <Coins n={res.total} />{' '}
+          <b>({res.won - res.total >= 0 ? '+' : '−'}<Coins n={Math.abs(res.won - res.total)} />)</b>
         </div>
-        <div className='slot-result'>
-          {res && !spinning && (res.word
-            ? <span className='win'>{res.len === 5 ? '🎰 JACKPOT! ' : ''}<b>{res.word.toUpperCase()}</b> pays ×{res.mult}: +<Coins n={res.won} /></span>
-            : <span className='loss'>No word this time{res.free ? '' : <>. −<Coins n={res.stake} /></>}</span>)}
-          {spinning && <span>…</span>}
-          {!res && !spinning && <span className='dim'>Spell a word across the reels. Space spins.</span>}
-        </div>
+      )}
       </div>
       <div className='flip-controls panel'>
-        <label>Bet
+        <label>Machines
+          <div className='seg'>{MACHINES.map((n) => <button key={n} className={count === n ? 'on' : ''} disabled={spinning} onClick={() => setCount(n)}>{n}</button>)}</div>
+        </label>
+        <label>{count > 1 ? 'Bet on each' : 'Bet'}
           <input className='field' inputMode='numeric' value={stake} onChange={(e) => setStake(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') go() }} />
         </label>
         <div className='seg'>
-          {[['1%', 0.01], ['10%', 0.1], ['Half', 0.5], ['All in', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor(whole * frac))))}>{label}</button>)}
-          <button onClick={() => setStake(String(Math.min(whole, Math.max(1, amount * 2))))}>×2</button>
+          {[['1%', 0.01], ['10%', 0.1], ['Half', 0.5], ['All in', 1]].map(([label, frac]) => <button key={label} onClick={() => setStake(String(Math.max(1, Math.floor((whole * frac) / count))))}>{label}</button>)}
+          <button onClick={() => setStake(String(Math.min(Math.floor(whole / count), Math.max(1, amount * 2))))}>×2</button>
         </div>
-        <button className='btn primary big' disabled={spinning || amount < 1 || amount > whole} onClick={() => go()}>{amount > whole ? 'You don’t have that many' : `Spin for ${formatCoins(amount)}`}</button>
+        <button className='btn primary big' disabled={spinning || amount < 1 || total > whole} onClick={() => go()}>{total > whole ? 'You don’t have that many' : count > 1 ? `Spin ${count} for ${formatCoins(total)}` : `Spin for ${formatCoins(amount)}`}</button>
         <button className='btn big free-spin' disabled={spinning || !live.freeSpin.ready} onClick={() => go(true)}>{live.freeSpin.ready ? <>🎁 Today’s free spin (<Coins n={live.freeSpin.amount} />)</> : 'Free spin used today'}</button>
         <div className='paytable'>
           <div><b>5-letter word</b><span>×{PAYS[5]}</span></div>

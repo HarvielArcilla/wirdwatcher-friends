@@ -5,7 +5,7 @@
 import { TILE, COLS, ROWS, WALL, ROOM_W, ROOM_H, T, CHAPTERS, FLOORS, HEADS, character } from '../../shared/wirdlike/content.js'
 import { FOES } from '../../shared/wirdlike/foes.js'
 import { tearColor } from '../../shared/wirdlike/engine.js'
-import { TRANSFORMS } from '../../shared/wirdlike/items.js'
+import { TRANSFORMS, describe } from '../../shared/wirdlike/items.js'
 
 const IX = WALL
 const CX = ROOM_W / 2
@@ -627,6 +627,49 @@ function drawPed (c, s, time) {
   if (label) { c.font = `700 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(label, s.x, s.y + 28); c.fillStyle = s.cost ? '#e8364a' : '#fff6d8'; c.fillText(label, s.x, s.y + 28) }
 }
 
+// What a word on a pedestal does: its name, what it means, its effects, and
+// what it costs.
+const FLAVOR_TEXT = { blessed: 'Blessed: a word you love', cursed: 'Cursed: a word you can’t stand' }
+const KIND_TEXT = { n: 'noun · carried', v: 'verb · use with Space', a: 'adjective · changes your ink', s: 'adjective · changes your ink', r: 'adverb · makes you better' }
+function wrap (c, text, width) {
+  const words = String(text).split(' ')
+  const lines = []
+  let line = ''
+  for (const w of words) { const t = line ? `${line} ${w}` : w; if (c.measureText(t).width > width && line) { lines.push(line); line = w } else line = t }
+  if (line) lines.push(line)
+  return lines
+}
+function wordCard (c, s, alpha) {
+  const it = s.item
+  const W2 = 210
+  const effects = describe(it)
+  c.save()
+  c.globalAlpha = alpha
+  c.font = `500 10.5px ${SERIF}`
+  const def = it.def ? wrap(c, it.def, W2 - 20).slice(0, 2) : []
+  const lines = [...effects.slice(0, 5)]
+  const h = 44 + def.length * 13 + lines.length * 14 + (it.flavor ? 14 : 0) + (s.price || s.cost ? 14 : 0)
+  let x = s.x - W2 / 2
+  let y = s.y - 52 - h
+  if (y < 8) y = s.y + 34
+  x = Math.max(8, Math.min(ROOM_W - W2 - 8, x))
+  c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 10
+  c.fillStyle = '#fffaf0'; c.beginPath(); roundRect(c, x, y, W2, h, 8); c.fill()
+  c.shadowBlur = 0
+  c.strokeStyle = FLAVOR[it.flavor] || it.color || '#a9b0c8'; c.lineWidth = 2; c.stroke()
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic'
+  c.fillStyle = '#24284a'; c.font = `700 15px ${FONT}`; c.fillText(it.word, x + 10, y + 19)
+  c.fillStyle = '#8a8aa0'; c.font = `500 9.5px ${FONT}`; c.fillText(`${KIND_TEXT[it.pos] || 'word'}${it.q ? ` · ${'★'.repeat(it.q)}` : ''}`, x + 10, y + 32)
+  let yy = y + 46
+  c.fillStyle = '#5a5a70'; c.font = `italic 500 10.5px ${SERIF}`
+  for (const l of def) { c.fillText(l, x + 10, yy); yy += 13 }
+  c.font = `600 11px ${FONT}`
+  for (const l of lines) { c.fillStyle = /down|Costs/.test(l) ? '#b83a3a' : '#2a6a4a'; c.fillText(`• ${l}`, x + 10, yy + 2); yy += 14 }
+  if (it.flavor) { c.fillStyle = it.flavor === 'blessed' ? '#a87a10' : '#7a3ab8'; c.font = `700 10px ${FONT}`; c.fillText(FLAVOR_TEXT[it.flavor], x + 10, yy + 3); yy += 14 }
+  if (s.price || s.cost) { c.fillStyle = '#24284a'; c.font = `700 10.5px ${FONT}`; c.fillText(s.price ? `${s.price} glyphs` : `Costs ${s.cost / 2} heart${s.cost === 2 ? '' : 's'} for good`, x + 10, yy + 3) }
+  c.restore()
+}
+
 function drawTrap (c, trap, time) {
   if (!trap) return
   if (trap.kind === 'hatch') {
@@ -741,12 +784,16 @@ export function drawRun (ctx, run, fx, time, opts = {}) {
     ctx.globalAlpha = 1
   }
   fx.draw(ctx)
+  // Walk up to a word and it says what it does.
+  let near = null
+  for (const s of room.peds) { if (!s.item) continue; const d = Math.hypot(s.x - run.p.x, s.y - run.p.y); if (d < 85 && (!near || d < near.d)) near = { s, d } }
   // Darker chapters get a vignette.
   const th = CHAPTERS[FLOORS[run.fi].ch]
   if (th.dark) { const g = ctx.createRadialGradient(run.p.x, run.p.y, 80, run.p.x, run.p.y, 420); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, chId === 'unwritten' ? 'rgba(0,0,0,.65)' : 'rgba(0,0,0,.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
   if (fx.hurtFlash > 0) { ctx.fillStyle = `rgba(220,40,40,${fx.hurtFlash * 0.25})`; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.5})`; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
   if (run.swap > 0) { ctx.fillStyle = 'rgba(106,122,154,.12)'; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
+  if (near) wordCard(ctx, near.s, Math.min(1, (85 - near.d) / 25))
   ctx.restore()
   drawHud(ctx, run, time, opts)
 }
@@ -788,7 +835,7 @@ function drawHud (c, run, time, opts) {
   })
   drawMinimap(c, run, opts.bigMap)
   // The boss's health along the bottom.
-  const bosses = run.room.foes.filter((e) => e.boss && !e.dead && !e.ignore)
+  const bosses = run.room.foes.filter((e) => e.boss && !e.dead && !e.ignore && !FOES[e.id].noBar)
   if (bosses.length) {
     const hp = bosses.reduce((s, e) => s + Math.max(0, e.hp), 0)
     const max = Math.max(hp, bosses.reduce((s, e) => s + e.maxHp, 0))

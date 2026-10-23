@@ -61,6 +61,10 @@ function bossFor (run, fi) {
 }
 
 export function startFloor (run, fi) {
+  // Whatever's left in this floor's last room stays on this floor: the new
+  // floor's rooms are fresh, even where their keys are the same.
+  if (run.room && run.floor) saveRoom(run)
+  run.room = null
   run.fi = fi
   run.floor = genFloor(run.seed, fi, { bossId: bossFor(run, fi) })
   run.stats.deepest = Math.max(run.stats.deepest, fi)
@@ -185,12 +189,15 @@ function takeItem (run, filter, weight = () => 1) {
   return pick
 }
 
-export function giveItem (run, item, quiet = false) {
+// from: the pedestal it came off. Swapping actives leaves your old one on
+// that same pedestal (or a new one at your feet, if there wasn't one).
+export function giveItem (run, item, quiet = false, from = null) {
   const p = run.p
   if (item.kind === 'active') {
     const old = p.active
     p.active = { item, charge: item.active.charge, max: item.active.charge }
-    if (old && run.room) run.room.peds.push({ item: old.item, x: p.x, y: p.y + 30, dropped: true })
+    if (old && from) Object.assign(from, { item: old.item, empty: false, dropped: true, away: false, price: 0, cost: 0, group: null })
+    else if (old && run.room) run.room.peds.push({ item: old.item, x: p.x, y: p.y + 30, dropped: true })
   } else p.items.push(item)
   for (const f of item.fx) applyOnce(run, f)
   if (!run.stats.found.includes(item.id) && item.id !== '_blank') run.stats.found.push(item.id)
@@ -804,7 +811,7 @@ function stepPicks (run) {
     s.empty = true
     s.price = 0
     if (s.group) for (const o of room.peds) if (o !== s && o.group === s.group && o.item) { o.item = null; o.empty = true; run.ev.push({ k: 'poof', x: o.x, y: o.y }) }
-    giveItem(run, item)
+    giveItem(run, item, false, s)
     s.wait = 0.3
   }
 }
