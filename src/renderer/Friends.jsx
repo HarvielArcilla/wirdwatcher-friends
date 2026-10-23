@@ -70,7 +70,7 @@ export default function Friends ({ friends, openWord, refreshTop, playMode, prof
           {friends.map((f) => (
             <div key={f.userId}>
               <div className='friend-row openable' onClick={(e) => { if (!e.target.closest('button')) setOpen(f.userId) }} role='button' tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setOpen(f.userId) }} aria-label={`${f.name}’s profile`}>
-                <Avatar name={f.name} color={f.color} frame={f.look?.frame}><i className={f.online ? 'on' : ''} /></Avatar>
+                <Avatar name={f.name} color={f.color} frame={f.look?.frame} face={f.look?.face}><i className={f.online ? 'on' : ''} /></Avatar>
                 <div>
                   <strong>{f.name}</strong>
                   <small>Level {f.level}{f.title && `, ${f.title}`}. {plural(f.rated, 'word')} rated. {f.online ? 'Online now' : f.lastSeen ? `Last seen ${timeAgo(f.lastSeen)}` : 'Not seen yet'}</small>

@@ -461,3 +461,6 @@ export function playTable (kind, settings) {
     TABLE[kind](c, chain(c, bus))
   } catch {}
 }
+
+// The building blocks, for other games' sounds (Wirdlike).
+export const synth = { audio: () => audio(), chain, voice, noise, bell, honk, wash }

@@ -1,6 +1,8 @@
 // Progression: XP, levels, titles and badges. Pure functions, used by the
 // background process (which awards) and the window (which shows).
 
+import { WIRDLIKE_BADGES } from './wirdlike/content.js'
+
 export const XP = {
   rating: 10, // a word you hadn't rated before
   firstOfDay: 20, // first rating each day
@@ -137,7 +139,9 @@ export const BADGES = [
   { id: 'highroller', emoji: '🎲', name: 'High roller', hint: 'Flip a billion coins at once.', test: (s) => s.ecoFlipBig >= 1e9 },
   // The shop.
   { id: 'shopper', emoji: '🛍️', name: 'Window shopper', hint: 'Buy something in the shop.', test: (s) => s.ecoCosmetics >= 1 },
-  { id: 'wardrobe', emoji: '👗', name: 'Wardrobe', hint: 'Own 25 things from the shop.', test: (s) => s.ecoCosmetics >= 25 }
+  { id: 'wardrobe', emoji: '👗', name: 'Wardrobe', hint: 'Own 25 things from the shop.', test: (s) => s.ecoCosmetics >= 25 },
+  // Wirdlike.
+  ...WIRDLIKE_BADGES
 ]
 
 // Rating input: what the box shows after each keystroke, like the original

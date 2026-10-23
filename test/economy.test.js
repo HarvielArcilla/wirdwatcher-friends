@@ -123,7 +123,7 @@ test('the shop: buy, wear, and only real items reach others', () => {
   e.equip('frame', 'none')
   assert.equal(e.look().frame, 'none')
   assert.throws(() => e.buyCosmetic('frame', 'legend'), /publishing 5 times/)
-  assert.deepEqual(cleanLook({ frame: 'made-up', table: 'velvet', evil: 'x' }), { room: 'plain', table: 'velvet', frame: 'none', cardBack: 'stripes', title: 'none', name: 'plain', reactions: 'none' })
+  assert.deepEqual(cleanLook({ frame: 'made-up', table: 'velvet', evil: 'x' }), { room: 'plain', table: 'velvet', face: 'letter', frame: 'none', cardBack: 'stripes', title: 'none', name: 'plain', reactions: 'none' })
 })
 
 test('economy survives an update, and the dev account has everything', () => {

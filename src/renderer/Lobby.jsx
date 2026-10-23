@@ -434,7 +434,7 @@ function Table ({ lobby, choices, coins: myCoins = 0, active, events, settings, 
               <div key={p.id} data-seat={p.id} className={`seat ${flat ? 'row' : ''} ${p.away ? 'away' : ''} ${clickable ? 'pickable' : ''} ${guess.high === p.id || myVote ? 'g-high' : ''} ${guess.low === p.id ? 'g-low' : ''} ${(style === 'hotseat' && c && p.id === c.seat) || (style === 'jury' && phase === 'reveal' && res?.defendant === p.id) ? 'in-seat' : ''}`} style={pos} onClick={clickable ? () => (phase === 'voting' ? vote(p.id) : pickGuess(p.id)) : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? (phase === 'voting' ? `Vote for ${p.name}` : `Guess ${p.me ? 'yourself' : p.name}`) : undefined}>
                 <SeatReactions reactions={reactions} playerId={p.id} />
                 {phase === 'reveal' && res?.perfect?.[p.id] && <span className='perfect-pop' aria-live='polite'>💎 {res.perfect[p.id].map((x) => x.label).join(' · ')} <b>+{res.perfect[p.id].reduce((a, x) => a + x.bonus, 0)}</b></span>}
-                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}{(phase === 'waiting' || phase === 'results' ? p.stakeIn : p.inPot) && <span className='seat-coin' title={phase === 'waiting' || phase === 'results' ? 'Bought in' : 'In the pot'}><CoinDot size={18} /></span>}</span>
+                <span className='seat-face'><Avatar name={p.name} color={p.color} frame={p.look?.frame} face={p.look?.face} /><i className='seat-ring' aria-hidden='true' />{clickable && <span className='seat-key'>{guessIndex + 1}</span>}{(phase === 'waiting' || phase === 'results' ? p.stakeIn : p.inPot) && <span className='seat-coin' title={phase === 'waiting' || phase === 'results' ? 'Bought in' : 'In the pot'}><CoinDot size={18} /></span>}</span>
                 <div className='seat-text'>
                   <span className={`sname nm-${p.look?.name || 'plain'}`} title={p.edition ? `Edition ${p.edition + 1}` : undefined}>{p.me ? 'You' : p.name}{p.edition > 0 && <sup className='ed'>✦{p.edition + 1}</sup>}{p.id === lobby.host && <small> host</small>}{p.friend && <small> friend</small>}
                     {!p.me && !p.friend && p.userId && (phase === 'waiting' || phase === 'results') && <button className='seat-act' onClick={(e) => { e.stopPropagation(); askFriend(p) }} disabled={asked.has(p.id)} title={asked.has(p.id) ? 'Asked' : `Add ${p.name} as a friend`} aria-label={asked.has(p.id) ? 'Friend request sent' : `Add ${p.name} as a friend`}>{asked.has(p.id) ? '✓' : <PersonPlus />}</button>}
@@ -1036,7 +1036,7 @@ function Podium ({ players, style }) {
           return (
             <div key={p.id} style={{ '--d': `${[0.5, 0.2, 0.8][place]}s` }}>
               {p.score === best && best > 0 && <span className='crown' aria-hidden='true'>👑</span>}
-              <Avatar name={p.name} color={p.color} frame={p.look?.frame} />
+              <Avatar name={p.name} color={p.color} frame={p.look?.frame} face={p.look?.face} />
               <span style={{ fontWeight: 500, fontSize: 13 }}>{p.me ? 'You' : p.name}</span>
               <i className='bar' style={{ height: h[place] }}>{p.score}</i>
             </div>

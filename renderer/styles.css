@@ -2586,3 +2586,96 @@ body[data-scheme="dark"] .sp-tag.rush { color: #f0c06a; } body[data-scheme="dark
 .pc-help { margin: 0; }
 @media (max-width: 560px) { .pc-tiles b { width: 24px; height: 30px; font-size: 16px; } .pc-levels button small { display: none; } }
 @media (prefers-reduced-motion: reduce) { .pc-waves, .pc-bob, .pc-flag { animation: none !important; } .pc-mover { transition: none !important; } }
+
+/* Faces from Wirdlike */
+.avatar-head { overflow: hidden; }
+.avatar-head .head-art { width: 96%; height: 96%; display: block; }
+.rarity.r-wirdlike { color: #f6f1e4; background: linear-gradient(90deg, #2b3050, #6a3a8a); }
+.shop-item.r-wirdlike { background: linear-gradient(160deg, color-mix(in srgb, #6a3a8a 14%, var(--panel)), var(--panel) 60%); }
+.rail { overflow-y: auto; scrollbar-width: none; }
+
+/* Wirdlike */
+.wl-menu { max-width: 980px; }
+.wl-hero { display: grid; gap: 6px; margin-bottom: 14px; }
+.wl-logo { font-family: var(--font-word); font-weight: 700; font-size: 58px; letter-spacing: -1px; line-height: 1; color: var(--word); display: flex; }
+.wl-logo span { display: inline-block; animation: wl-bob 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.18s); text-shadow: 0 3px 0 color-mix(in oklab, var(--word) 40%, #000); }
+.wl-logo span:first-child { color: var(--text); }
+@keyframes wl-bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(-2deg); } }
+.wl-need { padding: 12px 16px; border-radius: var(--r-md); background: var(--raise); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 14px; }
+.wl-continue { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r-md); background: var(--raise); box-shadow: inset 0 0 0 2px var(--accent); margin-bottom: 18px; }
+.wl-continue > div { display: grid; flex: 1; }
+.wl-continue span { color: var(--dim); font-size: 13px; }
+.wl-h { margin: 6px 0 10px; font-size: 18px; }
+.wl-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.wl-char { border: 0; background: var(--panel); border-radius: var(--r-md); padding: 12px 8px 10px; display: grid; justify-items: center; gap: 4px; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); position: relative; }
+.wl-char.on { box-shadow: inset 0 0 0 3px var(--accent); background: var(--panel-raise); }
+.wl-char:not(:disabled):hover { background: var(--panel-raise); }
+.wl-char.locked { opacity: .65; cursor: default; }
+.wl-char small { font-size: 11px; color: var(--faint); text-align: center; line-height: 1.25; }
+.wl-char-head { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--c, #888) 22%, var(--bg)), var(--bg)); }
+.wl-char-head svg { width: 60px; height: 60px; }
+.wl-char-head b { font-size: 28px; color: var(--faint); }
+.wl-char-head.small { width: 40px; height: 40px; flex: none; }
+.wl-char-head.small svg { width: 38px; height: 38px; }
+.wl-hearts { color: #e8364a; font-size: 13px; letter-spacing: 1px; min-height: 16px; }
+.wl-hearts i { color: #7aaaf0; font-style: normal; }
+.wl-marks { position: absolute; top: 6px; right: 8px; font-size: 13px; display: flex; gap: 2px; }
+.wl-marks i { font-style: normal; }
+.wl-pickrow { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 14px 0 8px; }
+.wl-blurb { flex: 1 1 320px; margin: 0; color: var(--dim); }
+.wl-blurb b { color: var(--text); }
+.wl-seed { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
+.wl-seed .field { width: 120px; text-transform: uppercase; letter-spacing: 1px; }
+.btn.big { padding: 12px 28px; font-size: 16px; }
+.wl-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--dim); font-size: 13px; margin: 6px 0 18px; }
+.wl-keys kbd { font: 600 11px var(--font-ui); background: var(--raise); border-radius: 5px; padding: 2px 6px; box-shadow: inset 0 -2px 0 var(--line); color: var(--text); }
+.wl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.wl-panel { background: var(--panel); border-radius: var(--r-md); padding: 14px 16px; box-shadow: inset 0 0 0 1px var(--line); }
+.wl-panel h3 { margin: 4px 0 8px; font-size: 14px; color: var(--dim); font-weight: 600; }
+.wl-panel h3:not(:first-child) { margin-top: 14px; }
+.wl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.wl-stats.small { grid-template-columns: repeat(2, 1fr); align-content: start; }
+.wl-stats div { background: var(--bg); border-radius: var(--r-sm); padding: 6px 10px; }
+.wl-stats dt { font-size: 11px; color: var(--faint); }
+.wl-stats dd { margin: 0; font-weight: 600; font-size: 14px; }
+.wl-bosses { display: flex; flex-wrap: wrap; gap: 5px; }
+.wl-bosses span { font-size: 12px; padding: 3px 8px; border-radius: 12px; background: var(--bg); color: var(--faint); }
+.wl-bosses span.beaten { background: color-mix(in oklab, var(--accent) 22%, var(--bg)); color: var(--text); }
+.wl-goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--dim); }
+.wl-goals li.done { color: var(--text); }
+.wl-goals small { color: var(--faint); }
+.wl-note { color: var(--faint); font-size: 12px; margin: 10px 0 0; }
+
+.wl-game { display: grid; place-items: center; height: 100%; padding: 12px; box-sizing: border-box; background: #08080c; }
+.wl-stage { position: relative; width: min(100%, calc((100vh - 110px) * 5 / 3)); aspect-ratio: 5 / 3; }
+.wl-canvas { width: 100%; height: 100%; display: block; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.6); image-rendering: auto; }
+.wl-pause { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,8,14,.6); backdrop-filter: blur(3px); border-radius: 10px; }
+.wl-pause-card { width: min(92%, 640px); max-height: 92%; overflow: auto; background: #f6f1e4; color: #2b3050; border-radius: 12px; padding: 18px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.5); background-image: repeating-linear-gradient(transparent 0 23px, #c8daf0 23px 24px); }
+.wl-pause-card h2 { margin: 0 0 12px; font-family: var(--font-read); font-weight: 600; }
+.wl-pause-card h2 small { font-size: 13px; color: #6a6a80; font-family: var(--font-ui); font-weight: 500; margin-left: 8px; }
+.wl-pause-card h3 { margin: 0 0 6px; font-size: 13px; color: #6a6a80; }
+.wl-pause-card .wl-stats div { background: rgba(255,255,255,.7); }
+.wl-pause-card .wl-stats dt { color: #6a6a80; }
+.wl-pause-grid { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+.wl-pause-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.wl-pause-card .btn.ghost { color: #2b3050; }
+.btn.danger { color: #c83030 !important; }
+.wl-items { display: flex; flex-wrap: wrap; gap: 5px; }
+.wl-item { font: 600 12px var(--font-ui); padding: 3px 9px; border-radius: 6px; background: #fffaf0; color: #24284a; box-shadow: inset 0 0 0 1.5px #a9b0c8; cursor: default; }
+.wl-item.active { background: #24284a; color: #fffaf0; }
+.wl-item.blessed { box-shadow: inset 0 0 0 2px #f2c23e; }
+.wl-item.cursed { box-shadow: inset 0 0 0 2px #9a4ad8; }
+.wl-over { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); background: rgba(20,10,10,.8); color: #ffd8d0; font: 600 22px var(--font-read); padding: 10px 22px; border-radius: 10px; animation: wl-in .6s ease-out; white-space: nowrap; }
+.wl-over.won { background: rgba(40,30,0,.8); color: #fff0b0; }
+@keyframes wl-in { from { opacity: 0; transform: translate(-50%, 10px); } }
+.wl-end { display: grid; place-items: center; }
+.wl-note-card { width: min(100%, 620px); background: #f6f1e4; color: #2b3050; border-radius: 6px; padding: 22px 26px; box-shadow: 0 16px 50px rgba(0,0,0,.35); transform: rotate(-0.6deg); background-image: repeating-linear-gradient(transparent 0 25px, #c8daf0 25px 26px), linear-gradient(90deg, transparent 38px, #e8a0a0 38px 40px, transparent 40px); }
+.wl-note-card.won { background-color: #fff8e0; }
+.wl-note-head { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+.wl-note-head small { color: #8a7a6a; font-size: 12px; }
+.wl-note-head h2 { margin: 0; font-family: var(--font-read); font-weight: 600; font-size: 26px; }
+.wl-note-body { font-family: var(--font-read); font-size: 16px; line-height: 1.6; }
+.wl-rewards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.wl-rewards span { background: rgba(255,255,255,.75); padding: 5px 10px; border-radius: 8px; font-weight: 600; font-size: 13px; }
+.wl-rewards span.new { background: #2b3050; color: #fff6d8; }
+.wl-note-card .btn.ghost { color: #2b3050; }

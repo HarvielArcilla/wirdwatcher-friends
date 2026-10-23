@@ -24,6 +24,7 @@ import { Derivatives } from './derivatives.js'
 import { Sportsbook } from './sportsbook.js'
 import { Leximon } from './leximon.js'
 import { Valley } from './valley.js'
+import { Wirdlike } from './wirdlike.js'
 import { Tables } from './tables.js'
 import { DuelHost, DuelClient } from './duel.js'
 import { withForms } from '../shared/slots.js'
@@ -63,6 +64,7 @@ export class WirdApp extends EventEmitter {
     this.sports = new Sportsbook({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now() })
     this.economy.isWord = withForms((w) => this.words.has(w))
     this.tables = new Tables({ economy: this.economy, byLetters: this.words.wordjack, wordFor: () => this.words.wheelWord() })
+    this.wirdlike = new Wirdlike({ economy: this.economy, rated: () => this.store.ratings(), lookup: (w) => this.words.lookup(w), award: (xp, counters) => this._withLevelReward(this.game.award(xp, counters)) })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now(), rated: () => this.store.ratings() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters'), salt: () => this.identity?.userId || '' })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
@@ -74,7 +76,7 @@ export class WirdApp extends EventEmitter {
     this.economy.grantLevelPacks(this.game.profile().level.level)
     // Friends see what you wear and which edition you're on.
     this.game.extraProfile = () => this._publicProfile()
-    this.game.extraStats = () => this.economy.badgeStats()
+    this.game.extraStats = () => ({ ...this.economy.badgeStats(), ...this.wirdlike.badgeStats() })
     // Spending, flipping and publishing can earn badges too.
     this.economy.on('changed', () => {
       if (this._awarding) return

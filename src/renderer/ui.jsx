@@ -4,6 +4,7 @@ import { formatCoins, shortCoins } from '../shared/economy.js'
 import { playLevelUp } from './sound.js'
 import { burst } from './effects.js'
 import { COSMETICS } from '../shared/cosmetics.js'
+import { HEADS, CHARACTERS } from '../shared/wirdlike/content.js'
 
 export const api = (name, ...args) => window.ww.call(name, ...args)
 
@@ -21,8 +22,19 @@ export function R ({ r, className = 'r' }) {
 
 // A face: the first letter on the person's color, in their frame (a shop
 // cosmetic) if they wear one.
-export function Avatar ({ name, color, size, frame, children }) {
-  const face = <span className='avatar' style={{ background: color, ...(size ? { width: size, height: size } : {}) }}>{(name || '?').trim()[0]?.toUpperCase()}{children}</span>
+// A Wirdlike character's head, as a face (see src/shared/wirdlike/content.js).
+export function HeadArt ({ id }) {
+  const color = (CHARACTERS.find((c) => c.id === id) || CHARACTERS[0]).color
+  return (
+    <svg className='head-art' viewBox='-2 -4 68 68' aria-hidden='true'>
+      {HEADS[id].map((s, i) => <path key={i} d={s.d} fill={s.fill ? (s.fill === '$c' ? color : s.fill) : 'none'} stroke={s.stroke ? (s.stroke === '$c' ? color : s.stroke) : undefined} strokeWidth={s.w} strokeLinecap='round' strokeLinejoin='round' />)}
+    </svg>
+  )
+}
+
+export function Avatar ({ name, color, size, frame, face: faceId, children }) {
+  const head = faceId && faceId.startsWith('wl-') ? faceId.slice(3) : null
+  const face = <span className={`avatar ${head && HEADS[head] ? 'avatar-head' : ''}`} style={{ background: color, ...(size ? { width: size, height: size } : {}) }}>{head && HEADS[head] ? <HeadArt id={head} /> : (name || '?').trim()[0]?.toUpperCase()}{children}</span>
   if (!frame || frame === 'none') return face
   return <span className={`framed frame-${frame}`}>{face}<i className='frame-art' aria-hidden='true' /></span>
 }
@@ -236,6 +248,7 @@ export const icons = {
   speaker: I(<><path d='M11 5 6 9H3v6h3l5 4V5Z' /><path d='M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13' /></>),
   heart: I(<path d='M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8Z' />),
   chevron: I(<path d='m6 9 6 6 6-6' />),
+  wirdlike: I(<><path d='M5 21V10a7 7 0 0 1 14 0v11' /><path d='M3 21h18' /><path d='M9 21v-3h3v-3h3v-3' /><circle cx='12' cy='7.5' r='1' /></>),
   farm: I(<><path d='M12 21v-8' /><path d='M12 13c0-4 3-6.5 7-6.5 0 4-3 6.5-7 6.5Z' /><path d='M12 15.5c0-3-2.4-5-5.5-5 0 3 2.4 5 5.5 5Z' /><path d='M4 21h16' /></>),
   house: I(<><path d='M3 10.5 12 3l9 7.5' /><path d='M5 9.5V21h14V9.5' /><path d='M9.5 21v-6h5v6' /><path d='M16 5.5V3h2.5v4.6' /></>),
   shop: I(<><path d='M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9Z' /><path d='M9 10V6.5a3 3 0 0 1 6 0V10' /></>),

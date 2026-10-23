@@ -570,6 +570,7 @@ export class Economy extends EventEmitter {
     if (c.level) throw new Error(`That one comes at level ${c.level}.`)
     if (this.s.bankrupt) throw new Error('No new looks while you’re bankrupt.')
     if (c.pack) throw new Error('That one only comes in card packs.')
+    if (c.wl || c.valley) throw new Error(c.wl ? 'That one only comes from Wirdlike.' : 'That one only comes from Wird Valley.')
     if (c.price === null) throw new Error(`That one comes from publishing ${c.edition === 1 ? 'once' : `${c.edition} times`}.`)
     this._spend(c.price, 'cosmetics')
     this.s.owned.push(`${kind}:${id}`)

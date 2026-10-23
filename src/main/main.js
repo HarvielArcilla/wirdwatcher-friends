@@ -130,6 +130,12 @@ function handlers () {
       if (!['roulette', 'wfStart', 'wfSpin', 'wfCall', 'wfVowel', 'wfSolve', 'bjDeal', 'bjHit', 'bjStand', 'bjDouble', 'pcStart', 'pcHop', 'pcCash'].includes(action)) throw new Error('Unknown action.')
       return { out: ww.tables[action](...args), tables: ww.tables.view() }
     },
+    wirdlike: () => ww.wirdlike.view(),
+    wirdlikeStart: (charId, seed) => ww.wirdlike.start(charId, seed),
+    wirdlikeSave: (data) => ww.wirdlike.save(data),
+    wirdlikeResume: () => ww.wirdlike.resume(),
+    wirdlikeAbandon: () => ww.wirdlike.abandon(),
+    wirdlikeEnd: (summary) => ww.wirdlike.end(summary),
     valley: () => ww.valley.view(),
     valleyWords: (q) => ww.valley.words(q),
     valleyAction: (action, ...args) => {

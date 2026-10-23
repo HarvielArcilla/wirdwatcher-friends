@@ -22,7 +22,7 @@ export default function Collection ({ profile, modes, openWord, refreshTop, play
   return (
     <div className='page profile'>
       <div className='pf-head'>
-        <Avatar name={me?.name} color={me?.color} frame={look.frame} size={96} />
+        <Avatar name={me?.name} color={me?.color} frame={look.frame} face={look.face} size={96} />
         <div>
           <h1 className={`nm-${look.name || 'plain'}`}>{me?.name}{econ?.edition > 0 && <sup className='ed'>✦{econ.edition + 1}</sup>}</h1>
           <p className='lede'>{titleText(look.title) ? <b className='fp-title'>{titleText(look.title)}. </b> : null}{profile.level.title}, level {profile.level.level}. {profile.level.step - profile.level.into} XP to level {profile.level.level + 1}.</p>

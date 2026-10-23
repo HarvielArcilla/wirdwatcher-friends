@@ -10,6 +10,7 @@
 //   name      - how your name is drawn at the table and in chat
 //   confetti  - your celebrations (just you)
 //   coin      - your coin in the coinflip (just you)
+//   face      - your face itself: your initial, or a head from Wirdlike
 //
 // A few things can't be bought: levels bring some (marked `level`), each
 // edition you publish (prestige) earns
@@ -19,6 +20,7 @@
 export const KINDS = [
   { id: 'room', name: 'Rooms', blurb: 'Where the table stands. Everyone sees your room when you host.', seen: 'everyone at your table' },
   { id: 'table', name: 'Tables', blurb: 'The felt everyone sees when you host.', seen: 'everyone at your table' },
+  { id: 'face', name: 'Faces', blurb: 'Your face, wherever friends see you: your initial, or a head you’ve unlocked in Wirdlike. Your frame goes around it.', seen: 'everyone' },
   { id: 'frame', name: 'Frames', blurb: 'Around your face, wherever friends see you.', seen: 'everyone' },
   { id: 'cardBack', name: 'Card backs', blurb: 'Your face-down card at the table.', seen: 'everyone at the table' },
   { id: 'title', name: 'Titles', blurb: 'Under your name at the table and on your profile.', seen: 'everyone' },
@@ -30,8 +32,9 @@ export const KINDS = [
 
 import { MORE_COSMETICS } from './cosmetics-more.js'
 import { VALLEY_COSMETICS } from './cosmetics-valley.js'
+import { WIRDLIKE_COSMETICS } from './wirdlike/content.js'
 
-const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley' }
+const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley', wirdlike: 'Wirdlike' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
 const earned = (id, text, badge, hint) => item('title', id, text, null, 'badge', hint, { badge, text })
@@ -251,7 +254,11 @@ export const COSMETICS = [
   // The bigger wardrobe: drawn from data (see cosmetics-more.js).
   ...MORE_COSMETICS,
   // Only from Wird Valley.
-  ...VALLEY_COSMETICS
+  ...VALLEY_COSMETICS,
+  // Faces: your initial, or a head from Wirdlike (and only from there).
+  item('face', 'letter', 'Your initial', 0, 'common', 'The first letter of your name, in your colour.', { free: true }),
+  // Only from Wirdlike.
+  ...WIRDLIKE_COSMETICS
 ]
 
 export const DEFAULT_LOOK = Object.fromEntries(KINDS.map((k) => [k.id, COSMETICS.find((c) => c.kind === k.id && c.free).id]))
@@ -260,7 +267,7 @@ export const RARITY = R
 
 // A look that came from someone else (a lobby, a friend): only known items,
 // and only the kinds others are meant to see.
-export const PUBLIC_KINDS = ['room', 'table', 'frame', 'cardBack', 'title', 'name', 'reactions']
+export const PUBLIC_KINDS = ['room', 'table', 'face', 'frame', 'cardBack', 'title', 'name', 'reactions']
 export function cleanLook (look) {
   const out = {}
   for (const k of PUBLIC_KINDS) {

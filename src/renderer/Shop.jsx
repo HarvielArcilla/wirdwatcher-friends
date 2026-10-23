@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { COSMETICS, KINDS, RARITY } from '../shared/cosmetics.js'
 import { VALLEY_GOALS } from '../shared/cosmetics-valley.js'
+import { WL_GOALS } from '../shared/wirdlike/content.js'
 import { BADGES } from '../shared/progress.js'
 import { api, Avatar, Coins, CoinArt, useToast } from './ui.jsx'
 import { burst, centerOf, setConfettiStyle } from './effects.js'
@@ -89,10 +90,11 @@ export function lockText (c) {
   if (c.edition) return `📖 Publish ${c.edition === 1 ? 'once' : `${c.edition} times`}`
   if (c.pack) return '🃏 Only in card packs'
   if (c.valley) return `🌾 Wird Valley: ${VALLEY_GOALS[c.valley]?.text || 'earned there'}`
+  if (c.wl) return `🕳️ ${WL_GOALS[c.wl]?.text || 'Earned in Wirdlike'}`
   return '🔒 Not for sale'
 }
 // The description without the how-to-get-it part (the lock says that).
-const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.|Only in card packs\.)\s*/, '').trim()
+const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.|Only in card packs\.|From Wirdlike\.)\s*/, '').trim()
 
 // A small picture of each item, drawn with the same styles the real thing uses.
 export function Preview ({ c, me }) {
@@ -113,6 +115,7 @@ export function Preview ({ c, me }) {
     )
   }
   if (c.kind === 'frame') return <Avatar name={me?.name || 'You'} color={me?.color || '#8ab4e8'} frame={c.id} size={54} />
+  if (c.kind === 'face') return <Avatar name={me?.name || 'You'} color={me?.color || '#8ab4e8'} face={c.id} size={54} />
   if (c.kind === 'cardBack') return <div className={`mini-back cb-${c.id}`} />
   if (c.kind === 'title') return <div className='mini-title'><b>{me?.name || 'You'}</b><span>{c.text || 'Level 12'}</span></div>
   if (c.kind === 'name') return <div className={`mini-name nm-${c.id}`}>{me?.name || 'You'}</div>

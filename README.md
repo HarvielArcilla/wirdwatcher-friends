@@ -145,6 +145,15 @@ A stock market of words under **Market**. Every word has a price, and the price 
 - **The coinflip**: bet any amount, call heads or tails, double it or lose it.
 - Nothing in the casino counts toward ink.
 
+## Wirdlike
+
+A roguelike down through the dictionary: room by room, floor by floor, from The Margins through The Index, The Stacks, The Archive and The Printing Press, and (once you've beaten The Red Pen) The Unwritten. WASD moves, the arrow keys shoot ink, E sets off a bang, Space uses a verb, Tab shows the map, Esc pauses. Gamepads work too.
+
+- **Every item is a word you've rated.** Nouns are things you carry, verbs are actives you charge by clearing rooms, adjectives change your shots, adverbs raise a stat. What a word does comes from what it means (fire burns, ice slows, "double" splits your shots), how strong it is from its letters. Three words from one topic transform you (Bestiary, Cookbook, Atlas…).
+- **Your rating sets a word's flavour, never its power:** words you love are blessed, words you can't stand are cursed (stronger, with a catch), so nothing rewards rating any way but honestly. After a boss you may find a door to a room of words you love, or one of words you hate that costs hearts.
+- **Every boss is word trouble:** The Run-On Sentence, Typo, The Ellipsis, Lorem Ipsum, Palindrome, The Homophones, Anagram, Widow & Orphan, Thesaurus Rex, The Silent Letter, Oxymoron, Spoonerism, The Passive Voice, The Longest Word, The Department of Redundancy Department, Malaprop, The Red Pen and Autocorrect, plus the seven grammar sins.
+- **Progress:** six characters to unlock, badges, and looks you can only get down there, including **faces**: each character's head can replace your initial wherever friends see you, frame and all. Bosses pay some coins. Runs save at every door.
+
 ## Your profile
 
 **Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Leximon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.

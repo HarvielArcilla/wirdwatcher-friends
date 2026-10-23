@@ -32,7 +32,7 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
     <div className='page friend-profile'>
       <button className='btn small ghost back' onClick={onBack}>← Friends</button>
       <div className='fp-head pf-head'>
-        <Avatar name={p.name} color={p.color} frame={p.look?.frame} size={96}><i className={online ? 'on' : ''} /></Avatar>
+        <Avatar name={p.name} color={p.color} frame={p.look?.frame} face={p.look?.face} size={96}><i className={online ? 'on' : ''} /></Avatar>
         <div>
           <h1 className={`nm-${p.look?.name || 'plain'}`}>{p.name}</h1>
           <p className='lede'>
