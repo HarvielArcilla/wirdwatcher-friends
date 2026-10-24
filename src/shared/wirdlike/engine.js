@@ -245,7 +245,8 @@ export function recompute (run) {
   if (shot.tiny) { mul.tears *= 1.2; mul.shotSpeed *= 1.25; mul.dmg *= 0.9 }
   if (shot.big) { mul.dmg *= 1.15; mul.shotSpeed *= 0.92 }
   if (shot.explode) mul.tears *= 0.65
-  if (shot.multi) mul.tears *= Math.pow(0.85, shot.multi)
+  if (shot.multi) { mul.tears *= Math.pow(0.85, shot.multi); mul.dmg *= Math.pow(0.9, shot.multi) }
+  if (shot.homing) mul.dmg *= 0.88
   if (shot.fast) mul.shotSpeed *= 1.35
   const b = p.buffs
   if (b.haste > 0) { mul.dmg *= 1.4; mul.tears *= 1.3 }
@@ -440,7 +441,7 @@ export function fire (run, dx, dy, { from = run.p, dmgMul = 1, fam = false } = {
     }
     t.crit = flags.mark && rand(run) < 0.12 + s.luck * 0.02
     run.room.tears.push(t)
-    if (flags.echo) run.room.tears.push({ ...t, flags: { ...flags, echo: 0 }, hit: [], age: -0.15, x: from.x, y: from.y })
+    if (flags.echo) run.room.tears.push({ ...t, flags: { ...flags, echo: 0 }, dmg: t.dmg * 0.5, size: t.size * 0.8, hit: [], age: -0.15, x: from.x, y: from.y })
   }
   if (!fam) run.ev.push({ k: 'shoot' })
 }
@@ -451,15 +452,18 @@ function stepTears (run) {
     t.age += DT
     if (t.age < 0) continue
     const f = t.flags
+    // Homing bends a shot gently toward an enemy ahead of it: it can't turn
+    // round, and it won't find anything far away.
     if (f.homing) {
-      const e = nearestFoe(run, t.x, t.y, 220)
-      if (e) {
-        const want = Math.atan2(e.y - t.y, e.x - t.x)
-        const cur = Math.atan2(t.vy, t.vx)
-        let d = want - cur
-        while (d > Math.PI) d -= Math.PI * 2
-        while (d < -Math.PI) d += Math.PI * 2
-        const na = cur + clamp(d, -5 * DT, 5 * DT)
+      const e = nearestFoe(run, t.x, t.y, 150)
+      const want = e ? Math.atan2(e.y - t.y, e.x - t.x) : 0
+      const cur = Math.atan2(t.vy, t.vx)
+      let d = want - cur
+      while (d > Math.PI) d -= Math.PI * 2
+      while (d < -Math.PI) d += Math.PI * 2
+      if (e && Math.abs(d) < 1.3) {
+        const turn = 2.2 + 0.4 * Math.min(2, (f.homing || 1) - 1)
+        const na = cur + clamp(d, -turn * DT, turn * DT)
         const sp = len(t.vx, t.vy)
         t.vx = Math.cos(na) * sp; t.vy = Math.sin(na) * sp
       }
@@ -496,8 +500,8 @@ function stepTears (run) {
         if (f.knock || f.big) { const k = (f.knock ? 140 : 60) / (e.boss ? 6 : 1); e.kx = (e.kx || 0) + (t.vx / (len(t.vx, t.vy) || 1)) * k; e.ky = (e.ky || 0) + (t.vy / (len(t.vx, t.vy) || 1)) * k } else { e.kx = (e.kx || 0) + t.vx * 0.12 / (e.boss ? 6 : 1); e.ky = (e.ky || 0) + t.vy * 0.12 / (e.boss ? 6 : 1) }
         if (f.split && !t.child) for (const s of [-1, 1]) { const a = Math.atan2(t.vy, t.vx) + s * 1.1; room.tears.push({ ...t, flags: { ...f, split: 0 }, child: true, x: t.x, y: t.y, vx: Math.cos(a) * 260, vy: Math.sin(a) * 260, dmg: t.dmg * 0.5, size: t.size * 0.7, age: 0, life: 0.5, hit: [e] }) }
         if (f.chain) {
-          const others = room.foes.filter((o) => o !== e && !o.dead && len(o.x - e.x, o.y - e.y) < 130).slice(0, 2)
-          for (const o of others) { damage(run, o, t.dmg * 0.5, { kind: 'lightning' }); run.ev.push({ k: 'lightning', pts: [[e.x, e.y], [o.x, o.y]] }) }
+          const others = room.foes.filter((o) => o !== e && !o.dead && len(o.x - e.x, o.y - e.y) < 120).slice(0, f.chain >= 2 ? 2 : 1)
+          for (const o of others) { damage(run, o, t.dmg * 0.35, { kind: 'lightning' }); run.ev.push({ k: 'lightning', pts: [[e.x, e.y], [o.x, o.y]] }) }
         }
         dmg = 0
         if (!f.pierce) { endTear(run, t); break }
@@ -511,7 +515,7 @@ function stepTears (run) {
 function endTear (run, t) {
   if (t.gone) return
   t.gone = true
-  if (t.flags.explode) explode(run, t.x, t.y, 46, t.dmg * 1.6, { friendly: true })
+  if (t.flags.explode) explode(run, t.x, t.y, 42, t.dmg * 1.2, { friendly: true })
   run.ev.push({ k: 'splash', x: t.x, y: t.y, col: tearColor(t.flags), size: t.size })
 }
 
@@ -543,7 +547,7 @@ export function damage (run, e, dmg, { tear = null, kind = null } = {}) {
     if (f.slow) e.st.slow = Math.max(e.st.slow || 0, 2.5)
     if (f.charm && rand(run) < 0.2 + run.p.stats.luck * 0.03 && !e.boss) e.st.charm = 4
     if (f.fear && rand(run) < 0.2 + run.p.stats.luck * 0.03) e.st.fear = e.boss ? 1.2 : 3
-    e.dotDmg = Math.max(e.dotDmg || 0, tear.dmg * 0.3)
+    e.dotDmg = Math.max(e.dotDmg || 0, tear.dmg * 0.15)
   }
   run.ev.push({ k: 'hit', x: e.x, y: e.y, col: def.color || '#2b3050', crit: tear?.crit, kind })
   if (e.hp <= 0) kill(run, e)

@@ -132,7 +132,7 @@ export default function Penguin ({ coins, hold, toast, settings }) {
       setBusy(false)
       if (o.crossed) {
         sound('home')
-        toast({ emoji: '🐧', title: `Across ${o.word.toUpperCase()}!`, text: `×${pcMult(o.level, o.lanes)}: ${formatCoins(o.paid)} back, ${signed(o.paid - o.stake)}.` })
+        toast({ emoji: '🐧', title: `Across ${o.word.toUpperCase()}!`, text: `×${pcMult(o.level, o.lanes, true)}: ${formatCoins(o.paid)} back, ${signed(o.paid - o.stake)}.` })
       } else { sound('land'); hold(0) }
     }, HOP_MS)
   }
@@ -161,7 +161,7 @@ export default function Penguin ({ coins, hold, toast, settings }) {
   // Columns: 0 the near shelf; island i is column i + 1; lanes + 1 the far shore.
   const col = fall ? fall.i + 1 : g?.crossed ? lanes + 1 : at
   const sunk = (fall && fall.stage === 'sink') || (!fall && gone !== null)
-  const mults = g?.mults || Array.from({ length: lanes }, (_, i) => pcMult(lv, i + 1))
+  const mults = g?.mults || Array.from({ length: lanes }, (_, i) => pcMult(lv, i + 1, i + 1 === lanes))
   const nextMult = live && at < lanes ? mults[at] : null
   const width = (lanes + 2) * W
   const px = (col + 0.5) * W
@@ -264,7 +264,7 @@ export default function Penguin ({ coins, hold, toast, settings }) {
               </div>
             </>
             )}
-        <p className='lede pc-help'>{live ? 'Each island the penguin lands on shows a letter of the hidden word and raises the multiplier. Cash out whenever you like; an island that crumbles takes the lot. Reach the far shore to spell the word and take the top multiplier. (→ hop, Enter cash out)' : 'Help a penguin across a chain of iceberg islands, one for each letter of a hidden word. Every island crossed pays more, from your stake. No house edge: whenever you stop, it pays back what you put in, on average.'}</p>
+        <p className='lede pc-help'>{live ? 'Each island the penguin lands on shows a letter of the hidden word and raises the multiplier. Cash out whenever you like; an island that crumbles takes the lot. Reach the far shore to spell the word and take the top multiplier. (→ hop, Enter cash out)' : 'Help a penguin across a chain of iceberg islands, one for each letter of a hidden word. Every island crossed pays more, from your stake, and the odds are on your side: each island adds 2% to what you get back on average, and reaching the far shore pays a quarter more again.'}</p>
         {stats && <p className='tb-stats'>{stats.runs || 0} trip{stats.runs === 1 ? '' : 's'} · {stats.crossed || 0} all the way · <span className={stats.net >= 0 ? 'up' : 'down'}>{signed(stats.net)}</span></p>}
       </div>
     </div>

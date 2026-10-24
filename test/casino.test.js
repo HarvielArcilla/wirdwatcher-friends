@@ -77,6 +77,24 @@ test('several slot machines at once: one bet each, each pays on its own', () => 
   for (const x of r.spins) assert.equal(x.won, x.len ? Math.floor(100 * PAYS[x.len]) : 0)
   assert.equal(Math.round(app.economy.s.coins - before), r.won - 500)
   assert.equal(app.economy.s.slots.spins, spins0 + 5)
-  assert.throws(() => app.economy.spinMany(100, 11), /Between 1 and 10/)
+  assert.throws(() => app.economy.spinMany(100, 13), /Between 1 and 12/)
   assert.throws(() => app.economy.spinMany(1e6, 2), /don’t have/)
+})
+
+test('crates: one look of the kind you pick, cheaper than a pack, duplicates become scraps', async () => {
+  const { crateKinds, crateOdds } = await import('../src/shared/packs.js')
+  const app = new WirdApp({ dataDir: tmp(), settings: { lan: false, internet: false } })
+  app.economy.devAddCoins(1e7)
+  const kinds = crateKinds()
+  assert.ok(kinds.some((k) => k.id === 'frame') && kinds[0].id === 'all')
+  assert.ok(app.economy.cratePrice() < app.economy.packPrice())
+  const before = app.economy.s.coins
+  const r = app.economy.openCrate('frame')
+  assert.equal(r.card.kind, 'frame')
+  assert.equal(Math.round(before - app.economy.s.coins), r.price)
+  assert.ok(app.economy.owns('frame', r.card.id))
+  for (let i = 0; i < 40; i++) { const x = app.economy.openCrate('frame'); if (x.card.dup) { assert.ok(x.card.scraps > 0); break } }
+  assert.throws(() => app.economy.openCrate('nonsense'), /No such crate/)
+  const odds = crateOdds('title', app.economy.cratePrice())
+  assert.ok(Math.abs(Object.values(odds.by).reduce((a, b) => a + b, 0) - 1) < 1e-9)
 })

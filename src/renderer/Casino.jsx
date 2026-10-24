@@ -10,6 +10,7 @@ import Sportsbook from './Sportsbook.jsx'
 import { Credit } from './Credit.jsx'
 import { Roulette, Wordjack, Wheel } from './Tables.jsx'
 import Penguin from './Penguin.jsx'
+import Crates from './Crates.jsx'
 
 // The Casino: Wird Slots, the coinflip, the word tables (Letter Roulette,
 // Wordjack, the Wheel of Words), the prediction market and card packs. Luck, for coins that only buy
@@ -64,7 +65,7 @@ export default function Casino ({ econ, settings }) {
         </div>
       </div>
       <div className='tabs' role='tablist'>
-        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Wordjack'], ['wheel', 'Wheel of Words'], ['penguin', 'Penguin Cross'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`]].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Wordjack'], ['wheel', 'Wheel of Words'], ['penguin', 'Penguin Cross'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`], ['crates', 'Crates']].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
       {econ?.bankrupt
         ? <div className='casino-closed'><h2>The casino’s closed to you for now</h2><p className='lede'>It doesn’t take bankrupt players. Build some steady income and the doors open again{v.packs.free > 0 ? `, and your ${v.packs.free} free pack${v.packs.free === 1 ? ' is' : 's are'} waiting` : ''}.</p><Credit econ={econ} compact /></div>
@@ -77,7 +78,8 @@ export default function Casino ({ econ, settings }) {
             {tab === 'wheel' && <Wheel coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'penguin' && <Penguin coins={coins} hold={hold} toast={tableToast} settings={settings} />}
             {tab === 'sports' && <Sportsbook coins={coins} />}
-            {tab === 'packs' && <Packs v={shown} coins={coins} settings={settings} act={(action, ...a) => (action === 'openPack' ? play(7900, action, ...a) : act(action, ...a))} />}
+            {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}
+            {tab === 'crates' && <Crates v={shown} coins={coins} settings={settings} act={(action, ...a) => (action === 'openCrate' ? play(7300, action, ...a) : act(action, ...a))} />}
           </>
           )}
     </div>
@@ -87,7 +89,7 @@ export default function Casino ({ econ, settings }) {
 const REEL_SPIN_MS = 900
 const REEL_GAP_MS = 260
 
-const MACHINES = [1, 2, 3, 5, 10]
+const MACHINES = [1, 2, 3, 6, 9, 12] // past three, whole rows of three
 const randomReels = () => Array.from({ length: 5 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)])
 
 function Slots ({ v, live, coins, play, settings }) {

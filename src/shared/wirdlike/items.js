@@ -192,8 +192,8 @@ export function itemFor (word, info, r) {
   }
   if (flavor === 'blessed') fx.push({ t: 'soul', v: 1 })
   if (flavor === 'cursed') {
-    fx = fx.map((f) => (typeof f.v === 'number' && f.v > 0 && f.t !== 'mul' ? { ...f, v: r1(f.v * 1.6) } : f))
-    if (active) active = { ...active, p: r1(active.p * 1.5), cost: 1 }
+    fx = fx.map((f) => (typeof f.v === 'number' && f.v > 0 && f.t !== 'mul' ? { ...f, v: r1(f.v * 1.4) } : f))
+    if (active) active = { ...active, p: r1(active.p * 1.4), cost: 1 }
     else fx.push(DRAWBACKS[Math.floor(hash01(`${word}:curse`) * DRAWBACKS.length)])
   }
   const def = String(info?.senses?.[0]?.def || '').replace(/\s*\(.*?\)\s*/g, ' ').trim()
@@ -209,7 +209,7 @@ const STAT_NAMES = { dmg: 'Damage', tears: 'Fire rate', speed: 'Speed', range: '
 const SHOT_NAMES = {
   burn: 'Burning shots', slow: 'Slowing shots', poison: 'Poison shots', chain: 'Shots arc lightning', wavy: 'Wavy shots', pierce: 'Piercing shots',
   spectral: 'Shots pass through walls of books', fear: 'Frightening shots', charm: 'Charming shots', big: 'Bigger shots', tiny: 'Tiny, quick shots',
-  explode: 'Exploding shots', bounce: 'Bouncing shots', homing: 'Homing shots', split: 'Shots split on impact', multi: 'One more shot at a time',
+  explode: 'Exploding shots', bounce: 'Bouncing shots', homing: 'Shots curve toward enemies', split: 'Shots split on impact', multi: 'One more shot at a time',
   back: 'A shot out the back too', knock: 'Shots knock back', leech: 'Shots can heal you', mark: 'Critical hits', grow: 'Shots grow as they fly',
   echo: 'Every shot echoes', random: 'A random effect on every shot', fast: 'Fast shots'
 }

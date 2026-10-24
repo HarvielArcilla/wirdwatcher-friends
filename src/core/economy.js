@@ -19,7 +19,7 @@ import {
 import { COSMETICS, KINDS, DEFAULT_LOOK, cosmetic, PUBLIC_KINDS } from '../shared/cosmetics.js'
 import { balanced, validStake } from '../shared/stakes.js'
 import { letterAt, WEIGHT_TOTAL, evaluate } from '../shared/slots.js'
-import { drawPack, packPool, packPrice, PITY, scrapFor, craftCost, cardValue, FLAT, STEEP, BONUS_MIN, SCRAP_RATE } from '../shared/packs.js'
+import { drawPack, drawCrate, crateKinds, cratePrice, packPool, packPrice, PITY, scrapFor, craftCost, cardValue, FLAT, STEEP, BONUS_MIN, SCRAP_RATE } from '../shared/packs.js'
 
 const SAVE_EVERY_MS = 15000
 const TICK_MS = 1000
@@ -65,7 +65,7 @@ const blank = (now) => ({
 const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` }
 
 // How many slot machines you can play at once.
-export const MAX_MACHINES = 10
+export const MAX_MACHINES = 12
 
 export class Economy extends EventEmitter {
   // now(): milliseconds. friendsOnline(): how many friends are online.
@@ -753,6 +753,32 @@ export class Economy extends EventEmitter {
     return { cards: out, price, free, packs: this.packsView() }
   }
 
+  // A crate: one card of a kind (or any), opened with a reel.
+  crateKinds () { return crateKinds().map((k) => ({ ...k, price: this.cratePrice() })) }
+  cratePrice () { return cratePrice(baseCps(this.s)) }
+
+  openCrate (kind = 'all') {
+    this.tick()
+    this._casinoOpen()
+    if (!crateKinds().some((k) => k.id === kind)) throw new Error('No such crate.')
+    const pk = this.s.packs
+    const price = this.cratePrice()
+    this._spend(price, 'packs')
+    const c = drawCrate(() => crypto.randomInt(2 ** 32) / 2 ** 32, kind, price)
+    const key = `${c.kind}:${c.id}`
+    const dup = this.s.owned.includes(key) || Boolean(c.free)
+    if (dup) pk.scraps += scrapFor(c)
+    else this.s.owned.push(key)
+    pk.crates = (pk.crates || 0) + 1
+    const card = { kind: c.kind, id: c.id, name: c.name, rarity: c.rarity, value: cardValue(c), dup, scraps: dup ? scrapFor(c) : 0, kindName: KINDS.find((k) => k.id === c.kind)?.name }
+    pk.lastCrates = [{ at: this.now(), card: key, crate: kind }, ...(pk.lastCrates || [])].slice(0, 10)
+    this.dirty = true
+    this.save(true)
+    this.emit('changed')
+    this.emit('played', 'pack')
+    return { card, price, crate: kind, packs: this.packsView() }
+  }
+
   craft (kind, id) {
     this._casinoOpen()
     const c = cosmetic(kind, id)
@@ -770,7 +796,7 @@ export class Economy extends EventEmitter {
 
   packsView () {
     const pk = this.s.packs
-    return { ...pk, price: this.packPrice(), pity: PITY, flat: FLAT, steep: STEEP, bonusMin: BONUS_MIN, scrapRate: SCRAP_RATE, toPity: Math.max(1, PITY - (pk.dry || 0)), nextFreeAt: (pk.granted + 1) * 5 }
+    return { ...pk, price: this.packPrice(), cratePrice: this.cratePrice(), crates: pk.crates || 0, pity: PITY, flat: FLAT, steep: STEEP, bonusMin: BONUS_MIN, scrapRate: SCRAP_RATE, toPity: Math.max(1, PITY - (pk.dry || 0)), nextFreeAt: (pk.granted + 1) * 5 }
   }
 
   // --- for testing (the dev account) -------------------------------------------------

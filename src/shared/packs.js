@@ -19,7 +19,7 @@
 // never wasted, and never a shortcut to the expensive things. The odds,
 // worked out from these exact rules, are on the page.
 
-import { COSMETICS } from './cosmetics.js'
+import { COSMETICS, KINDS } from './cosmetics.js'
 
 export const RARITIES = ['common', 'rare', 'epic', 'legendary']
 export const FLAT = 0.5 // up to this fraction of the pack price, every card is equally likely
@@ -97,4 +97,31 @@ export function packOdds (price) {
       return 1 - (1 - a) ** 2 * (1 - b)
     }
   }
+}
+
+// --- crates ----------------------------------------------------------------------------
+// A crate holds one card of one kind (frames, tables, titles…) or of any
+// kind, for less than a pack. The card is drawn the same way a pack's are,
+// weighed against what the crate costs, so pricey things are rarer in a
+// crate than in a pack. Duplicates turn into scraps, like a pack's.
+
+export const CRATE_SHARE = 0.4 // a crate costs this much of a pack
+export const cratePrice = (cps) => Math.max(5000, Math.round(packPrice(cps) * CRATE_SHARE))
+const CRATE_EMOJI = { all: '📦', room: '🏠', table: '🎲', frame: '🖼️', cardBack: '🂠', title: '🏷️', name: '✒️', reactions: '😂', confetti: '🎉', coin: '🪙', face: '🙂' }
+export function crateKinds () {
+  const out = [{ id: 'all', name: 'Mystery crate', emoji: CRATE_EMOJI.all, blurb: 'Any look at all.' }]
+  for (const k of KINDS) {
+    const n = packPool().filter((c) => c.kind === k.id).length
+    if (n >= 6) out.push({ id: k.id, name: `${k.name.replace(/s$/, '')} crate`, emoji: CRATE_EMOJI[k.id] || '📦', blurb: `One of ${n} ${k.name.toLowerCase()}.` })
+  }
+  return out
+}
+const crateList = (kind) => { const l = packPool().filter((c) => kind === 'all' || c.kind === kind); return l.length ? l : packPool() }
+export function drawCrate (rand, kind, price) { return pick(rand, crateList(kind), price) }
+export function crateOdds (kind, price) {
+  const list = crateList(kind)
+  const total = list.reduce((a, c) => a + cardWeight(c, price), 0)
+  const by = Object.fromEntries(RARITIES.map((r) => [r, 0]))
+  for (const c of list) by[c.rarity] += cardWeight(c, price) / total
+  return { by, size: list.length, cardChance: (c) => (list.includes(c) ? cardWeight(c, price) / total : 0), list }
 }

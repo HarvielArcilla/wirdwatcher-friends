@@ -113,7 +113,7 @@ function handlers () {
     lobbyState: () => ww.lobbyState,
     economy: () => ({ ...ww.economy.view(), away: ww.economy.takeAway() }),
     economyAction: (action, ...args) => {
-      const allowed = ['buyBuilding', 'buyUpgrade', 'buyPerk', 'prestige', 'flip', 'spin', 'spinMany', 'buyCosmetic', 'equip', 'openPack', 'craft', 'packsView', 'bankruptView', 'takeDischarge']
+      const allowed = ['buyBuilding', 'buyUpgrade', 'buyPerk', 'prestige', 'flip', 'spin', 'spinMany', 'buyCosmetic', 'equip', 'openPack', 'openCrate', 'craft', 'packsView', 'bankruptView', 'takeDischarge']
       const devOnly = ['devUnlockAll', 'devAddCoins', 'devDebt', 'devWarp', 'devReset']
       if (!allowed.includes(action) && !(dev && devOnly.includes(action))) throw new Error('Unknown action.')
       const out = ww.economy[action](...args)

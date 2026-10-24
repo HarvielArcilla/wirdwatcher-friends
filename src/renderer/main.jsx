@@ -23,11 +23,11 @@ import { formatCoins } from '../shared/economy.js'
 
 const TABS = [
   { id: 'play', label: 'Play', icon: icons.play },
-  { id: 'today', label: 'Today', icon: icons.daily },
   { id: 'collection', label: 'Profile', icon: icons.collection },
-  { id: 'friends', label: 'Friends', icon: icons.friends },
-  { id: 'lobby', label: 'Lobby', icon: icons.lobby },
   { id: 'wirdhouse', label: 'Wirdhouse', icon: icons.house },
+  { id: 'lobby', label: 'Lobby', icon: icons.lobby },
+  { id: 'friends', label: 'Friends', icon: icons.friends },
+  { id: 'today', label: 'Today', icon: icons.daily },
   { id: 'leximon', label: 'Leximon', icon: icons.leximon },
   { id: 'market', label: 'Market', icon: icons.market },
   { id: 'casino', label: 'Casino', icon: icons.casino },

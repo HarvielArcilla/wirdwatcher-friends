@@ -105,14 +105,15 @@ test('playing against the house: bets come out, winnings go back, nothing goes n
   assert.throws(() => t.roulette([{ kind: 'red', amount: 1 }]), /bankrupt/)
 })
 
-test('Penguin Cross: no house edge, a letter an island, and cash out whenever', () => {
-  // Stopping after any number of lanes pays back the stake on average,
-  // less only the rounding down.
+test('Penguin Cross: odds a little in your favour, a letter an island, and cash out whenever', () => {
+  // Stopping after k islands pays back 2% more per island on average (less
+  // the rounding down), and the far shore a quarter more again.
   for (const level of Object.keys(PC_LEVELS)) {
     const p = PC_LEVELS[level].safe
     for (let k = 1; k <= 10; k++) {
       const rtp = Math.pow(p, k) * pcMult(level, k)
-      assert.ok(rtp <= 1 && rtp > 0.97, `${level} after ${k}: ${rtp}`)
+      assert.ok(Math.abs(rtp - Math.pow(1.02, k)) < 0.03 * Math.pow(1.02, k), `${level} after ${k} pays back about 2% more an island: ${rtp}`)
+      assert.ok(Math.abs(Math.pow(p, k) * pcMult(level, k, true) / rtp - 1.25) < 0.05, 'the far shore pays a quarter more')
       assert.ok(pcMult(level, k) > pcMult(level, k - 1 || 1) || k === 1)
     }
   }
@@ -122,7 +123,7 @@ test('Penguin Cross: no house edge, a letter an island, and cash out whenever', 
   let paid = 0
   const N = 200000
   for (let i = 0; i < N; i++) { const crack = pcFirstCrack('medium', 8, rand); if (crack === null || crack >= 3) paid += pcPayout(1000, 'medium', 3) }
-  assert.ok(Math.abs(paid / N / 1000 - 1) < 0.02, `returned ${(paid / N / 1000).toFixed(3)}`)
+  assert.ok(Math.abs(paid / N / 1000 - Math.pow(1.02, 3)) < 0.02, `returned ${(paid / N / 1000).toFixed(3)}`)
 
   const a = app()
   a.economy.devAddCoins(1e6)
@@ -146,7 +147,7 @@ test('Penguin Cross: no house edge, a letter an island, and cash out whenever', 
   // Hop to the end, one way or the other.
   g = t.pcStart(100, 'hard')
   while (!g.done) g = t.pcHop()
-  assert.ok(g.crossed ? g.paid === pcPayout(100, 'hard', g.lanes) : g.paid === 0 && g.hit === g.at)
+  assert.ok(g.crossed ? g.paid === pcPayout(100, 'hard', g.lanes, true) : g.paid === 0 && g.hit === g.at)
   assert.equal(t.view().penguin.runs, 2)
   assert.throws(() => t.pcStart(100, 'motorway'), /ice/)
 })

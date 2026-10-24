@@ -6,6 +6,7 @@ import { FOES } from '../shared/wirdlike/foes.js'
 import { describe, TRANSFORMS } from '../shared/wirdlike/items.js'
 import { drawRun, Fx, eventsToFx, itemBanner, transformBanner, clearRoomCache } from './wirdlike/draw.js'
 import { eventSounds, music, stopMusic, setVolume, setMusic, play } from './wirdlike/sfx.js'
+import { PadEdges, rumble, usePadMenu } from './wirdlike/pad.js'
 
 // Wirdlike: down through the dictionary, room by room, with nothing but the
 // words you've rated. The menu, the game itself (a canvas), the pause
@@ -49,6 +50,14 @@ export default function Wirdlike ({ settings }) {
   }
   const quit = () => { stopMusic(); setScreen('menu'); load() }
 
+  // With a controller: left and right choose who goes down, A starts, Y continues.
+  const cycle = (d) => {
+    const open = (v?.chars || []).filter((c) => c.unlocked)
+    if (!open.length) return
+    const i = Math.max(0, open.findIndex((c) => c.id === pick))
+    setPick(open[(i + d + open.length) % open.length].id)
+  }
+  const padOn = usePadMenu({ left: () => cycle(-1), right: () => cycle(1), a: () => { if (v?.canPlay) start() }, menu: () => { if (v?.canPlay) start() }, y: () => { if (v?.run) resume() } }, screen === 'menu' && Boolean(v))
   if (!v) return null
   if (screen === 'game' && init) return <Game init={init} settings={settings} onEnd={finish} onQuit={quit} />
   if (screen === 'end' && ending) return <EndNote ending={ending} onAgain={() => { setEnding(null); start() }} onMenu={() => { setEnding(null); setScreen('menu') }} />
@@ -87,7 +96,8 @@ export default function Wirdlike ({ settings }) {
         <label className='wl-seed'>Seed <input className='field' value={seed} onChange={(e) => setSeed(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))} placeholder='Random' /></label>
         <button className='btn primary big' disabled={!v.canPlay} onClick={start}>{v.run ? 'New run' : 'Start'}</button>
       </div>
-      <div className='wl-keys'><span><kbd>W A S D</kbd> move</span><span><kbd>← ↑ → ↓</kbd> shoot ink</span><span><kbd>E</kbd> bang</span><span><kbd>Space</kbd> use a verb</span><span><kbd>Tab</kbd> map</span><span><kbd>Esc</kbd> pause</span><span>Gamepads work too</span></div>
+      <div className='wl-keys'><span><kbd>W A S D</kbd> move</span><span><kbd>← ↑ → ↓</kbd> shoot ink</span><span><kbd>E</kbd> bang</span><span><kbd>Space</kbd> use a verb</span><span><kbd>Tab</kbd> map</span><span><kbd>Esc</kbd> pause</span><span>🎮 Xbox controllers: left stick moves, right stick or Ⓨ Ⓐ Ⓧ Ⓑ shoot, LB/LT bang, RB/RT use, View map, Menu pause</span></div>
+      {padOn && <p className='wl-pad-hint'>🎮 Controller connected: ← → choose a character, Ⓐ start{v.run ? ', Ⓨ continue' : ''}.</p>}
       <div className='wl-grid'>
         <section className='wl-panel'>
           <h3>Progress</h3>
@@ -136,6 +146,7 @@ function Game ({ init, settings, onEnd, onQuit }) {
   const [musicOn, setMusicOn] = useState(() => { try { return localStorage.getItem('wl-music') !== 'off' } catch { return true } })
   const [over, setOver] = useState(null)
   const keys = useRef({ held: new Set(), shoot: [], bang: false, use: false, map: false })
+  const padMap = useRef(false)
   const pause = useCallback((on) => { pausedRef.current = on; setPaused(on); if (on) play('door') }, [])
 
   useEffect(() => { setVolume((settings?.soundVolume ?? 70) / 100) }, [settings?.soundVolume])
@@ -179,7 +190,9 @@ function Game ({ init, settings, onEnd, onQuit }) {
     let saveTimer = null
     const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (!run.over) api('wirdlikeSave', serialize(run)).catch(() => {}) }, 400) }
     save()
-    const pad = { bang: false, use: false, start: false }
+    // The controller is read once a frame; its presses go to the first tick.
+    const edges = new PadEdges()
+    let pad = { s: null, pressed: {} }
     const input = () => {
       const k = keys.current
       let mx = 0; let my = 0
@@ -187,19 +200,14 @@ function Game ({ init, settings, onEnd, onQuit }) {
       let [sx, sy] = k.shoot.length ? SHOOT[k.shoot[k.shoot.length - 1]] : [0, 0]
       let bang = k.bang; let use = k.use
       k.bang = false; k.use = false
-      // A gamepad: left stick moves, right stick (or the face buttons) shoots.
-      const gp = navigator.getGamepads?.()?.find((g) => g && g.connected)
-      if (gp) {
-        const dz = (x) => (Math.abs(x) > 0.25 ? x : 0)
-        mx += dz(gp.axes[0] || 0); my += dz(gp.axes[1] || 0)
-        const rx = dz(gp.axes[2] || 0); const ry = dz(gp.axes[3] || 0)
-        if (rx || ry) { sx = rx; sy = ry }
-        const b = (i) => Boolean(gp.buttons[i]?.pressed)
-        if (!sx && !sy) { if (b(3)) sy = -1; else if (b(0)) sy = 1; else if (b(2)) sx = -1; else if (b(1)) sx = 1 }
-        if (b(4) && !pad.bang) bang = true
-        if ((b(5) || b(7)) && !pad.use) use = true
-        if (b(9) && !pad.start) pause(!pausedRef.current)
-        pad.bang = b(4); pad.use = b(5) || b(7); pad.start = b(9)
+      // A controller: left stick moves, right stick or Y/A/X/B shoots.
+      const s = pad.s
+      if (s) {
+        mx += s.lx; my += s.ly
+        if (s.rx || s.ry) { sx = s.rx; sy = s.ry } else if (!sx && !sy) { if (s.y) sy = -1; else if (s.a) sy = 1; else if (s.x) sx = -1; else if (s.b) sx = 1 }
+        if (pad.pressed.lb || pad.pressed.lt) bang = true
+        if (pad.pressed.rb || pad.pressed.rt) use = true
+        pad.pressed = {}
       }
       return { mx, my, sx, sy, bang, use }
     }
@@ -216,6 +224,9 @@ function Game ({ init, settings, onEnd, onQuit }) {
     const frame = (now) => {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
+      pad = edges.read()
+      if (pad.pressed.menu && !run.over) pause(!pausedRef.current)
+      padMap.current = Boolean(pad.s?.view)
       if (!pausedRef.current && !(run.over && ended)) {
         acc += dt
         while (acc >= DT) {
@@ -234,6 +245,9 @@ function Game ({ init, settings, onEnd, onQuit }) {
               if (e.k === 'enter' || e.k === 'floor') { chapterMusic(); save() }
               if (e.k === 'clear') chapterMusic()
               if (e.k === 'item' || e.k === 'transform' || e.k === 'dealDoor') setTick((t) => t + 1)
+              if (e.k === 'hurt') rumble(0.7, 0.4, 180)
+              if (e.k === 'boom') rumble(0.9, 0.6, 220)
+              if (e.k === 'bossDie') rumble(1, 0.8, 500)
             }
           }
         }
@@ -256,7 +270,7 @@ function Game ({ init, settings, onEnd, onQuit }) {
         const ctx = c.getContext('2d')
         const scale = c.width / ROOM_W
         ctx.setTransform(scale, 0, 0, scale, 0, 0)
-        drawRun(ctx, run, fx, now / 1000, { bigMap: keys.current.map })
+        drawRun(ctx, run, fx, now / 1000, { bigMap: keys.current.map || padMap.current })
         if (run.over && !run.over.won) { ctx.fillStyle = 'rgba(20,0,0,.35)'; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
       }
       raf = requestAnimationFrame(frame)
@@ -295,10 +309,23 @@ function Pause ({ run, onResume, onSave, onGiveUp, musicOn, setMusicOn }) {
   const p = run.p
   const s = p.stats
   const [sure, setSure] = useState(false)
+  // With a controller: left and right choose a button, A presses it, B resumes.
+  const box = useRef(null)
+  const [focus, setFocus] = useState(0)
+  const buttons = () => [...(box.current?.querySelectorAll('.wl-pause-actions button') || [])]
+  const pad = usePadMenu({
+    left: () => setFocus((f) => Math.max(0, f - 1)),
+    up: () => setFocus((f) => Math.max(0, f - 1)),
+    right: () => setFocus((f) => Math.min(buttons().length - 1, f + 1)),
+    down: () => setFocus((f) => Math.min(buttons().length - 1, f + 1)),
+    a: () => buttons()[focus]?.click(),
+    b: onResume
+  })
+  useEffect(() => { buttons().forEach((el, i) => el.classList.toggle('pad-focus', pad && i === focus)) })
   const all = [...(p.active ? [p.active.item] : []), ...p.items]
   return (
     <div className='wl-pause'>
-      <div className='wl-pause-card'>
+      <div className='wl-pause-card' ref={box}>
         <h2>Paused <small>{FLOORS[run.fi].name} · {fmtTime(run.t)} · seed {run.seed}</small></h2>
         <div className='wl-pause-grid'>
           <dl className='wl-stats small'>
@@ -313,6 +340,7 @@ function Pause ({ run, onResume, onSave, onGiveUp, musicOn, setMusicOn }) {
             {p.transforms.length > 0 && <p className='wl-note'>You are: {p.transforms.map((t) => TRANSFORMS[t].name).join(', ')}</p>}
           </div>
         </div>
+        {pad && <p className='wl-note'>🎮 Left and right to choose, A to press, B to resume, Menu to pause and unpause.</p>}
         <div className='wl-pause-actions'>
           <button className='btn primary' onClick={onResume}>Resume</button>
           <button className='btn ghost' onClick={() => setMusicOn(!musicOn)}>{musicOn ? 'Music off' : 'Music on'}</button>
@@ -327,6 +355,7 @@ function Pause ({ run, onResume, onSave, onGiveUp, musicOn, setMusicOn }) {
 // --- the note left behind ---------------------------------------------------------------
 function EndNote ({ ending, onAgain, onMenu }) {
   const { summary: s, reward: r } = ending
+  const pad = usePadMenu({ a: onAgain, menu: onAgain, b: onMenu })
   const name = { wirdo: 'Wirdo', q: 'Q', x: 'X', o: 'O', z: 'Z', query: '?' }[s.char] || 'Wirdo'
   return (
     <div className='page wl-end'>
@@ -349,8 +378,8 @@ function EndNote ({ ending, onAgain, onMenu }) {
           </div>
         )}
         <div className='wl-pause-actions'>
-          <button className='btn primary' onClick={onAgain}>Go again</button>
-          <button className='btn ghost' onClick={onMenu}>Back</button>
+          <button className='btn primary' onClick={onAgain}>{pad ? 'Ⓐ ' : ''}Go again</button>
+          <button className='btn ghost' onClick={onMenu}>{pad ? 'Ⓑ ' : ''}Back</button>
         </div>
       </div>
     </div>

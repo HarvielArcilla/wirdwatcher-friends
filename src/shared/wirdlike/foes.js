@@ -109,6 +109,9 @@ export function foeApi (run) {
   return api
 }
 
+// Hitting the wrong homophone heals the right one by this share of the hit.
+const HOMOPHONE_HEAL = 0.3
+
 // --- shared behaviours ---------------------------------------------------------------
 const chaser = (spd) => (e, a, dt) => a.chase(e, spd, dt)
 const glyph = (ch, col, size = 1, extra = {}) => ({ k: 'glyph', ch, col, size, ...extra })
@@ -413,7 +416,7 @@ export const FOES = {
       const ctl = e.parent
       if (ctl && !ctl.dead && ctl.data.right !== e.data.n) {
         const right = a.kin(e, ['homoWord']).find((w) => w.data.n === ctl.data.right)
-        if (right) right.hp = Math.min(right.maxHp, right.hp + dmg * 0.6)
+        if (right) right.hp = Math.min(right.maxHp, right.hp + dmg * HOMOPHONE_HEAL)
         a.ev({ k: 'block', x: e.x, y: e.y })
         return 0
       }

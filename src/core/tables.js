@@ -293,7 +293,7 @@ export class Tables {
       at: g.at, // lanes crossed safely
       letters: [...g.word.toUpperCase()].map((l, i) => (i < g.at || g.done ? l : null)),
       clue: g.clue,
-      mults: Array.from({ length: lanes }, (_, i) => pcMult(g.level, i + 1)),
+      mults: Array.from({ length: lanes }, (_, i) => pcMult(g.level, i + 1, i + 1 === lanes)),
       cashNow: g.at > 0 && !g.done ? pcPayout(g.stake, g.level, g.at) : null,
       done: g.done,
       hit: g.done && g.hit !== null ? g.hit : null, // the island that crumbled
@@ -328,7 +328,7 @@ export class Tables {
     const g = this._pc()
     if ((g.crack ?? g.car) === g.at) { g.hit = g.at; return this._pcEnd(g, 0) }
     g.at++
-    if (g.at === g.word.length) { this.s.penguin.crossed++; return this._pcEnd(g, pcPayout(g.stake, g.level, g.at)) }
+    if (g.at === g.word.length) { this.s.penguin.crossed++; return this._pcEnd(g, pcPayout(g.stake, g.level, g.at, true)) }
     this._commit()
     return this.pcView()
   }
@@ -342,7 +342,7 @@ export class Tables {
   _pcEnd (g, paid) {
     g.done = true
     g.paid = paid
-    if (paid) this.s.penguin.best = Math.max(this.s.penguin.best || 0, pcMult(g.level, g.at))
+    if (paid) this.s.penguin.best = Math.max(this.s.penguin.best || 0, pcMult(g.level, g.at, g.at === g.word.length))
     this._settle('penguin', g.stake, paid)
     this._commit()
     return this.pcView()
