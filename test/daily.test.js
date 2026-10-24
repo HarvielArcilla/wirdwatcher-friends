@@ -52,7 +52,13 @@ test('quests count what you do and pay when claimed; all three in a row builds a
 test('Daily Clues: clues cost points, a right guess pays, and the result can be shared without the word', () => {
   const a = app()
   const word = a.daily.word()
-  assert.equal(a.daily.cluesView().word, null)
+  const start = a.daily.cluesView()
+  assert.equal(start.word, null)
+  // It starts with something to go on: what kind of word, a first letter, a meaning.
+  assert.ok(start.clues.some((c) => c.kind === 'pos'), 'shows the kind of word')
+  assert.ok(start.clues.some((c) => c.kind === 'def' || c.kind === 'syn'), 'shows a first meaning')
+  assert.ok(start.pattern.some((x) => x), 'a letter is showing')
+  assert.equal(start.worth, 100, 'the starting hints are free')
   a.daily.nextClue()
   a.daily.guess('notthewordatall')
   const done = a.daily.guess(word.toUpperCase())

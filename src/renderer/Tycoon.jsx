@@ -254,62 +254,227 @@ function Company ({ init, settings, onEnd, onQuit }) {
   )
 }
 
-// The office: desks, people at them, and what they're producing.
+// The office: an illustrated room that grows with the company. Desks with
+// the machines of the day (typewriters, beige CRTs, flat screens, laptops),
+// the people at them, the books you've published on the shelf, your best
+// review framed on the wall, and the year on the calendar.
+const SKIN = ['#f2d0b0', '#e8b890', '#c8906a', '#a06a48', '#7a4a30', '#f6dcc4']
+const HAIR = ['#2a1e16', '#5a3a22', '#8a5a2a', '#c8963a', '#e8c878', '#9a9a9a', '#b83a2a', '#1a1a1a']
+const SUBJECT_HUE = Object.fromEntries(SUBJECTS.map((x, i) => [x.id, (i * 47) % 360]))
+const hashId = (n) => { let h = Math.imul(n | 0, 2654435761) >>> 0; h = (h ^ (h >>> 13)) >>> 0; return h }
+
+function Person ({ p, busy }) {
+  const h = hashId(p.id + 7)
+  const skin = SKIN[h % SKIN.length]
+  const hair = HAIR[(h >> 4) % HAIR.length]
+  const style = (h >> 8) % 4
+  const shirt = ROLE_COLOR[p.role]
+  return (
+    <g className={`lx-person ${busy ? 'busy' : ''}`}>
+      <path d='M-17 -14 Q-17 -34 0 -34 Q17 -34 17 -14 Z' fill={shirt} />
+      <path d='M-6 -34 L0 -28 L6 -34 Z' fill='#fff' opacity='.7' />
+      <rect x={-3.5} y={-38} width={7} height={6} fill={skin} />
+      <g className='lx-arms'>
+        <path d='M-16 -24 Q-20 -12 -12 -8' stroke={shirt} strokeWidth={6} fill='none' strokeLinecap='round' />
+        <path d='M16 -24 Q20 -12 12 -8' stroke={shirt} strokeWidth={6} fill='none' strokeLinecap='round' />
+        <circle cx={-11} cy={-8} r={3} fill={skin} /><circle cx={11} cy={-8} r={3} fill={skin} />
+      </g>
+      {style === 2 && <path d='M-12 -50 Q-14 -34 -10 -30 L10 -30 Q14 -34 12 -50 Z' fill={hair} />}
+      <ellipse cx={0} cy={-47} rx={10} ry={11} fill={skin} />
+      {style === 0 && <path d='M-10 -49 Q-10 -60 0 -60 Q10 -60 10 -49 Q6 -54 0 -53 Q-6 -54 -10 -49 Z' fill={hair} />}
+      {style === 1 && <path d='M-11 -46 Q-12 -61 0 -61 Q12 -61 11 -46 L9 -50 Q0 -56 -9 -50 Z' fill={hair} />}
+      {style === 2 && <path d='M-10 -48 Q-11 -60 0 -60 Q11 -60 10 -48 Q4 -55 -4 -53 Z' fill={hair} />}
+      {style === 3 && <><path d='M-10 -50 Q-9 -59 0 -59 Q9 -59 10 -50 Q0 -55 -10 -50 Z' fill={hair} /><circle cx={0} cy={-62} r={5} fill={hair} /></>}
+      <circle cx={-3.5} cy={-46} r={1.3} fill='#2a2030' /><circle cx={3.5} cy={-46} r={1.3} fill='#2a2030' />
+      <path d='M-2.5 -41.5 Q0 -40 2.5 -41.5' stroke='#7a4a3a' strokeWidth={1} fill='none' strokeLinecap='round' />
+    </g>
+  )
+}
+
+function Machine ({ yr, busy }) {
+  if (yr < 1990) {
+    return (
+      <g className='lx-machine'>
+        <rect x={-15} y={-30} width={30} height={14} rx={1} fill='#f6f2e8' />
+        <rect x={-19} y={-18} width={38} height={12} rx={3} fill='#3a3a40' />
+        <rect x={-15} y={-12} width={30} height={4} rx={1} fill='#5a5a62' />
+        <rect x={-22} y={-20} width={44} height={3} rx={1.5} fill='#2a2a30' />
+      </g>
+    )
+  }
+  if (yr < 2000) {
+    return (
+      <g className='lx-machine'>
+        <rect x={-16} y={-36} width={32} height={28} rx={3} fill='#e2dccb' />
+        <rect x={-12} y={-32} width={24} height={18} rx={2} className={busy ? 'lx-screen on' : 'lx-screen'} />
+        <rect x={-8} y={-8} width={16} height={3} fill='#cfc8b4' />
+        <rect x={-18} y={-5} width={36} height={4} rx={1} fill='#d8d2c0' />
+      </g>
+    )
+  }
+  if (yr < 2015) {
+    return (
+      <g className='lx-machine'>
+        <rect x={-18} y={-38} width={36} height={23} rx={2} fill='#2a2c34' />
+        <rect x={-16} y={-36} width={32} height={19} rx={1} className={busy ? 'lx-screen on' : 'lx-screen'} />
+        <rect x={-2} y={-15} width={4} height={8} fill='#3a3c44' />
+        <rect x={-9} y={-8} width={18} height={2.5} rx={1} fill='#3a3c44' />
+        <rect x={-14} y={-4} width={28} height={3} rx={1} fill='#e8e8ec' />
+      </g>
+    )
+  }
+  return (
+    <g className='lx-machine'>
+      <path d='M-15 -6 L-12 -26 L12 -26 L15 -6 Z' fill='#b8bcc6' />
+      <path d='M-13 -8 L-10.5 -24 L10.5 -24 L13 -8 Z' className={busy ? 'lx-screen on' : 'lx-screen'} />
+      <rect x={-18} y={-6} width={36} height={3} rx={1.5} fill='#d8dce4' />
+      <rect x={22} y={-14} width={7} height={11} rx={1.5} fill='#2a2c34' />
+    </g>
+  )
+}
+
+function Desk ({ x, y, s, person, yr, busy, lvl, papers }) {
+  const wood = ['#9a6a3a', '#8a5a32', '#6a3a1e', '#e8e8ec'][lvl]
+  const front = ['#7a5028', '#6a4224', '#4a2612', '#c8ccd4'][lvl]
+  return (
+    <g transform={`translate(${x}, ${y}) scale(${s})`} className={`lx-desk ${person ? '' : 'empty'}`}>
+      <ellipse cx={0} cy={40} rx={64} ry={7} fill='rgba(0,0,0,.18)' />
+      {person && <rect x={-18} y={-50} width={36} height={44} rx={8} fill='#3a3a48' />}
+      {person && <Person p={person} busy={busy} />}
+      <path d='M-56 -6 L56 -6 L60 2 L-60 2 Z' fill={wood} />
+      <rect x={-58} y={2} width={116} height={34} rx={2} fill={front} />
+      <rect x={20} y={8} width={32} height={10} rx={1.5} fill='rgba(255,255,255,.08)' stroke='rgba(0,0,0,.2)' />
+      <rect x={20} y={21} width={32} height={10} rx={1.5} fill='rgba(255,255,255,.08)' stroke='rgba(0,0,0,.2)' />
+      <circle cx={36} cy={13} r={1.4} fill='#d8b860' /><circle cx={36} cy={26} r={1.4} fill='#d8b860' />
+      {person && <g transform={yr < 1990 ? 'translate(0, -6)' : 'translate(-30, -6) scale(.95)'}><Machine yr={yr} busy={busy} /></g>}
+      {person && papers > 0 && <g transform={yr < 1990 ? 'translate(-44, -6)' : 'translate(14, -6)'}>{Array.from({ length: papers }, (_, i) => <rect key={i} x={-7 + (i % 2)} y={-3 - i * 2.2} width={15} height={2.4} fill={i % 2 ? '#f4efe4' : '#fffaf0'} stroke='#d8ccb4' strokeWidth={0.4} />)}</g>}
+      {person && <g transform='translate(42, -6)'><rect x={-4} y={-9} width={8} height={9} rx={1.5} fill={['#c84a3a', '#3a7ad0', '#e8b830', '#3aa070'][hashId(person.id) % 4]} /><path d='M4 -7 Q8 -5 4 -3' stroke='#888' fill='none' strokeWidth={1.2} /></g>}
+      {person && <text y={50} className='lx-label'>{person.founder ? 'You' : person.name.split(' ')[0]}</text>}
+    </g>
+  )
+}
+
 function Office ({ g, pops }) {
   const lvl = g.office
+  const yr = year(g)
   const W = 640
   const H = 360
-  const cols = [1, 2, 4, 4][lvl]
+  const busy = Boolean(g.project && (g.project.waiting === null || g.project.waiting === 'proofing'))
   const rows = [1, 2, 2, 3][lvl]
+  const cols = [1, 2, 4, 4][lvl]
   const desks = OFFICES[lvl].staff
-  const busy = g.project && (g.project.waiting === null || g.project.waiting === 'proofing')
+  const p = g.project
+  const papers = p ? Math.min(6, Math.round(((p.stage * p.stageWeeks + p.inStage) / (p.stageWeeks * 3)) * 6)) : 0
   const slot = (i) => {
-    const c = i % cols
     const r = Math.floor(i / cols)
-    const x = W * (0.12 + (0.76 * (c + 0.5)) / cols)
-    const yy = rows > 1 ? 205 + r * (122 / (rows - 1)) : 260
-    return [x, yy]
+    const c = i % cols
+    const depth = rows > 1 ? r / (rows - 1) : 1
+    const s = [1.15, 0.92, 0.72, 0.6][lvl] * (0.82 + 0.18 * depth)
+    const spread = (cols === 1 ? 0 : 330 + depth * 150) * (lvl >= 2 ? 1.05 : 0.9)
+    const x = W / 2 + (cols === 1 ? 0 : (c / (cols - 1) - 0.5) * spread)
+    const y = rows > 1 ? 248 + depth * 58 : 272
+    return { x, y, s }
   }
-  const scale = [1.1, 1, 0.8, 0.68][lvl]
+  const books = g.books.slice(0, 44).reverse()
+  const best = g.books.reduce((x, b) => (!x || b.score > x.score ? b : x), null)
+  const sky = yr < 2000 ? ['#9fd0f0', '#e8f4fc'] : yr < 2015 ? ['#88c0ec', '#dcefff'] : ['#f0a070', '#fcd8a8']
+  const walls = ['#a8a49c', '#e8dcc4', '#b98a5a', '#dfe6ee'][lvl]
   return (
     <div className={`lx-office lvl-${lvl}`}>
       <svg viewBox={`0 0 ${W} ${H}`} role='img' aria-label={OFFICES[lvl].name}>
-        <rect className='wall' x={0} y={0} width={W} height={150} />
-        <rect className='floor' x={0} y={150} width={W} height={H - 150} />
-        {lvl === 0 && <><rect className='door' x={20} y={30} width={160} height={120} rx={4} /><g className='door-lines'>{[0, 1, 2, 3, 4, 5].map((i) => <line key={i} x1={20} x2={180} y1={50 + i * 18} y2={50 + i * 18} />)}</g><rect className='shelf' x={470} y={60} width={140} height={90} /></>}
-        {lvl >= 1 && <><rect className='window' x={40} y={24} width={lvl >= 3 ? 560 : 150} height={90} rx={4} />{lvl >= 3 && <g className='skyline'>{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => <rect key={i} x={50 + i * 55} y={60 + ((i * 37) % 40)} width={40} height={54 - ((i * 37) % 40)} />)}</g>}</>}
-        {lvl >= 1 && lvl < 3 && <><rect className='shelf' x={230} y={40} width={lvl >= 2 ? 360 : 180} height={100} />{Array.from({ length: lvl >= 2 ? 30 : 15 }, (_, i) => <rect key={i} className='book' x={236 + (i % 15) * 11.5 + (i >= 15 ? 180 : 0)} y={i % 2 ? 50 : 96} width={9} height={36} style={{ '--h': (i * 47) % 360 }} />)}</>}
-        {lvl === 0 && Array.from({ length: 10 }, (_, i) => <rect key={i} className='book' x={476 + i * 13} y={i % 2 ? 70 : 108} width={10} height={34} style={{ '--h': (i * 61) % 360 }} />)}
-        {Array.from({ length: desks }, (_, i) => {
-          const [x, yy] = slot(i)
-          const person = g.staff[i]
+        <defs>
+          <linearGradient id='lx-sky' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stopColor={sky[0]} /><stop offset='1' stopColor={sky[1]} /></linearGradient>
+          <linearGradient id='lx-floor' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stopColor='rgba(0,0,0,.18)' /><stop offset='.4' stopColor='rgba(0,0,0,0)' /></linearGradient>
+          <pattern id='lx-paper' width='14' height='14' patternUnits='userSpaceOnUse'><rect width='14' height='14' fill={walls} /><path d='M0 7 H14' stroke='rgba(0,0,0,.05)' /></pattern>
+          <pattern id='lx-panel' width='60' height='200' patternUnits='userSpaceOnUse'><rect width='60' height='200' fill={walls} /><rect x='4' y='10' width='52' height='70' rx='3' fill='none' stroke='rgba(0,0,0,.14)' strokeWidth='2' /><rect x='4' y='96' width='52' height='90' rx='3' fill='none' stroke='rgba(0,0,0,.14)' strokeWidth='2' /></pattern>
+          <pattern id='lx-blocks' width='40' height='20' patternUnits='userSpaceOnUse'><rect width='40' height='20' fill={walls} /><path d='M0 19.5 H40 M20 0 V10 M0 10 H40 M40 10 V20' stroke='rgba(0,0,0,.09)' fill='none' /></pattern>
+        </defs>
+        {/* The wall. */}
+        <rect x={0} y={0} width={W} height={210} fill={lvl === 0 ? 'url(#lx-blocks)' : lvl === 2 ? 'url(#lx-panel)' : 'url(#lx-paper)'} />
+        {lvl === 1 && <rect x={0} y={150} width={W} height={60} fill='#c8b896' opacity='.45' />}
+        {lvl === 0 && (
+          <g>
+            <rect x={24} y={30} width={190} height={180} rx={3} fill='#c8c4bc' stroke='#8a867e' strokeWidth={4} />
+            {Array.from({ length: 9 }, (_, i) => <rect key={i} x={28} y={36 + i * 19} width={182} height={15} fill={i % 2 ? '#bab6ae' : '#d0ccc4'} />)}
+            <rect x={110} y={196} width={18} height={6} rx={2} fill='#6a665e' />
+            <rect x={470} y={34} width={140} height={84} rx={2} fill='#c8a878' />
+            {Array.from({ length: 30 }, (_, i) => <circle key={i} cx={480 + (i % 10) * 13} cy={44 + Math.floor(i / 10) * 13} r={1.6} fill='#8a6a42' />)}
+            <path d='M500 60 l10 30 M540 54 l0 34 M575 58 l-8 30' stroke='#5a5a62' strokeWidth={4} strokeLinecap='round' />
+            <path d='M260 0 V40' stroke='#3a3a40' strokeWidth={2} /><path d='M248 40 h24 l-6 12 h-12 Z' fill='#3a3a40' /><ellipse cx={260} cy={56} rx={20} ry={8} fill='#fff6c8' opacity={busy ? 0.55 : 0.25} />
+          </g>
+        )}
+        {lvl >= 1 && (
+          <g>
+            <rect x={lvl === 3 ? 20 : 30} y={22} width={lvl === 3 ? 600 : 170} height={lvl === 3 ? 150 : 110} rx={4} fill='url(#lx-sky)' stroke={lvl === 3 ? '#9aa6b4' : '#fff'} strokeWidth={lvl === 3 ? 4 : 7} />
+            {lvl === 3 && <g fill='#6a7c94' opacity='.85'>{Array.from({ length: 14 }, (_, i) => { const h = 40 + ((i * 53) % 70); return <rect key={i} x={26 + i * 43} y={168 - h} width={36} height={h} /> })}</g>}
+            {lvl === 3 && <g fill='#fff8d0' opacity='.6'>{Array.from({ length: 60 }, (_, i) => { const bx = 30 + (i % 14) * 43 + ((i * 7) % 3) * 9; const by = 150 - Math.floor(i / 14) * 12; return <rect key={i} x={bx} y={by} width={4} height={5} /> })}</g>}
+            {lvl === 3 && Array.from({ length: 5 }, (_, i) => <rect key={i} x={20 + i * 150} y={22} width={4} height={150} fill='#9aa6b4' />)}
+            {lvl < 3 && <><path d={`M${lvl === 3 ? 20 : 30} 77 H${lvl === 3 ? 620 : 200}`} stroke='#fff' strokeWidth={5} /><path d='M115 22 V132' stroke='#fff' strokeWidth={5} /></>}
+            {lvl < 3 && <g fill='#fff' opacity='.85'><ellipse cx={70} cy={50} rx={18} ry={6} /><ellipse cx={82} cy={46} rx={12} ry={6} /></g>}
+          </g>
+        )}
+        {/* The shelf: every book you've published. */}
+        {(() => {
+          const sx = lvl === 0 ? 300 : lvl === 3 ? 350 : 240
+          const sw = lvl === 0 ? 150 : lvl === 3 ? 0 : lvl === 2 ? 370 : 200
+          if (!sw) return null
+          const per = Math.floor((sw - 10) / 9)
           return (
-            <g key={i} transform={`translate(${x}, ${yy}) scale(${scale})`} className={`desk ${person ? '' : 'empty'} ${busy && person ? 'busy' : ''}`}>
-              {person && (
-                <g className='person' style={{ '--pc': ROLE_COLOR[person.role] }}>
-                  <circle cx={0} cy={-34} r={11} className='head' />
-                  <path d='M-15 -6 Q-15 -22 0 -22 Q15 -22 15 -6 Z' className='body' />
-                  <text y={-30} className='initial'>{person.name[0]}</text>
-                </g>
-              )}
-              <rect x={-36} y={-8} width={72} height={10} rx={2} className='top' />
-              <rect x={-32} y={2} width={4} height={22} className='leg' />
-              <rect x={28} y={2} width={4} height={22} className='leg' />
-              {person && <rect x={-12} y={-20} width={24} height={13} rx={2} className={`machine ${g.office >= 1 && year(g) >= 1990 ? 'pc' : 'type'}`} />}
-              {person && <text y={34} className='label'>{person.founder ? 'You' : person.name.split(' ')[0]}</text>}
+            <g>
+              {[0, 1].map((r) => <rect key={r} x={sx} y={62 + r * 56} width={sw} height={6} fill='#5a3a1e' />)}
+              <rect x={sx - 6} y={18} width={6} height={160} fill='#4a2e16' /><rect x={sx + sw} y={18} width={6} height={160} fill='#4a2e16' />
+              {books.slice(0, per * 2).map((b, i) => {
+                const r = Math.floor(i / per)
+                const k = i % per
+                const hgt = 30 + SIZES.findIndex((z) => z.id === b.size) * 5
+                return <rect key={b.id} x={sx + 5 + k * 9} y={62 + r * 56 - hgt} width={8} height={hgt} rx={1} fill={`hsl(${SUBJECT_HUE[b.subject]}, ${b.score >= 8 ? 60 : 40}%, ${b.score >= 8 ? 45 : 38}%)`}><title>{`${b.title} (${b.score.toFixed(1)})`}</title></rect>
+              })}
+              {!books.length && <text x={sx + sw / 2} y={50} className='lx-wall-note'>your books go here</text>}
             </g>
           )
+        })()}
+        {/* Your best review, framed. */}
+        {best && (
+          <g transform={`translate(${lvl === 0 ? 488 : lvl === 3 ? 470 : lvl === 2 ? 60 : 470}, ${lvl === 3 ? 182 : lvl === 2 ? 138 : 130})`}>
+            <rect x={0} y={0} width={96} height={lvl === 3 ? 0 : 66} fill='#5a3a1e' />
+            {lvl !== 3 && <><rect x={5} y={5} width={86} height={56} fill='#fbf6ea' /><text x={48} y={30} className='lx-frame-score'>{best.score.toFixed(1)}</text><text x={48} y={44} className='lx-frame-t'>{best.title.length > 22 ? `${best.title.slice(0, 21)}…` : best.title}</text><text x={48} y={54} className='lx-frame-by'>{best.reviews[0]?.by}</text></>}
+          </g>
+        )}
+        {/* The calendar. */}
+        <g transform={`translate(${lvl === 3 ? 590 : lvl === 0 ? 236 : 210}, ${lvl === 3 ? 186 : lvl === 0 ? 120 : 140})`}>
+          <rect x={-18} y={0} width={36} height={34} rx={2} fill='#fff' stroke='#c8c0b0' />
+          <rect x={-18} y={0} width={36} height={10} rx={2} fill='#c84a3a' />
+          <text x={0} y={8} className='lx-cal-m'>{MONTHS_SHORT[Math.min(11, Math.floor(((g.week % 52) / 52) * 12))]}</text>
+          <text x={0} y={27} className='lx-cal-y'>{yr}</text>
+        </g>
+        {/* The floor. */}
+        <rect x={0} y={210} width={W} height={H - 210} fill={['#8a8680', '#b88a5a', '#7a4a2a', '#6a7480'][lvl]} />
+        {lvl === 0 && <g stroke='rgba(0,0,0,.08)'>{[250, 300].map((yy) => <path key={yy} d={`M0 ${yy} H${W}`} />)}<path d='M210 210 L120 360 M430 210 L520 360' /></g>}
+        {(lvl === 1 || lvl === 2) && <g stroke='rgba(0,0,0,.12)'>{Array.from({ length: 13 }, (_, i) => <path key={i} d={`M${320 + (i - 6) * 40} 210 L${320 + (i - 6) * 110} 360`} />)}{[232, 262, 302].map((yy) => <path key={yy} d={`M0 ${yy} H${W}`} />)}</g>}
+        {lvl === 2 && <ellipse cx={320} cy={300} rx={250} ry={48} fill='#8a2a2a' opacity='.55' />}
+        {lvl === 3 && <g stroke='rgba(255,255,255,.12)'>{Array.from({ length: 9 }, (_, i) => <path key={i} d={`M${320 + (i - 4) * 80} 210 L${320 + (i - 4) * 200} 360`} />)}{[236, 276].map((yy) => <path key={yy} d={`M0 ${yy} H${W}`} />)}</g>}
+        <rect x={0} y={210} width={W} height={60} fill='url(#lx-floor)' />
+        <rect x={0} y={206} width={W} height={6} fill='rgba(0,0,0,.18)' />
+        {/* A plant or two, and the water cooler. */}
+        {lvl >= 1 && <g transform='translate(36, 300)'><path d='M-12 0 L12 0 L9 22 L-9 22 Z' fill='#c8643a' /><path d='M0 0 Q-20 -30 -6 -46 M0 0 Q4 -40 14 -50 M0 0 Q18 -24 22 -30 M0 0 Q-14 -10 -24 -16' stroke='#3a8a4a' strokeWidth={5} fill='none' strokeLinecap='round' /></g>}
+        {lvl >= 2 && <g transform='translate(606, 300)'><path d='M-12 0 L12 0 L9 22 L-9 22 Z' fill='#3a4a5a' /><circle cx={0} cy={-26} r={22} fill='#4a9a5a' /><circle cx={-10} cy={-34} r={12} fill='#5aaa6a' /></g>}
+        {lvl === 1 && <g transform='translate(604, 236)'><rect x={-12} y={0} width={24} height={44} rx={3} fill='#e8ecf0' /><rect x={-10} y={-26} width={20} height={26} rx={6} fill='#9ac8ec' opacity='.85' /><rect x={-4} y={14} width={8} height={4} fill='#5a6a7a' /></g>}
+        {/* The desks, back row first. */}
+        {Array.from({ length: desks }, (_, i) => i).sort((a, b) => Math.floor(a / cols) - Math.floor(b / cols)).map((i) => {
+          const { x, y, s } = slot(i)
+          return <Desk key={i} x={x} y={y} s={s} person={g.staff[i]} yr={yr} busy={busy} lvl={lvl} papers={papers} />
         })}
-        {pops.map((p) => {
-          const i = g.staff.findIndex((x) => x.id === p.who)
+        {pops.map((pp) => {
+          const i = g.staff.findIndex((x) => x.id === pp.who)
           if (i < 0) return null
-          const [x, yy] = slot(i)
-          return <text key={p.id} className={`pop k-${p.kind}`} x={x + ((p.id * 13) % 30) - 15} y={yy - 50 * scale}>{p.kind === 's' ? 'S' : p.kind === 'c' ? 'C' : p.kind === 'typo' ? 'typo!' : '✓'}</text>
+          const { x, y, s } = slot(i)
+          return <text key={pp.id} className={`pop k-${pp.kind}`} x={x + ((pp.id * 13) % 30) - 15} y={y - 70 * s}>{pp.kind === 's' ? 'S' : pp.kind === 'c' ? 'C' : pp.kind === 'typo' ? 'typo!' : '✓'}</text>
         })}
       </svg>
     </div>
   )
 }
+const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 function Project ({ g, onAlloc, onRelease }) {
   const p = g.project

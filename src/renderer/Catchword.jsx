@@ -315,7 +315,7 @@ function Game ({ init, settings, onEnd, onQuit }) {
           <b>{g.word}</b>
           <small>{g.from?.length === 2 ? `${g.from[0]} + ${g.from[1]} · ` : ''}{DIFFICULTIES[g.difficulty].name}</small>
         </div>
-        <div className='cw-day'><small>Day</small><b>{g.day}</b></div>
+        <div className='cw-day' title={g.day > MAX_DAYS - 200 ? `The world moves on to newer words at day ${MAX_DAYS}` : undefined}><small>Day</small><b>{g.day}</b>{g.day > MAX_DAYS - 200 && <small className='cw-late'>of {MAX_DAYS}</small>}</div>
         <div className='seg cw-speed' aria-label='Speed'>
           {['❚❚', '▶', '▶▶', '▶▶▶'].map((t, i) => <button key={i} className={speed === i ? 'on' : ''} onClick={() => setSpeed(i)} title={i ? `${i}× speed (${i})` : 'Pause (Space)'}>{t}</button>)}
         </div>

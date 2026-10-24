@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { WirdApp } from '../src/core/app.js'
 import { itemFor, describe, sampleWords, TRANSFORMS } from '../src/shared/wirdlike/items.js'
 import { genFloor, connected, DOOR_CELLS } from '../src/shared/wirdlike/floor.js'
-import { newRun, step, enterRoom, spawnFoe, serialize, restore, startFloor, giveItem, DT } from '../src/shared/wirdlike/engine.js'
+import { newRun, step, enterRoom, spawnFoe, serialize, restore, startFloor, giveItem, drawItem, blocked, freeSpot, DT } from '../src/shared/wirdlike/engine.js'
 import { FOES } from '../src/shared/wirdlike/foes.js'
 import { FLOORS, NAMED_BOSSES, SINS, T, WIRDLIKE_COSMETICS, MIN_RATED } from '../src/shared/wirdlike/content.js'
 import { COSMETICS, cleanLook } from '../src/shared/cosmetics.js'
@@ -223,4 +223,39 @@ test('play testers: swapping actives reuses the pedestal, and a boss room stays 
     assert.equal(r.items.length, 0, `${r.type} room ${r.key} starts empty`)
   }
   assert.equal(run.room.peds.length, 0, 'the new floor’s first room is empty')
+})
+
+test('play testers (2.4.2): no word twice in a run, put-down actives keep their charge, walkers stay off rocks', () => {
+  const run = newRun({ seed: 'dupes', pool: [...pool, ...pool.slice(0, 5)] })
+  assert.equal(run.pool.length, pool.length, 'a word only goes in the pool once')
+  const seen = new Set()
+  for (let i = 0; i < 40; i++) {
+    const it = drawItem(run, 'treasure')
+    if (it.id === '_blank') break
+    assert.ok(!seen.has(it.word), `${it.word} came up twice`)
+    seen.add(it.word)
+    giveItem(run, it, true)
+  }
+  // Swapping a half-charged active and picking it back up keeps its charge.
+  const r2 = newRun({ seed: 'charge', pool })
+  const actives = pool.filter((i) => i.kind === 'active' && i.active.charge >= 2)
+  giveItem(r2, actives[0])
+  r2.p.active.charge = 1
+  r2.room.peds = [{ item: actives[1], x: 300, y: 200 }]
+  r2.p.x = 300; r2.p.y = 210
+  step(r2, {})
+  assert.equal(r2.room.peds[0].item.word, actives[0].word)
+  assert.equal(r2.room.peds[0].charge, 1)
+  r2.p.x = 100; r2.p.y = 100
+  for (let i = 0; i < 40; i++) step(r2, {})
+  r2.p.x = 300; r2.p.y = 210
+  step(r2, {})
+  assert.equal(r2.p.active.item.word, actives[0].word)
+  assert.equal(r2.p.active.charge, 1, 'not refilled by putting it down')
+  // Rocks are solid to walkers, and a jump lands on clear floor.
+  const tiles = r2.floor.rooms[r2.room.key].tiles
+  tiles.fill(T.FLOOR); tiles[3 * 13 + 6] = T.BLOCK
+  assert.equal(blocked(r2, 20 + 6 * 40 + 20, 20 + 3 * 40 + 20, 12), true)
+  const spot = freeSpot(r2, 20 + 6 * 40 + 20, 20 + 3 * 40 + 20, 12)
+  assert.equal(blocked(r2, spot.x, spot.y, 12), false)
 })

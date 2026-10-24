@@ -113,7 +113,7 @@ Coins and the wirdhouse are kept in `economy.json` on your computer only; friend
 
 One tab for the daily things, all the same for everyone and all reset at midnight UTC:
 
-- **Daily Clues:** one word for the whole world, shown as blanks. Ask for clues (each costs 12 points), guess as often as you like (each miss costs 10), and get coins for solving it. Copy a result to share that doesn't give the word away, and see how friends did.
+- **Daily Clues:** one word for the whole world. It starts with what kind of word it is, its first letter and a first meaning; ask for more clues (each costs 12 points), guess as often as you like (each miss costs 10), and get coins for solving it. Copy a result to share that doesn't give the word away, and see how friends did.
 - **Three quests**, like "rate 20 new words", "catch a wild word" or "make a trade". Each pays coins, and doing all three pays a bonus and adds a day to your quest streak. No quest ever asks for a particular score.
 - **A weekly challenge** (rate 150 new words) and **a free spin** of Wird Slots each day.
 

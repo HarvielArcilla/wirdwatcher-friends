@@ -101,3 +101,8 @@ test('Catchword on this computer: coin words, finish once, earn looks and coins'
   assert.equal(a.catchword.view().progress.words[0].word, coined[0].word)
   assert.throws(() => a.economy.buyCosmetic('title', 'cw-lingua'), /Catchword/)
 })
+
+test('Catchword: ships have sea lanes between every pair of ports', () => {
+  const ports = REGIONS.filter((r) => r.port).map((r) => r.id)
+  for (const a of ports) for (const b of ports) if (a < b) assert.ok(MAP.sea[`${a}|${b}`]?.length, `${a} ↔ ${b}`)
+})
