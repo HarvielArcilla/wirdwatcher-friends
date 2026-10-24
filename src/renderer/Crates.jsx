@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Coins } from './ui.jsx'
 import { COSMETICS } from '../shared/cosmetics.js'
-import { packPool, cardValue, cardWeight, crateKinds, crateOdds, RARITIES } from '../shared/packs.js'
+import { packPool, cardValue, crateWeight, crateKinds, crateOdds, RARITIES } from '../shared/packs.js'
 import { formatCoins } from '../shared/economy.js'
 import { burst, centerOf } from './effects.js'
 import { Preview } from './Shop.jsx'
@@ -77,7 +77,7 @@ export default function Crates ({ v, coins, act, settings }) {
         <table>
           <tbody>{RARITIES.map((r) => <tr key={r}><th><span className={`pk-dot r-${r}`} />{RNAME[r]}</th><td>{pctText(odds.by[r])}</td></tr>)}</tbody>
         </table>
-        <small>One card from {odds.size} {kind === 'all' ? 'looks of every kind' : `${k.name.replace(/ crate$/, '').toLowerCase()}s`}, weighed against what the crate costs: anything up to half its price is equally likely, and beyond that each doubling in value makes a card about 2.8 times rarer. A crate costs {Math.round(0.4 * 100)}% of a card pack ({formatCoins(pk.price)}), so its rare cards are rarer than a pack’s. Duplicates give a quarter of their value in scraps, for crafting under Card packs. {pk.crates || 0} opened so far. Looks only.</small>
+        <small>One card from {odds.size} {kind === 'all' ? 'looks of every kind' : `${k.name.replace(/ crate$/, '').toLowerCase()}s`}, weighed against what the crate costs: anything worth up to 30% of its price is equally likely, and beyond that each doubling in value makes a card four times rarer (harsher than a pack’s odds). A crate costs {Math.round(0.4 * 100)}% of a card pack ({formatCoins(pk.price)}), so its rare cards are rarer than a pack’s. Duplicates give a quarter of their value in scraps, for crafting under Card packs. {pk.crates || 0} opened so far. Looks only.</small>
       </section>
     </div>
   )
@@ -87,7 +87,7 @@ export default function Crates ({ v, coins, act, settings }) {
 function fillers (kind, price, n) {
   const list = packPool().filter((c) => kind === 'all' || c.kind === kind)
   const pool = list.length ? list : packPool()
-  const w = pool.map((c) => cardWeight(c, price))
+  const w = pool.map((c) => crateWeight(c, price))
   const total = w.reduce((a, b) => a + b, 0)
   return Array.from({ length: n }, () => { let r = Math.random() * total; for (let i = 0; i < pool.length; i++) { if ((r -= w[i]) < 0) return pool[i] } return pool[0] })
 }
