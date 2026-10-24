@@ -1,7 +1,7 @@
 {
   "name": "wirdwatcher",
   "productName": "wirdwatcher",
-  "version": "2.4.2",
+  "version": "2.4.1",
   "description": "Rate random words out of 5.0, alone, with friends, or around a table of up to 8. Peer-to-peer, no server, no account.",
   "author": "Harviel Arcilla",
   "license": "MIT",
