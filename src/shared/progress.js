@@ -3,6 +3,7 @@
 
 import { WIRDLIKE_BADGES } from './wirdlike/content.js'
 import { CATCHWORD_BADGES } from './catchword/content.js'
+import { TYCOON_BADGES } from './tycoon/content.js'
 
 export const XP = {
   rating: 10, // a word you hadn't rated before
@@ -144,7 +145,9 @@ export const BADGES = [
   // Wirdlike.
   ...WIRDLIKE_BADGES,
   // Catchword.
-  ...CATCHWORD_BADGES
+  ...CATCHWORD_BADGES,
+  // Wird Tycoon
+  ...TYCOON_BADGES
 ]
 
 // Rating input: what the box shows after each keystroke, like the original

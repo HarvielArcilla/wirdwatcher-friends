@@ -143,6 +143,12 @@ function handlers () {
     catchwordResume: () => ww.catchword.resume(),
     catchwordAbandon: () => ww.catchword.abandon(),
     catchwordEnd: (data) => ww.catchword.end(data),
+    tycoon: () => ww.tycoon.view(),
+    tycoonStart: (opts) => ww.tycoon.start(opts),
+    tycoonSave: (data) => ww.tycoon.save(data),
+    tycoonResume: () => ww.tycoon.resume(),
+    tycoonAbandon: () => ww.tycoon.abandon(),
+    tycoonEnd: (data) => ww.tycoon.end(data),
     valley: () => ww.valley.view(),
     valleyWords: (q) => ww.valley.words(q),
     valleyAction: (action, ...args) => {

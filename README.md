@@ -164,6 +164,16 @@ Coin a word and get the whole world saying it. Each new word is a blend of two y
 - Regions differ in how online, young and formal they are, which language family they speak, and whether they have an airport or port. Casual, Normal and Brutal. Wins pay coins; there are badges and looks to earn, and every word you've spread is remembered.
 - The map is Natural Earth's (public domain), via world-atlas; `node scripts/build-map.mjs` rebuilds it.
 
+## Wird Tycoon
+
+Run a dictionary publisher from a garage in 1985 to 2030.
+
+- **Make a book:** pick a subject (slang, cooking, pirates, law…), a format (pocket dictionary, thesaurus, phrasebook, encyclopedia…), a medium (paperback and hardcover at first, then CD-ROMs, websites, e-readers, apps, smart speakers and AI assistants as the years arrive) and a size. Some pairs suit each other and some don't; you only find out by publishing.
+- **Three stages of work** (gathering, writing, finishing), each split between three parts with sliders. Each format cares about different parts and wants its own balance of scholarship and charm. Typos creep in while writing and get caught while finishing.
+- **Four critics review it**, quoting words you've rated, and tell you what went right and wrong. Readers expect more as the years pass and as your own books get better, so you'll need more and better staff.
+- **Grow:** research new subjects, formats and features, hire scholars, writers, illustrators and editors, take freelance jobs when money's tight, and move from the garage to an office, a publishing house and Wird Tower. Stay in the red for twelve weeks and you go bust.
+- Each book pays you some coins (more for better reviews and bigger books), making it to 2030 pays a pension, and there are badges and looks to earn.
+
 ## Your profile
 
 **Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Leximon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.
