@@ -133,7 +133,7 @@ const Region = memo(function Region ({ id, fill, on, hot, onPick, onHover }) {
 
 const Dots = memo(function Dots ({ id, a, s }) {
   const dots = MAP.regions[id].dots
-  return dots.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={2.1} className={i < a ? 'da' : i < a + s ? 'ds' : 'du'} />)
+  return dots.map(([x, y], i) => (i < a + s ? <circle key={i} cx={x} cy={y} r={i < a ? 2 : 2.3} className={i < a ? 'da' : 'ds'} /> : null))
 })
 
 function regionFill (z) {
@@ -141,12 +141,17 @@ function regionFill (z) {
   if (!z.seen) return 'var(--cw-land)'
   const s = z.s / pop
   const a = z.a / pop
-  return `color-mix(in oklab, color-mix(in oklab, var(--cw-ink) ${Math.round(a / Math.max(0.0001, a + s) * 100)}%, var(--cw-speak)) ${Math.round(Math.min(1, (s + a) * 1.1) * 70 + 8)}%, var(--cw-land))`
+  return `color-mix(in oklab, color-mix(in oklab, var(--cw-ink) ${Math.round(a / Math.max(0.0001, a + s) * 100)}%, var(--cw-speak)) ${Math.round(Math.min(1, (s + a) * 1.1) * 62 + 10)}%, var(--cw-land))`
 }
 
-function WorldMap ({ g, selected, onPick, onHover, hover, children }) {
+function WorldMap ({ g, selected, onPick, onHover, hover, children, still }) {
   return (
-    <svg className='cw-map' viewBox={`0 0 ${MAP.w} ${MAP.h}`} role='img' aria-label='World map'>
+    <svg className={`cw-map ${still ? 'still' : ''}`} viewBox={`0 0 ${MAP.w} ${MAP.h}`} role='img' aria-label='World map'>
+      <defs>
+        <linearGradient id='cw-sea' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stopColor='var(--cw-sea-hi)' /><stop offset='1' stopColor='var(--cw-sea)' /></linearGradient>
+      </defs>
+      <path className='cw-sphere' d={MAP.sphere} />
+      <path className='cw-grat' d={MAP.graticule} />
       <g className='cw-other'>{MAP.other.map((d, i) => <path key={i} d={d} />)}</g>
       {REGIONS.map((r) => <Region key={r.id} id={r.id} fill={g ? regionFill(g.regions[r.id]) : undefined} on={selected === r.id} hot={hover === r.id} onPick={onPick} onHover={onHover} />)}
       {g && <g className='cw-dots'>{REGIONS.map((r) => { const z = g.regions[r.id]; const pop = z.u + z.s + z.a; const n = MAP.regions[r.id].dots.length; const a = Math.round((z.a / pop) * n); const s = z.s > 0 ? Math.max(1, Math.round((z.s / pop) * n)) : 0; return <Dots key={r.id} id={r.id} a={a} s={Math.min(n - a, s)} /> })}</g>}
@@ -164,15 +169,17 @@ function PickStart ({ word, diff, onBack, onStart }) {
     <div className='page cw-pick'>
       <div className='cw-pick-head'>
         <button className='btn ghost small' onClick={onBack}>← Back</button>
-        <h2>Where does someone first say “{word}”?</h2>
+        <h2>Where does someone first say <b>“{word}”</b>?</h2>
         <span className='cw-diff-tag'>{DIFFICULTIES[diff].name}</span>
       </div>
-      <div className='cw-mapbox'><WorldMap selected={sel} hover={hover} onPick={setSel} onHover={setHover} /></div>
-      <div className='cw-pick-foot'>
-        {r
-          ? <RegionCard r={r} />
-          : <p className='wl-note'>Click a region. Young, online places pick up new words fastest; formal ones resist. Somewhere central, with neighbours and an airport, gets it travelling sooner.</p>}
-        <button className='btn primary big' disabled={!sel} onClick={() => onStart(sel)}>Start in {sel ? REGION[sel].name : '…'}</button>
+      <div className='cw-pick-body'>
+        <div className='cw-mapbox'><WorldMap selected={sel} hover={hover} onPick={setSel} onHover={setHover} /></div>
+        <aside className='cw-pick-side'>
+          {r
+            ? <RegionCard r={r} />
+            : <div className='cw-rcard cw-rcard-empty'><strong>Pick a region</strong><p>Young, online places pick up new words fastest; formal ones resist. Somewhere with neighbours, an airport and a port gets it travelling sooner.</p></div>}
+          <button className='btn primary big' disabled={!sel} onClick={() => onStart(sel)}>{sel ? `Start in ${REGION[sel].name}` : 'Click the map'}</button>
+        </aside>
       </div>
     </div>
   )
@@ -183,19 +190,29 @@ function RegionCard ({ r, live }) {
   return (
     <div className='cw-rcard'>
       <div className='cw-rcard-head'><strong>{r.name}</strong><span>{fmtPeople(r.pop)} people · {LANG_NAMES[r.lang]}</span></div>
+      {live && (
+        <div className='cw-rsplit' title='Absorbed · saying it · haven’t heard it'>
+          <i className='a' style={{ width: `${live.absorbedShare * 100}%` }} />
+          <i className='s' style={{ width: `${live.share * 100}%` }} />
+        </div>
+      )}
+      {live && (
+        <div className='cw-split'>
+          <span className='s'><b>{fmtPeople(live.speakers)}</b> saying it</span>
+          <span className='a'><b>{fmtPeople(live.absorbed)}</b> absorbed</span>
+          <span className='u'><b>{fmtPeople(live.unaware)}</b> haven’t heard it</span>
+        </div>
+      )}
       <div className='cw-traits'>
         {bar('Online', r.net, 'Group chats and memes travel well here')}
         {bar('Young', r.young, 'Schoolyards and song lyrics travel well here')}
         {bar('Formal', r.formal, 'Slang struggles here, and the Purists are strong')}
       </div>
-      <div className='cw-links'>{r.air ? (live && !live.airOpen ? '✈️ flights mostly turned away' : '✈️ airport') : '✈️ no big airport'} · {r.port ? (live && !live.seaOpen ? '🚢 ports mostly closed' : '🚢 port') : 'no port'} · {r.land.length ? `borders ${r.land.length} region${r.land.length === 1 ? '' : 's'}` : 'no land borders'}</div>
-      {live && (
-        <div className='cw-split'>
-          <span className='u'>{fmtPeople(live.unaware)} haven’t heard it</span>
-          <span className='s'>{fmtPeople(live.speakers)} saying it</span>
-          <span className='a'>{fmtPeople(live.absorbed)} absorbed</span>
-        </div>
-      )}
+      <div className='cw-links'>
+        <span className={r.air ? (live && !live.airOpen ? 'shut' : '') : 'none'}>✈ {r.air ? (live && !live.airOpen ? 'flights turned away' : 'airport') : 'no airport'}</span>
+        <span className={r.port ? (live && !live.seaOpen ? 'shut' : '') : 'none'}>⚓ {r.port ? (live && !live.seaOpen ? 'port closed' : 'port') : 'no port'}</span>
+        <span className={r.land.length ? '' : 'none'}>⛰ {r.land.length ? `${r.land.length} neighbour${r.land.length === 1 ? '' : 's'}` : 'an island'}</span>
+      </div>
     </div>
   )
 }
@@ -260,7 +277,7 @@ function Game ({ init, settings, onEnd, onQuit }) {
       if (game.over && !ended.current) {
         ended.current = true
         sfx(settings, game.over.won ? 'win' : 'lose')
-        setTimeout(() => onEnd(game), 1800)
+        setTimeout(() => onEnd(game), 2200)
       }
       raf = requestAnimationFrame(loop)
     }
@@ -288,71 +305,120 @@ function Game ({ init, settings, onEnd, onQuit }) {
   const ms = SPEEDS[speed] || 600
   const clickBubble = (b) => { const got = pop(g, b.id); if (got) { sfx(settings, 'pop'); rerender() } }
   const live = sel ? regionView(g, sel) : null
-  const unseen = REGIONS.filter((r) => !g.regions[r.id].seen).length
-  const news = g.news.slice(-6).reverse()
+  const reached = REGIONS.filter((r) => g.regions[r.id].seen).length
+  const headline = g.news[g.news.length - 1]
+  const canEvolveAny = TRAITS.some((t) => canEvolve(t.id, g.traits) && g.buzz >= traitCost(t.id, g.traits))
   return (
     <div className='cw-game'>
-      <div className='cw-top'>
-        <div className='cw-word'><b>{g.word}</b><small>{DIFFICULTIES[g.difficulty].name}</small></div>
-        <div className='cw-day'>Day <b>{g.day}</b>{g.day > MAX_DAYS - 200 && <small> · the world moves on at {MAX_DAYS}</small>}</div>
+      <div className='cw-hud'>
+        <div className='cw-word'>
+          <b>{g.word}</b>
+          <small>{g.from?.length === 2 ? `${g.from[0]} + ${g.from[1]} · ` : ''}{DIFFICULTIES[g.difficulty].name}</small>
+        </div>
+        <div className='cw-day'><small>Day</small><b>{g.day}</b></div>
         <div className='seg cw-speed' aria-label='Speed'>
           {['❚❚', '▶', '▶▶', '▶▶▶'].map((t, i) => <button key={i} className={speed === i ? 'on' : ''} onClick={() => setSpeed(i)} title={i ? `${i}× speed (${i})` : 'Pause (Space)'}>{t}</button>)}
         </div>
+        <span className='cw-gap' />
         <label className='cw-auto' title='Collect bubbles as they appear, for a little less each'><input type='checkbox' checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Auto-collect</label>
-        <button className='btn primary cw-evolve' onClick={() => setPanel(true)}>Evolve <span className='cw-buzz'>💬 {g.buzz}</span></button>
+        <button className={`btn primary cw-evolve ${canEvolveAny ? 'ready' : ''}`} onClick={() => setPanel(true)} title='Evolve (E)'><span>Evolve</span><span className='cw-buzz'>💬 {g.buzz}</span></button>
         <button className='btn ghost small' onClick={() => { save(); onQuit() }}>Save & quit</button>
       </div>
       <div className='cw-body'>
-        <div className='cw-mapbox live'>
-          <WorldMap g={g} selected={sel} onPick={setSel}>
-            <g className='cw-trips'>{g.trips.map((t, i) => <Trip key={`${t.from}-${t.to}-${t.day}-${i}`} t={t} day={g.day} ms={ms} />)}</g>
-            <g className='cw-bubbles'>{g.bubbles.map((b) => <Bubble key={b.id} b={b} day={g.day} onPop={clickBubble} />)}</g>
-          </WorldMap>
-          {g.over && <div className={`cw-over ${g.over.won ? 'won' : ''}`}><b>{g.over.won ? `“${g.word}” is in every dictionary on Earth.` : `“${g.word}” has died out.`}</b><span>{g.over.why}</span></div>}
+        <div className='cw-stage'>
+          <div className='cw-mapbox live'>
+            <WorldMap g={g} selected={sel} onPick={setSel}>
+              <g className='cw-trips'>{g.trips.map((t, i) => <Trip key={`${t.from}-${t.to}-${t.day}-${i}`} t={t} day={g.day} ms={ms} />)}</g>
+              <g className='cw-bubbles'>{g.bubbles.map((b) => <Bubble key={b.id} b={b} day={g.day} onPop={clickBubble} />)}</g>
+            </WorldMap>
+            {g.over && <div className={`cw-over ${g.over.won ? 'won' : ''}`}><b>{g.over.won ? `“${g.word}” is in every dictionary on Earth.` : `“${g.word}” has died out.`}</b><span>{g.over.why}</span></div>}
+          </div>
+          {headline && <div key={g.news.length} className={`cw-ticker k-${headline.kind}`}><span>Day {headline.day}</span>{headline.text}</div>}
         </div>
         <aside className='cw-side'>
+          <section className='cw-panel-card'>
+            <h4>The world</h4>
+            <div className='cw-bar big'>
+              <i className='a' style={{ width: `${(tot.a / tot.world) * 100}%` }} />
+              <i className='s' style={{ width: `${(tot.s / tot.world) * 100}%` }} />
+            </div>
+            <div className='cw-legend'>
+              <span className='s'><i />Saying it <b>{fmtPeople(tot.s)}</b></span>
+              <span className='a'><i />Absorbed <b>{fmtPeople(tot.a)}</b></span>
+              <span className='u'><i />Haven’t heard it <b>{fmtPeople(tot.u)}</b></span>
+            </div>
+            <div className='cw-reach'><span>Regions reached</span><b>{reached} / {REGIONS.length}</b></div>
+          </section>
+          <section className={`cw-panel-card cw-purists ${g.ruled ? 'ruled' : g.purists ? 'on' : ''}`} title={g.purists ? 'When this fills, the ruling passes and speakers start dropping the word' : 'The Purists haven’t noticed yet. Notoriety gets their attention'}>
+            <h4>📜 The Purists <small>{g.ruled ? 'ruling passed' : g.purists ? 'drafting a ruling' : 'haven’t noticed'}</small></h4>
+            <div className='cw-bar purist'><i style={{ width: `${g.research}%` }} /><b>{Math.floor(g.research)}%</b></div>
+            <div className='cw-noto'><span>Notoriety</span><i style={{ '--x': Math.min(1, noto / 30) }} /><b>{Math.round(noto)}</b></div>
+          </section>
           {live && <RegionCard r={live} live={live} />}
           <div className='cw-news' aria-live='polite'>
-            {news.map((n, i) => <p key={g.news.length - i} className={`k-${n.kind}`}><small>Day {n.day}</small>{n.text}</p>)}
+            {g.news.slice(-8, -1).reverse().map((n, i) => <p key={g.news.length - i} className={`k-${n.kind}`}><small>Day {n.day}</small>{n.text}</p>)}
           </div>
         </aside>
-      </div>
-      <div className='cw-bottom'>
-        <div className='cw-world'>
-          <div className='cw-bar'>
-            <i className='a' style={{ width: `${(tot.a / tot.world) * 100}%` }} />
-            <i className='s' style={{ width: `${(tot.s / tot.world) * 100}%` }} />
-          </div>
-          <div className='cw-legend'>
-            <span className='a'>Absorbed <b>{fmtPeople(tot.a)}</b></span>
-            <span className='s'>Saying it <b>{fmtPeople(tot.s)}</b></span>
-            <span className='u'>Haven’t heard it <b>{fmtPeople(tot.u)}</b></span>
-            <span>{unseen ? `${unseen} region${unseen === 1 ? '' : 's'} still to reach` : 'Every region reached'}</span>
-          </div>
-        </div>
-        <div className='cw-purists' title={g.purists ? 'When this fills, the ruling passes and speakers start dropping the word' : 'The Purists haven’t noticed yet. Notoriety gets their attention'}>
-          <div className='cw-purists-head'><span>📜 The Purists {g.ruled ? '· ruling passed' : g.purists ? '· drafting a ruling' : '· haven’t noticed'}</span><b>{Math.floor(g.research)}%</b></div>
-          <div className='cw-bar purist'><i style={{ width: `${g.research}%` }} /></div>
-          <small>Notoriety {Math.round(noto)}</small>
-        </div>
       </div>
       {panel && <EvolvePanel g={g} onClose={() => setPanel(false)} onChange={() => { sfx(settings, 'evolve'); rerender(); save() }} />}
     </div>
   )
 }
 
+// A flight arcs over land; a ship follows its sea lane.
+function lane (from, to) {
+  const k = from < to ? `${from}|${to}` : `${to}|${from}`
+  const legs = MAP.sea?.[k]
+  if (!legs) return null
+  return from < to ? legs : legs.slice().reverse().map((l) => l.slice().reverse())
+}
+function along (legs, k) {
+  const lens = legs.map((l) => l.slice(1).reduce((a, p, i) => a + Math.hypot(p[0] - l[i][0], p[1] - l[i][1]), 0))
+  let d = Math.max(0, Math.min(1, k)) * lens.reduce((a, b) => a + b, 0)
+  for (let li = 0; li < legs.length; li++) {
+    const l = legs[li]
+    if (d > lens[li] && li < legs.length - 1) { d -= lens[li]; continue }
+    for (let i = 1; i < l.length; i++) {
+      const sl = Math.hypot(l[i][0] - l[i - 1][0], l[i][1] - l[i - 1][1])
+      if (d <= sl || i === l.length - 1) { const f = sl ? Math.min(1, d / sl) : 0; return { x: l[i - 1][0] + (l[i][0] - l[i - 1][0]) * f, y: l[i - 1][1] + (l[i][1] - l[i - 1][1]) * f, leg: li } }
+      d -= sl
+    }
+  }
+  const last = legs[legs.length - 1]
+  return { x: last[last.length - 1][0], y: last[last.length - 1][1], leg: legs.length - 1 }
+}
 function Trip ({ t, day, ms }) {
+  const k = Math.max(0, Math.min(1, (day - t.day + 1) / (t.arrive - t.day)))
+  if (t.mode === 'sea') {
+    const legs = lane(t.from, t.to)
+    if (legs) {
+      const p = along(legs, k)
+      return (
+        <g className='cw-trip sea'>
+          {legs.map((l, i) => <polyline key={i} points={l.map((q) => q.join(',')).join(' ')} />)}
+          <g className='cw-ship' style={{ transform: `translate(${p.x}px, ${p.y}px)`, transition: p.leg === along(legs, Math.max(0, k - 1 / (t.arrive - t.day))).leg ? `transform ${ms}ms linear` : 'none' }}>
+            <path d='M-5 0 L5 0 L3.5 3 L-3.5 3 Z' /><rect x={-1} y={-4} width={2} height={4} />
+          </g>
+        </g>
+      )
+    }
+  }
   const a = MAP.regions[t.from].c
   const b = MAP.regions[t.to].c
-  const p = (k) => { const x = Math.max(0, Math.min(1, k)); const mx = (a[0] + b[0]) / 2; const my = (a[1] + b[1]) / 2 - Math.hypot(b[0] - a[0], b[1] - a[1]) * (t.mode === 'air' ? 0.22 : 0.06); const u = 1 - x; return [u * u * a[0] + 2 * u * x * mx + x * x * b[0], u * u * a[1] + 2 * u * x * my + x * x * b[1]] }
-  const span = t.arrive - t.day
-  const [x, y] = p((day - t.day + 1) / span)
   const mx = (a[0] + b[0]) / 2
-  const my = (a[1] + b[1]) / 2 - Math.hypot(b[0] - a[0], b[1] - a[1]) * (t.mode === 'air' ? 0.22 : 0.06)
+  const my = (a[1] + b[1]) / 2 - Math.hypot(b[0] - a[0], b[1] - a[1]) * 0.22
+  const u = 1 - k
+  const x = u * u * a[0] + 2 * u * k * mx + k * k * b[0]
+  const y = u * u * a[1] + 2 * u * k * my + k * k * b[1]
+  const dx = 2 * u * (mx - a[0]) + 2 * k * (b[0] - mx)
+  const dy = 2 * u * (my - a[1]) + 2 * k * (b[1] - my)
+  const ang = (Math.atan2(dy, dx) * 180) / Math.PI
   return (
-    <g className={`cw-trip ${t.mode}`}>
+    <g className='cw-trip air'>
       <path d={`M${a[0]},${a[1]} Q${mx},${my} ${b[0]},${b[1]}`} />
-      <text style={{ transform: `translate(${x}px, ${y}px)`, transition: `transform ${ms}ms linear` }} x={0} y={0}>{t.mode === 'air' ? '✈' : '⛴'}</text>
+      <g className='cw-plane' style={{ transform: `translate(${x}px, ${y}px) rotate(${ang}deg)`, transition: `transform ${ms}ms linear` }}>
+        <path d='M6 0 L-4 -1.2 L-6 -4.5 L-7 -4.5 L-5.5 -1 L-7 -0.8 L-8 -2.5 L-8.8 -2.5 L-8 0 L-8.8 2.5 L-8 2.5 L-7 0.8 L-5.5 1 L-7 4.5 L-6 4.5 L-4 1.2 Z' />
+      </g>
     </g>
   )
 }
@@ -364,8 +430,10 @@ function Bubble ({ b, day, onPop }) {
   const age = day - b.day
   return (
     <g className={`cw-bubble k-${b.kind} ${age > 10 ? 'fading' : ''}`} transform={`translate(${x}, ${y})`} onClick={(e) => { e.stopPropagation(); onPop(b) }} role='button' aria-label={b.kind === 'purist' ? 'Purist bubble: pop to set them back' : `Buzz bubble, ${b.value}`}>
-      <circle r={9} />
-      <text y={3.5}>{b.kind === 'purist' ? '📜' : `+${b.value}`}</text>
+      <g className='cw-bubble-in'>
+        <path d='M-10 -9 Q-10 -12 -7 -12 L7 -12 Q10 -12 10 -9 L10 3 Q10 6 7 6 L-1 6 L-5 10 L-4 6 L-7 6 Q-10 6 -10 3 Z' />
+        <text y={-1.5}>{b.kind === 'purist' ? '📜' : `+${b.value}`}</text>
+      </g>
     </g>
   )
 }
@@ -400,8 +468,9 @@ function EvolvePanel ({ g, onClose, onChange }) {
             const [px, py] = pos(t)
             const have = g.traits.includes(t.id)
             const can = canEvolve(t.id, g.traits)
+            const afford = can && g.buzz >= traitCost(t.id, g.traits)
             return (
-              <button key={t.id} className={`cw-node ${have ? 'have' : can ? 'can' : 'locked'} ${pick === t.id ? 'on' : ''}`} style={{ left: `${(px / (W * 5 + 10)) * 100}%`, top: `${(py / (H * 6 + 10)) * 100}%` }} onClick={() => { setPick(t.id); setErr(null) }}>
+              <button key={t.id} className={`cw-node ${have ? 'have' : can ? 'can' : 'locked'} ${afford ? 'afford' : ''} ${pick === t.id ? 'on' : ''}`} style={{ left: `${(px / (W * 5 + 10)) * 100}%`, top: `${(py / (H * 6 + 10)) * 100}%` }} onClick={() => { setPick(t.id); setErr(null) }}>
                 <b>{t.name}</b>
                 <small>{have ? '✓' : `💬 ${traitCost(t.id, g.traits)}`}</small>
               </button>
@@ -433,33 +502,84 @@ function EvolvePanel ({ g, onClose, onChange }) {
 }
 
 // --- the end ------------------------------------------------------------------------------
+// How it went, over time: speakers and absorbed (stacked), and the Purists.
+function History ({ g }) {
+  const h = g.hist && g.hist.length > 1 ? g.hist : [[0, 0, 0, 0], [g.day, 0, 0, 0]]
+  const W = 600
+  const H = 170
+  const maxD = Math.max(1, h[h.length - 1][0])
+  const X = (d) => (d / maxD) * W
+  const Y = (v) => H - v * H
+  const area = (top, bot) => `M${h.map((p) => `${X(p[0])},${Y(top(p))}`).join(' L')} L${h.slice().reverse().map((p) => `${X(p[0])},${Y(bot(p))}`).join(' L')} Z`
+  const absorbed = area((p) => p[2], () => 0)
+  const speaking = area((p) => p[2] + p[1], (p) => p[2])
+  const purists = `M${h.map((p) => `${X(p[0])},${Y(p[3] / 100)}`).join(' L')}`
+  const ruled = g.stats.ruledDay
+  return (
+    <svg className='cw-hist' viewBox={`0 -10 ${W} ${H + 30}`} role='img' aria-label='How the word spread over time'>
+      {[0.25, 0.5, 0.75, 1].map((v) => <line key={v} x1={0} x2={W} y1={Y(v)} y2={Y(v)} className='grid' />)}
+      <path d={absorbed} className='a' />
+      <path d={speaking} className='s' />
+      <path d={purists} className='p' />
+      {ruled && <><line x1={X(ruled)} x2={X(ruled)} y1={0} y2={H} className='ruled' /><text x={X(ruled) + 4} y={12} className='lbl'>ruling</text></>}
+      <text x={0} y={H + 16} className='lbl'>Day 0</text>
+      <text x={W} y={H + 16} className='lbl end'>Day {g.day}</text>
+    </svg>
+  )
+}
+
 function EndNote ({ ending, onMenu }) {
   const { g, reward } = ending
   const tot = totals(g)
   const won = g.over?.won
-  const firstNews = g.news.find((n) => n.kind === 'start')
+  const stats = [
+    ['Days', g.day],
+    ['Regions reached', `${g.stats.regions} / ${REGIONS.length}`],
+    ['Absorbed', pct(tot.a / tot.world)],
+    ['Traits evolved', g.traits.length],
+    ['Bubbles popped', g.stats.popped],
+    ['The Purists got', `${Math.floor(g.stats.peakResearch)}%`]
+  ]
   return (
-    <div className='page cw-end'>
-      <div className={`cw-entry ${won ? 'won' : ''}`}>
-        <h1>{g.word}</h1>
-        <p className='cw-entry-pos'><i>n.</i> {won ? 'a word, in every language on Earth.' : '(obsolete) a word that almost was.'}</p>
-        <p>First said in {REGION[g.start].name}. {won ? `Absorbed by the whole world, all ${fmtPeople(tot.world)} people, in ${g.day} days` : `Died out on day ${g.day}, after ${fmtPeople(tot.a)} people had absorbed it (${pct(tot.a / tot.world)})`}{g.ruled ? `, despite a style ruling on day ${g.stats.ruledDay}` : ''}.</p>
-        {firstNews && <p className='wl-note'>{g.over?.why}</p>}
+    <div className={`page cw-end ${won ? 'won' : 'lost'}`}>
+      <div className='cw-end-banner'>
+        <span className='cw-end-tag'>{won ? 'Absorbed worldwide' : 'Died out'}</span>
+        <h2>{won ? `Everyone on Earth says “${g.word}” now, and nobody notices.` : `“${g.word}” didn’t make it.`}</h2>
+        <p>{won ? `${fmtPeople(tot.world)} people, ${g.day} days, ${DIFFICULTIES[g.difficulty].name}.` : g.over?.why}</p>
       </div>
-      {reward && (
-        <div className='cw-reward'>
-          {reward.coins > 0 && <span><Coins n={reward.coins} /></span>}
-          {reward.xp > 0 && <span>+{reward.xp} XP</span>}
-          {(reward.looks || []).map((l) => <span key={l.id}>✨ New look: {l.name}</span>)}
+      <div className='cw-end-grid'>
+        <article className='cw-entry'>
+          <div className='cw-entry-word'>
+            <h1>{g.word}</h1>
+            <span className='cw-entry-pos'>{won ? 'n., v. & adj.' : 'n. (obsolete)'}</span>
+          </div>
+          <p className='cw-entry-def'><b>1.</b> {won ? `A word every language on Earth has taken in, first heard in ${REGION[g.start].name}.` : `A word briefly said in ${g.stats.regions} region${g.stats.regions === 1 ? '' : 's'}, then forgotten.`}</p>
+          <p className='cw-entry-ex'>“{won ? `Honestly, I can’t remember a time before ${g.word}.` : `Does anyone still say ${g.word}?`}”</p>
+          <p className='cw-entry-ety'><b>Origin</b> {g.from?.length === 2 ? <>A blend of <i>{g.from[0]}</i> and <i>{g.from[1]}</i>.</> : 'Made up on the spot.'} First recorded in {REGION[g.start].name}{g.ruled ? `; ruled “not a word” on day ${g.stats.ruledDay}` : ''}.</p>
+        </article>
+        <div className='cw-end-map'>
+          <WorldMap g={g} still />
         </div>
-      )}
-      <div className='cw-endstats'>
-        <span>Regions reached <b>{g.stats.regions} of {REGIONS.length}</b></span>
-        <span>Traits evolved <b>{g.traits.length}</b></span>
-        <span>Bubbles popped <b>{g.stats.popped}</b></span>
-        <span>The Purists got <b>{Math.floor(g.stats.peakResearch)}%</b> of the way</span>
       </div>
-      <button className='btn primary big' onClick={onMenu}>Coin another word</button>
+      <div className='cw-end-grid two'>
+        <section className='cw-panel-card'>
+          <h4>How it spread</h4>
+          <History g={g} />
+          <div className='cw-legend'><span className='s'><i />Saying it</span><span className='a'><i />Absorbed</span><span className='p'><i />The Purists’ ruling</span></div>
+        </section>
+        <section className='cw-panel-card'>
+          <h4>The numbers</h4>
+          <dl className='cw-end-stats'>{stats.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+          {reward && (
+            <div className='cw-reward'>
+              {reward.coins > 0 && <span><Coins n={reward.coins} /></span>}
+              {reward.xp > 0 && <span>+{reward.xp} XP</span>}
+              {(reward.looks || []).map((l) => <span key={l.id}>✨ {l.name}</span>)}
+            </div>
+          )}
+        </section>
+      </div>
+      <div className='cw-end-acts'><button className='btn primary big' onClick={onMenu}>Coin another word</button></div>
     </div>
   )
 }

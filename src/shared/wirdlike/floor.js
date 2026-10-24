@@ -165,13 +165,15 @@ const PATTERNS = [
   // Rows, with gaps.
   (rng) => { const row = 1 + rng.int(2); return mirror(rng, (x, y) => (y === row && x >= 2 && x !== 4 ? T.BLOCK : T.FLOOR)) },
   // Corners filled in.
-  (rng) => { const n = 1 + rng.int(2); return mirror(rng, (x, y) => (x <= n && y <= n - 1 + (x === 0 ? 1 : 0) && !(x === 0 && y === 2) ? (rng.chance(0.25) ? T.PIT : T.BLOCK) : T.FLOOR)) },
+  (rng) => { const n = 1 + rng.int(2); const t = rng.chance(0.25) ? T.PIT : T.BLOCK; return mirror(rng, (x, y) => (x <= n && y <= n - 1 + (x === 0 ? 1 : 0) && !(x === 0 && y === 2) ? t : T.FLOOR)) },
   // Staples on the floor.
   (rng) => mirror(rng, (x, y) => (x >= 3 && y >= 1 && (x + y) % 2 === 0 && rng.chance(0.6) ? T.SPIKE : T.FLOOR)),
   // A ring of blocks round the middle.
   (rng) => mirror(rng, (x, y) => ((x === 4 && y >= 2) || (y === 2 && x >= 4)) && !(x === 6) ? T.BLOCK : T.FLOOR),
-  // Pits in a checker.
-  (rng) => mirror(rng, (x, y) => (x >= 2 && y >= 1 && x % 2 === 0 && y % 2 === 1 ? T.PIT : T.FLOOR))
+  // A moat: one hole that wraps round the middle, with a bridge in.
+  (rng) => mirror(rng, (x, y) => (((x === 3 && y >= 1) || (y === 1 && x >= 3)) && !(x === 3 && y === 3) ? T.PIT : T.FLOOR)),
+  // A ravine across the room, crossed in the middle.
+  (rng) => mirror(rng, (x, y) => ((x === 4 || x === 5) && y <= 2 && !(y === 2 && x === 5) ? T.PIT : T.FLOOR))
 ]
 
 export function genLayout (rng, type, ch, doors) {

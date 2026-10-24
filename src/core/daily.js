@@ -151,18 +151,28 @@ export class Daily {
     return this.s.clues
   }
 
+  // Where today's puzzle starts: already showing what kind of word it is, its
+  // first letter and a first meaning, so there's something to go on. Clues
+  // you ask for (st.clue) come after these, and only those cost points.
+  _start (all) {
+    const at = all.findIndex((x) => x.kind === 'def')
+    const at2 = at >= 0 ? at : all.findIndex((x) => x.kind === 'syn')
+    return Math.max(0, Math.min(all.length - 1, at2 >= 0 ? at2 : 2))
+  }
+
   cluesView () {
     const st = this._clues()
     const word = this.word()
     const all = buildClues(word, this.words.lookup(word))
+    const base = this._start(all)
     const done = st.solved || st.gaveUp
     return {
       day: this.s.day,
       number: dayNumber(this.now()),
       clue: st.clue,
-      count: all.length,
-      clues: all.slice(0, st.clue + 1).map(({ pattern, ...x }) => x),
-      pattern: done ? [...word].map((ch) => ch.toUpperCase()) : all[st.clue].pattern,
+      count: all.length - base,
+      clues: all.slice(0, Math.min(all.length, base + st.clue + 1)).map(({ pattern, ...x }) => x),
+      pattern: done ? [...word].map((ch) => ch.toUpperCase()) : all[Math.min(all.length - 1, base + st.clue)].pattern,
       wrong: st.wrong,
       guesses: st.guesses,
       solved: st.solved,
@@ -180,8 +190,8 @@ export class Daily {
     const st = this._clues()
     if (st.solved || st.gaveUp) return this.cluesView()
     const word = this.word()
-    const n = buildClues(word, this.words.lookup(word)).length
-    if (st.clue < n - 1) st.clue++
+    const all = buildClues(word, this.words.lookup(word))
+    if (this._start(all) + st.clue < all.length - 1) st.clue++
     this._save()
     return this.cluesView()
   }

@@ -4,7 +4,7 @@
 // see the renderer) and `update`, called every tick with a small API.
 
 import { TILE, COLS, ROWS, WALL, ROOM_W, ROOM_H, T } from './content.js'
-import { moveBody, enemyShot, spawnFoe, rand, damage, explode, hurt, tileAt, tileAtT } from './engine.js'
+import { moveBody, enemyShot, spawnFoe, rand, damage, explode, hurt, tileAt, tileAtT, blocked, freeSpot } from './engine.js'
 
 const IX = WALL
 const IW = COLS * TILE
@@ -57,12 +57,27 @@ export function foeApi (run) {
       api.toward(e, e.wx, e.wy, spd, dt)
     },
     // A free spot in the room (not a wall, block or pit).
-    spot (margin = 1) {
-      for (let i = 0; i < 40; i++) {
+    // A clear floor tile, well away from you (so nothing appears on top of you).
+    spot (margin = 1, away = 150) {
+      let best = null
+      for (let i = 0; i < 60; i++) {
         const tx = margin + Math.floor(rand(run) * (COLS - margin * 2)); const ty = margin + Math.floor(rand(run) * (ROWS - margin * 2))
-        if (tileAtT(run, tx, ty) === T.FLOOR) return { x: IX + tx * TILE + TILE / 2, y: IX + ty * TILE + TILE / 2 }
+        if (tileAtT(run, tx, ty) !== T.FLOOR) continue
+        const s = { x: IX + tx * TILE + TILE / 2, y: IX + ty * TILE + TILE / 2 }
+        const d = len(s.x - run.p.x, s.y - run.p.y)
+        if (d >= away) return s
+        if (!best || d > best.d) best = { ...s, d }
       }
-      return { x: CX, y: CY }
+      return best ? { x: best.x, y: best.y } : { x: CX, y: CY }
+    },
+    // Teleport: a puff where it was, a warning where it lands, and a moment
+    // when touching it doesn't hurt, so there's always time to react.
+    blink (e, s) {
+      api.ev({ k: 'poof', x: e.x, y: e.y })
+      e.x = s.x; e.y = s.y
+      e.safeT = 0.6
+      api.warn(e.x, e.y, e.r + 6, 0.4)
+      api.ev({ k: 'poof', x: e.x, y: e.y })
     },
     los (e, o = run.p) {
       const d = len(o.x - e.x, o.y - e.y)
@@ -83,14 +98,18 @@ export function foeApi (run) {
     clampIn (e, m = 0) { e.x = Math.max(IX + e.r + m, Math.min(IX + IW - e.r - m, e.x)); e.y = Math.max(IX + e.r + m, Math.min(IX + IH - e.r - m, e.y)) },
     // Bounce off the walls of the room (like a screensaver).
     bounce (e, dt) {
-      e.x += e.vx * dt; e.y += e.vy * dt
+      // Walkers bounce off rocks and pits too; only fliers pass over them.
+      e.x += e.vx * dt
+      if (!e.fly && blocked(run, e.x, e.y, e.r)) { e.x -= e.vx * dt; e.vx = -e.vx }
+      e.y += e.vy * dt
+      if (!e.fly && blocked(run, e.x, e.y, e.r)) { e.y -= e.vy * dt; e.vy = -e.vy }
       if (e.x < IX + e.r) { e.x = IX + e.r; e.vx = Math.abs(e.vx) }
       if (e.x > IX + IW - e.r) { e.x = IX + IW - e.r; e.vx = -Math.abs(e.vx) }
       if (e.y < IX + e.r) { e.y = IX + e.r; e.vy = Math.abs(e.vy) }
       if (e.y > IX + IH - e.r) { e.y = IX + IH - e.r; e.vy = -Math.abs(e.vy) }
     },
     // A jump: up for `air` seconds toward a point, landing there.
-    jump (e, x, y, air = 0.7) { e.jump = { x0: e.x, y0: e.y, x1: x, y1: y, t: 0, air } },
+    jump (e, x, y, air = 0.7) { const s = e.fly ? { x, y } : freeSpot(run, Math.max(IX + e.r, Math.min(IX + IW - e.r, x)), Math.max(IX + e.r, Math.min(IX + IH - e.r, y)), e.r); e.jump = { x0: e.x, y0: e.y, x1: s.x, y1: s.y, t: 0, air } },
     stepJump (e, dt) {
       const j = e.jump
       if (!j) return false
@@ -190,7 +209,7 @@ export const FOES = {
   query: {
     name: 'a question mark', hp: 14, r: 12, fly: true, color: '#3a8a6a', art: glyph('?', '#3a8a6a', 1.4),
     update (e, a, dt) {
-      if (a.every(e, 'tp', 3)) { const s = a.spot(); e.x = s.x; e.y = s.y; e.data.shots = 3; e.data.st = 0.5; a.ev({ k: 'poof', x: e.x, y: e.y }) }
+      if (a.every(e, 'tp', 3)) { a.blink(e, a.spot()); e.data.shots = 3; e.data.st = 0.8 }
       if (e.data.shots > 0 && (e.data.st -= dt) <= 0) { e.data.st = 0.18; e.data.shots--; a.aimed(e, 170) }
     }
   },
@@ -505,7 +524,7 @@ export const FOES = {
       e.fade = shown ? 1 : 0.05
       e.untouchable = !shown
       e.harmless = !shown
-      if (Math.abs(c - 4.5) < dt) { const s = a.spot(2); e.x = s.x; e.y = s.y; a.say(e, a.pick(['Mistakes were made.', 'Shots were fired.', 'You were hit.', 'It was decided.'])) }
+      if (Math.abs(c - 4.5) < dt) { a.blink(e, a.spot(2)); a.say(e, a.pick(['Mistakes were made.', 'Shots were fired.', 'You were hit.', 'It was decided.'])) }
       if (shown) return
       // The room attacks on its behalf: letters fall, bars sweep.
       if (a.every(e, 'fall', 0.55)) { const x = a.p.x + a.range(-70, 70); const y = a.p.y + a.range(-50, 50); a.warn(x, y, 14, 0.7); enemyShot(a.run, x, y, 0, 0, { col: '#3a3a4a', z: 220, vz: -160, r: 10, text: a.pick(['was', 'were', 'been', 'by']), from: 'The Passive Voice' }) }
@@ -557,7 +576,7 @@ export const FOES = {
   malaprop: {
     name: 'Malaprop', title: 'for all intensive purposes', boss: true, hp: 270, r: 20, fly: true, color: '#8a3a6a', art: word('irregardless', '#fff', '#8a3a6a'),
     update (e, a, dt) {
-      if (a.every(e, 'tp', 3)) { const s = a.spot(2); e.x = s.x; e.y = s.y; a.ev({ k: 'poof', x: e.x, y: e.y }) }
+      if (a.every(e, 'tp', 3)) a.blink(e, a.spot(2))
       if (a.every(e, 'cd', 1.2)) { for (let i = 0; i < 4; i++) a.shoot(e, a.range(0, TAU), 110, { retarget: 0.7, text: a.pick(['ironic', 'literally', 'irregardless', 'supposably']), r: 8 }) }
       for (const s of a.room.shots) if (s.retarget && s.age >= s.retarget && !s.re) { s.re = true; const g = Math.atan2(a.p.y - s.y, a.p.x - s.x); s.vx = Math.cos(g) * 190; s.vy = Math.sin(g) * 190 }
     }
@@ -586,13 +605,14 @@ export const FOES = {
       const phase = k > 0.66 ? 0 : k > 0.33 ? 1 : 2
       if (phase !== e.data.ph) { e.data.ph = phase; a.say(e, ['Did you mean: ducking?', 'Did you mean: defeat?', 'DID YOU MEAN: DELETE?'][phase], 2.2); if (phase === 2) { a.run.swap = 3; a.ev({ k: 'swapControls' }) } }
       a.toward(e, CX + Math.cos(e.t * 0.7) * 180, CY - 40 + Math.sin(e.t * 1.1) * 70, 110, dt)
+      if (e.data.ringIn > 0 && (e.data.ringIn -= dt) <= 0) a.ring(e, 8, 120)
       // It borrows from every boss you beat to get here.
       if (a.every(e, 'cd', [2.2, 1.8, 1.3][phase])) {
         const move = a.pick(['ring', 'fan', 'strike', 'mirror', 'rain'])
         if (move === 'ring') a.ring(e, 12 + phase * 4, 110, e.t)
         if (move === 'fan') { const g = a.ang(e); ['teh', 'adn', 'hte', 'yuo', 'thier'].forEach((s, i) => a.shoot(e, g + (i / 4 - 0.5) * 1.2, 150, { text: s, r: 9 })) }
         if (move === 'strike') { const g = a.ang(e); a.line(e.x, e.y, e.x + Math.cos(g) * 700, e.y + Math.sin(g) * 700, 0.6, '#4a8ae8'); for (let i = 0; i < 12; i++) a.shoot(e, g, 290, { wait: 0.6 + i * 0.04 }) }
-        if (move === 'mirror') { e.x = 2 * CX - a.p.x; e.y = 2 * CY - a.p.y; a.clampIn(e, 10); a.ring(e, 8, 120); a.ev({ k: 'poof', x: e.x, y: e.y }) }
+        if (move === 'mirror') { let s = { x: Math.max(IX + 30, Math.min(IX + IW - 30, 2 * CX - a.p.x)), y: Math.max(IX + 30, Math.min(IX + IH - 30, 2 * CY - a.p.y)) }; if (len(s.x - a.p.x, s.y - a.p.y) < 150) s = a.spot(1); a.blink(e, s); e.data.ringIn = 0.5 }
         if (move === 'rain') for (let i = 0; i < 6 + phase * 3; i++) { const x = a.p.x + a.range(-100, 100); const y = a.p.y + a.range(-70, 70); a.warn(x, y, 12, 0.7); enemyShot(a.run, x, y, 0, 0, { col: '#4a8ae8', z: 220, vz: -160, r: 9, from: 'Autocorrect' }) }
       }
       if (phase === 2 && a.every(e, 'spiral', 0.12)) { e.data.sp = (e.data.sp || 0) + 0.37; a.shoot(e, e.data.sp, 120); a.shoot(e, e.data.sp + Math.PI, 120) }

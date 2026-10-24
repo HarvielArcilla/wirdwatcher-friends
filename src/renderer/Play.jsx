@@ -279,7 +279,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
           : card?.word && (
             <>
               <div className='word-area'>
-                <h1 key={`${card.word}-${fx?.key || 0}`} className={`word ${fx ? `fx-${fx.kind}` : ''}`} style={{ fontSize: wordSize(card.word) }} aria-label={card.word}>
+                <h1 key={`word:${card.word}:${fx?.key || 0}`} className={`word ${fx ? `fx-${fx.kind}` : ''}`} style={{ fontSize: wordSize(card.word) }} aria-label={card.word}>
                   {fx?.kind === 'zero' || fx?.kind === 'crumble'
                     ? [...card.word].map((ch, i) => <span key={i} className='fall' aria-hidden='true' style={{ '--d': `${(i * 37) % 11 * 0.03}s`, '--x': `${((i * 53) % 9 - 4) * 14}px`, '--r': `${((i * 71) % 13 - 6) * 18}deg` }}>{ch}</span>)
                     : card.word}
@@ -323,7 +323,7 @@ export default function Play ({ mode, setMode, modes, settings, refreshTop, focu
                     </div>
                   </div>
                 </div>
-                {isRated && info.compare && <Compare key={`${card.word}-${rated.r}`} c={info.compare} r={rated.r} />}
+                {isRated && info.compare && <Compare key={`compare:${card.word}:${rated.r}`} c={info.compare} r={rated.r} />}
               </div>
 
               <div className='entry'>

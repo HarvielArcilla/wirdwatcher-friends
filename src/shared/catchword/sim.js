@@ -80,7 +80,7 @@ export function wordCatch (w) {
 }
 
 // --- a new game ---------------------------------------------------------------------------
-export function newGame ({ word, start, difficulty = 'normal', seed = 'catchword', bonus = 0 }) {
+export function newGame ({ word, start, difficulty = 'normal', seed = 'catchword', bonus = 0, from = [] }) {
   const diff = DIFFICULTIES[difficulty] ? difficulty : 'normal'
   if (!REGION[start]) throw new Error('Pick where it starts.')
   const g = {
@@ -89,7 +89,8 @@ export function newGame ({ word, start, difficulty = 'normal', seed = 'catchword
     regions: Object.fromEntries(REGIONS.map((r) => [r.id, { u: r.pop, s: 0, a: 0, seen: false, airOpen: true, seaOpen: true, firstAbsorbed: false }])),
     attention: 0, research: 0, purists: false, ruled: false, puristStage: 0,
     trips: [], bubbles: [], nextBubble: 1, news: [], milestones: {},
-    over: null, stats: { evolved: 0, devolved: 0, popped: 0, regions: 0, peakResearch: 0, ruledDay: null }
+    over: null, stats: { evolved: 0, devolved: 0, popped: 0, regions: 0, peakResearch: 0, ruledDay: null },
+    from: (Array.isArray(from) ? from : []).slice(0, 2).map(String), hist: [[0, 0, 0, 0]]
   }
   seedRegion(g, start, SEED_PEOPLE)
   say(g, `Someone in ${REGION[start].name} says “${g.word}” for the first time.`, 'start')
@@ -243,6 +244,12 @@ export function step (g) {
     say(g, `${m * 10}% of the world has absorbed “${g.word}”.`, 'absorb')
   }
 
+  // A line of history every few days: speakers, absorbed, the Purists, regions.
+  if (g.day % 4 === 0) {
+    g.hist = g.hist || []
+    g.hist.push([g.day, Math.round((now.s / WORLD) * 1000) / 1000, Math.round((now.a / WORLD) * 1000) / 1000, Math.round(g.research)])
+    if (g.hist.length > 500) g.hist = g.hist.filter((_, i) => i % 2 === 0)
+  }
   // Old bubbles fade.
   g.bubbles = g.bubbles.filter((b) => g.day - b.day < BUBBLE_DAYS)
   g.rng = rng.s
@@ -274,6 +281,8 @@ function puristSteps (g, events) {
 
 function end (g, won, why) {
   const tot = totals(g)
+  g.hist = g.hist || []
+  g.hist.push([g.day, Math.round((tot.s / WORLD) * 1000) / 1000, Math.round((tot.a / WORLD) * 1000) / 1000, Math.round(g.research)])
   g.over = { won, why, day: g.day, absorbed: tot.a / WORLD, ruled: g.ruled, research: Math.round(g.research) }
   say(g, won ? `“${g.word}” is in every dictionary on Earth.` : `“${g.word}” has died out. ${why}`, won ? 'win' : 'lose')
 }

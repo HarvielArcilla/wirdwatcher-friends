@@ -191,6 +191,55 @@ function roomBackground (run, room) {
 }
 
 // --- tiles ------------------------------------------------------------------------
+// Pits that touch are one hole: edges and rounded corners only where a pit
+// meets the floor, a lit lip along the far edge, and slow ripples inside.
+function drawPits (c, tiles, chId, time) {
+  const s = TILE
+  const pit = (x, y) => x >= 0 && y >= 0 && x < COLS && y < ROWS && tiles[y * COLS + x] === T.PIT
+  const deep = chId === 'margins' ? '#1e2440' : '#0a0a12'
+  const R = 10
+  const I = 2
+  c.fillStyle = deep
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      if (!pit(tx, ty)) continue
+      const n = pit(tx, ty - 1); const so = pit(tx, ty + 1); const w = pit(tx - 1, ty); const e = pit(tx + 1, ty)
+      const x0 = IX + tx * s + (w ? -0.75 : I); const x1 = IX + (tx + 1) * s - (e ? -0.75 : I)
+      const y0 = IX + ty * s + (n ? -0.75 : I); const y1 = IX + (ty + 1) * s - (so ? -0.75 : I)
+      const tl = !n && !w ? R : 0; const tr = !n && !e ? R : 0; const br = !so && !e ? R : 0; const bl = !so && !w ? R : 0
+      c.beginPath()
+      c.moveTo(x0 + tl, y0); c.lineTo(x1 - tr, y0); if (tr) c.arcTo(x1, y0, x1, y0 + tr, tr)
+      c.lineTo(x1, y1 - br); if (br) c.arcTo(x1, y1, x1 - br, y1, br)
+      c.lineTo(x0 + bl, y1); if (bl) c.arcTo(x0, y1, x0, y1 - bl, bl)
+      c.lineTo(x0, y0 + tl); if (tl) c.arcTo(x0, y0, x0 + tl, y0, tl)
+      c.closePath(); c.fill()
+      // Fill the inside corner where three pits meet round an L.
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        if (pit(tx + dx, ty) && pit(tx, ty + dy) && pit(tx + dx, ty + dy)) {
+          c.fillRect(IX + tx * s + (dx < 0 ? 0 : s / 2), IX + ty * s + (dy < 0 ? 0 : s / 2), s / 2, s / 2)
+        }
+      }
+    }
+  }
+  // The lip on the far side (where light catches the floor's edge), and ripples.
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      if (!pit(tx, ty)) continue
+      const x = IX + tx * s; const y = IX + ty * s
+      if (!pit(tx, ty - 1)) {
+        const g = c.createLinearGradient(0, y + I, 0, y + I + 12)
+        g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+        c.fillStyle = g
+        c.fillRect(x + (pit(tx - 1, ty) ? 0 : I + 6), y + I, s - (pit(tx - 1, ty) ? 0 : I + 6) - (pit(tx + 1, ty) ? 0 : I + 6), 12)
+      }
+      if ((tx * 7 + ty * 3) % 3 === 0) {
+        c.strokeStyle = 'rgba(120,140,220,.18)'; c.lineWidth = 1.5
+        c.beginPath(); c.ellipse(x + s / 2, y + s / 2 + 2, 9 + Math.sin(time * 1.6 + tx + ty) * 3, 4, 0, 0, TAU); c.stroke()
+      }
+    }
+  }
+}
+
 const BLOCK_COLS = { margins: ['#e8b850', '#7ab8e8', '#e87a7a', '#8ad08a'], index: ['#c89860', '#b07848', '#d8b078'], stacks: ['#a86a3a', '#8a5a2a', '#c88a4a'], archive: ['#8a96aa', '#7a86a0', '#9aa6ba'], press: ['#6a6a72', '#7a7a82'], unwritten: ['#3a3450', '#2a2440'] }
 function drawTile (c, t, x, y, i, chId, time) {
   const s = TILE
@@ -257,6 +306,19 @@ function drawDoor (c, d, door, open, time) {
   }
   let [col, dark] = DOOR_COLS[door.kind] || DOOR_COLS.normal
   if (door.kind === 'deal' && door.deal === 'nemesis') { col = '#5a1a1a'; dark = '#2a0808' }
+  if (door.kind === 'curse') {
+    // Thorns round the frame and a sickly glow: it bites, going in and coming out.
+    const pulse = 0.5 + Math.sin(time * 3) * 0.5
+    c.fillStyle = `rgba(170,60,220,${0.18 + pulse * 0.22})`
+    c.beginPath(); c.ellipse(0, -14, 46, 34, 0, Math.PI, 0); c.fill()
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI + (i / 8) * Math.PI
+      const bx = Math.cos(a) * 33; const by = -14 + Math.sin(a) * 26
+      const tx = Math.cos(a) * 44; const ty = -14 + Math.sin(a) * 36
+      c.fillStyle = '#2a0a30'; c.beginPath(); c.moveTo(bx - Math.sin(a) * 4, by + Math.cos(a) * 4); c.lineTo(tx, ty); c.lineTo(bx + Math.sin(a) * 4, by - Math.cos(a) * 4); c.fill()
+      c.fillStyle = '#e04868'; c.beginPath(); c.arc(tx, ty, 1.6, 0, TAU); c.fill()
+    }
+  }
   c.fillStyle = dark
   c.beginPath(); c.moveTo(-30, 4); c.lineTo(-30, -24); c.quadraticCurveTo(0, -46, 30, -24); c.lineTo(30, 4); c.fill()
   c.fillStyle = col
@@ -270,8 +332,42 @@ function drawDoor (c, d, door, open, time) {
     c.fillStyle = shade(col, 0.2); c.fillRect(-2, -20, 4, 26)
   }
   if (door.locked) { c.fillStyle = '#d83a3a'; c.beginPath(); c.moveTo(-6, -20); c.lineTo(6, -20); c.lineTo(6, -4); c.lineTo(0, -8); c.lineTo(-6, -4); c.fill() }
-  const mark = { treasure: '★', shop: '₲', boss: '☠', library: '📖', curse: '✖', miniboss: '!', deal: door.deal === 'nemesis' ? '♠' : '♥' }[door.kind]
+  const mark = { treasure: '★', shop: '₲', boss: '☠', library: '📖', curse: '−♥', miniboss: '!', deal: door.deal === 'nemesis' ? '♠' : '♥' }[door.kind]
   if (mark) { c.fillStyle = door.kind === 'deal' ? (door.deal === 'nemesis' ? '#e04848' : '#ff6a9a') : '#fff6d8'; c.font = `700 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.save(); c.translate(0, -26); c.rotate(-rot); c.fillText(mark, 0, 0); c.restore() }
+  c.restore()
+}
+
+const DOOR_TEXT = {
+  treasure: ['Treasure room', 'A free word inside'],
+  shop: ['Shop', 'Spend your glyphs'],
+  boss: ['Boss', 'Something big is waiting'],
+  library: ['Library', 'Two words to use: take one'],
+  curse: ['Curse room', 'Costs half a heart to go in, and again to come out'],
+  miniboss: ['A grammar sin', 'A tough fight, with a reward'],
+  deal: ['A deal', '']
+}
+function doorLabel (c, d, door, p, here) {
+  const kind = door.kind === 'normal' && here === 'curse' ? 'curse' : door.kind
+  const info = DOOR_TEXT[kind]
+  if (!info) return
+  const at = { n: [CX, IX + 74], s: [CX, ROOM_H - IX - 72], w: [IX + 110, CY - 60], e: [ROOM_W - IX - 110, CY - 60] }[d]
+  const door0 = { n: [CX, IX], s: [CX, ROOM_H - IX], w: [IX, CY], e: [ROOM_W - IX, CY] }[d]
+  const dist = Math.hypot(p.x - door0[0], p.y - door0[1])
+  if (dist > 120) return
+  const alpha = Math.min(1, (120 - dist) / 40)
+  const sub = kind === 'deal' ? (door.deal === 'nemesis' ? 'Words you can’t stand, paid for in hearts' : 'Words you love: take one') : here === 'curse' && door.kind === 'normal' ? 'Leaving costs half a heart' : info[1]
+  c.save()
+  c.globalAlpha = alpha
+  c.font = `700 12px ${FONT}`
+  const w = Math.max(c.measureText(info[0]).width, (c.font = `500 11px ${FONT}`, c.measureText(sub).width)) + 20
+  const x = Math.max(IX + 4, Math.min(ROOM_W - IX - w - 4, at[0] - w / 2))
+  const y = at[1] - 16
+  c.fillStyle = kind === 'curse' ? 'rgba(42,10,48,.92)' : 'rgba(20,20,30,.85)'
+  c.beginPath(); roundRect(c, x, y, w, sub ? 36 : 22, 6); c.fill()
+  if (kind === 'curse') { c.strokeStyle = '#c84ae0'; c.lineWidth = 1.5; c.stroke() }
+  c.textAlign = 'left'; c.textBaseline = 'top'
+  c.fillStyle = kind === 'curse' ? '#f0b8ff' : '#fff6d8'; c.font = `700 12px ${FONT}`; c.fillText(info[0], x + 10, y + 5)
+  if (sub) { c.fillStyle = 'rgba(255,255,255,.75)'; c.font = `500 11px ${FONT}`; c.fillText(sub, x + 10, y + 20) }
   c.restore()
 }
 
@@ -709,11 +805,12 @@ export function drawRun (ctx, run, fx, time, opts = {}) {
     ctx.beginPath(); ctx.ellipse(cr.x, cr.y, cr.r, cr.r * 0.7, 0, 0, TAU); ctx.fill()
   }
   ctx.globalAlpha = 1
-  // Tiles.
+  // Tiles: pits first, as joined-up holes, then everything standing on the floor.
+  drawPits(ctx, r.tiles, chId, time)
   for (let ty = 0; ty < ROWS; ty++) {
     for (let tx = 0; tx < COLS; tx++) {
       const t = r.tiles[ty * COLS + tx]
-      if (t !== T.FLOOR) drawTile(ctx, t, IX + tx * TILE, IX + ty * TILE, ty * COLS + tx + run.fi * 91, chId, time)
+      if (t !== T.FLOOR && t !== T.PIT) drawTile(ctx, t, IX + tx * TILE, IX + ty * TILE, ty * COLS + tx + run.fi * 91, chId, time)
     }
   }
   drawTrap(ctx, r.trap, time)
@@ -794,6 +891,8 @@ export function drawRun (ctx, run, fx, time, opts = {}) {
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.5})`; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
   if (run.swap > 0) { ctx.fillStyle = 'rgba(106,122,154,.12)'; ctx.fillRect(0, 0, ROOM_W, ROOM_H) }
   if (near) wordCard(ctx, near.s, Math.min(1, (85 - near.d) / 25))
+  // Walk up to a special door and it says what's behind it.
+  else for (const [d, door] of Object.entries(r.doors)) if (!door.hidden) doorLabel(ctx, d, door, run.p, r.type)
   ctx.restore()
   drawHud(ctx, run, time, opts)
 }

@@ -224,8 +224,13 @@ function Game ({ init, settings, onEnd, onQuit }) {
     const frame = (now) => {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
-      pad = edges.read()
-      if (pad.pressed.menu && !run.over) pause(!pausedRef.current)
+      // Presses wait for the next game tick (a fast screen can draw several
+      // frames between ticks, and a press read in one of those was lost).
+      const read = edges.read()
+      pad.s = read.s
+      if (pausedRef.current) pad.pressed = {}
+      else Object.assign(pad.pressed, read.pressed)
+      if (read.pressed.menu && !run.over) pause(!pausedRef.current)
       padMap.current = Boolean(pad.s?.view)
       if (!pausedRef.current && !(run.over && ended)) {
         acc += dt

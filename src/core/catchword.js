@@ -73,7 +73,7 @@ export class Catchword {
     const rs = (Array.isArray(from) ? from : []).slice(0, 2).map((w) => mine.get(String(w).toLowerCase())).filter((r) => typeof r === 'number')
     const bonus = rs.length === 2 ? Math.max(-0.02, Math.min(0.02, ((rs[0] + rs[1]) / 2 - 2.5) * 0.008)) : 0
     const id = crypto.randomBytes(6).toString('hex')
-    const g = newGame({ word, start, difficulty, seed: id, bonus })
+    const g = newGame({ word, start, difficulty, seed: id, bonus, from: rs.length === 2 ? from.slice(0, 2) : [] })
     g.id = id
     this.s.run = g
     this.s.runId = id

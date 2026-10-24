@@ -108,7 +108,7 @@ function Clues ({ c, act, friends, toast, settings }) {
       </div>
       <div className='clue-list'>
         {shown.map((x, i) => <div key={i} className={`clue ${i === shown.length - 1 && !done ? 'new' : ''}`}><i>{({ pos: 'kind', def: 'means', syn: 'like', ex: 'as in' })[x.kind]}</i> {x.kind === 'ex' ? `“${x.text}”` : x.text}</div>)}
-        {!shown.length && <div className='clue'><i>clue 1</i> {c.pattern.length} letters. Ask for a clue when you’re ready.</div>}
+        {!shown.length && <div className='clue'><i>start</i> {c.pattern.length} letters. Ask for a clue when you’re ready.</div>}
       </div>
       {!done
         ? (
@@ -126,7 +126,7 @@ function Clues ({ c, act, friends, toast, settings }) {
         : (
           <div className='td-result'>
             <div className='tword' style={{ fontSize: 34 }}>{c.word}</div>
-            <p>{c.solved ? <>Solved after {c.clue} clue{c.clue === 1 ? '' : 's'} and {c.wrong} miss{c.wrong === 1 ? '' : 'es'}: <b>{c.points}</b> points, +<Coins n={c.coins} /></> : 'Stumped today. A new one at midnight UTC.'}</p>
+            <p>{c.solved ? <>Solved with {c.clue ? `${c.clue} extra clue${c.clue === 1 ? '' : 's'}` : 'no extra clues'} and {c.wrong} miss{c.wrong === 1 ? '' : 'es'}: <b>{c.points}</b> points, +<Coins n={c.coins} /></> : 'Stumped today. A new one at midnight UTC.'}</p>
             {c.info?.senses?.[0] && <p className='td-def'><i>{c.info.senses[0].posName}</i> {c.info.senses[0].def}</p>}
             <pre className='td-share'>{c.share}</pre>
             <button className='btn small' onClick={() => { api('copy', c.share); toast({ emoji: '📋', title: 'Copied', text: 'Paste it anywhere. It doesn’t give the word away.' }) }}>Copy result</button>

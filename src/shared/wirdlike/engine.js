@@ -28,7 +28,7 @@ export function newRun ({ seed, charId = 'wirdo', pool = [], deep = false, now =
   const ch = character(charId)
   const run = {
     v: 1, seed: String(seed), char: ch.id, fi: 0, deep, rngS: 0, t: 0, tick: 0, startedAt: now,
-    pool: [...pool], ev: [], banner: null, over: null, swap: 0,
+    pool: dedupe(pool), got: [], ev: [], banner: null, over: null, swap: 0,
     stats: { kills: 0, rooms: 0, hits: 0, bangsUsed: 0, found: [], bosses: [], sins: [], transforms: [], floorHits: 0, noHitBosses: 0, deepest: 0 },
     p: {
       x: CX, y: CY + 40, vx: 0, vy: 0, r: 11, hp: ch.hp, maxHp: ch.hp, soul: ch.soul, bangs: 1 + (ch.start.bangs || 0), marks: 1, glyphs: 0,
@@ -50,6 +50,14 @@ export function newRun ({ seed, charId = 'wirdo', pool = [], deep = false, now =
 
 export function rand (run) { const r = new Rng(run.rngS); const v = r.next(); run.rngS = r.s; return v }
 const rpick = (run, a) => a[Math.floor(rand(run) * a.length)]
+// Weighted: [[kind, weight], …].
+function wpick (run, list) {
+  let r = rand(run) * list.reduce((a, [, w]) => a + w, 0)
+  for (const [k, w] of list) if ((r -= w) < 0) return k
+  return list[list.length - 1][0]
+}
+// What a cleared room leaves: about as many bangs and bookmarks as glyphs.
+const CLEAR_DROPS = [['glyph', 2], ['glyph5', 0.4], ['heart', 1.2], ['half', 1], ['soul', 0.8], ['bang', 1.7], ['mark', 1.7], ['bang2', 0.25]]
 
 // --- floors and rooms ---------------------------------------------------------------
 function bossFor (run, fi) {
@@ -97,7 +105,7 @@ function fillRoom (run, room) {
     ped(drawItem(run, 'library'), 7, 3, { group: 'lib' })
   } else if (room.type === 'secret') {
     if (rand(run) < 0.3) ped(drawItem(run, 'treasure'), 6, 3)
-    else for (let i = 0; i < 4; i++) pick(rpick(run, ['glyph5', 'glyph', 'bang', 'soul', 'glyph5']), 4 + i * 1.4, 3)
+    else for (let i = 0; i < 4; i++) pick(wpick(run, [['glyph5', 1], ['glyph', 1], ['bang', 1.2], ['mark', 1.2], ['soul', 0.8]]), 4 + i * 1.4, 3)
   } else if (room.type === 'curse') {
     if (rand(run) < 0.5) ped(drawItem(run, 'treasure'), 6, 3)
     else for (let i = 0; i < 3; i++) pick(rpick(run, ['heart', 'glyph5', 'bang', 'mark']), 5 + i, 3)
@@ -178,14 +186,22 @@ export function drawItem (run, where) {
   return takeItem(run, filter, wantQ) || takeItem(run, () => true, wantQ) || { ...BLANK_PAGE }
 }
 
+// One of each word per run: once you've had it, it's gone from the pool.
+function dedupe (pool) {
+  const seen = new Set()
+  return pool.filter((it) => { const k = String(it.word || it.id).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+}
+const gotKey = (it) => String(it.word || it.id).toLowerCase()
+
 function takeItem (run, filter, weight = () => 1) {
-  const list = run.pool.filter(filter)
+  const got = new Set(run.got || [])
+  const list = run.pool.filter((it) => !got.has(gotKey(it)) && filter(it))
   if (!list.length) return null
   const total = list.reduce((a, it) => a + weight(it.q), 0)
   let x = rand(run) * total
   let pick = list[list.length - 1]
   for (const it of list) { if ((x -= weight(it.q)) < 0) { pick = it; break } }
-  run.pool = run.pool.filter((it) => it.id !== pick.id)
+  run.pool = run.pool.filter((it) => it.id !== pick.id && gotKey(it) !== gotKey(pick))
   return pick
 }
 
@@ -195,12 +211,20 @@ export function giveItem (run, item, quiet = false, from = null) {
   const p = run.p
   if (item.kind === 'active') {
     const old = p.active
-    p.active = { item, charge: item.active.charge, max: item.active.charge }
-    if (old && from) Object.assign(from, { item: old.item, empty: false, dropped: true, away: false, price: 0, cost: 0, group: null })
-    else if (old && run.room) run.room.peds.push({ item: old.item, x: p.x, y: p.y + 30, dropped: true })
+    // An active you put down keeps the charge it had; a new one comes full.
+    const kept = from && typeof from.charge === 'number' ? Math.min(item.active.charge, from.charge) : item.active.charge
+    p.active = { item, charge: kept, max: item.active.charge }
+    if (from) delete from.charge
+    if (old && from) Object.assign(from, { item: old.item, charge: old.charge, empty: false, dropped: true, away: false, price: 0, cost: 0, group: null })
+    else if (old && run.room) run.room.peds.push({ item: old.item, charge: old.charge, x: p.x, y: p.y + 30, dropped: true })
   } else p.items.push(item)
   for (const f of item.fx) applyOnce(run, f)
   if (!run.stats.found.includes(item.id) && item.id !== '_blank') run.stats.found.push(item.id)
+  if (item.id !== '_blank') {
+    run.got = run.got || []
+    if (!run.got.includes(gotKey(item))) run.got.push(gotKey(item))
+    run.pool = run.pool.filter((it) => gotKey(it) !== gotKey(item))
+  }
   if (item.topic && item.kind === 'passive') {
     p.topics[item.topic] = (p.topics[item.topic] || 0) + 1
     const tf = TRANSFORMS[item.topic]
@@ -362,6 +386,29 @@ export function moveBody (run, b, dx, dy, { fly = false, player = false, ghost =
 // Walkers can't cross blocks, inkwells, fires or pits; fliers only stop at
 // metal.
 const solidFor = (t, fly) => (fly ? t === T.METAL : t !== T.FLOOR && t !== T.SPIKE)
+
+// Whether a circle at (x, y) overlaps anything a walker can't stand on.
+export function blocked (run, x, y, r, fly = false) {
+  for (const [tx, ty] of nearTiles(x, y, r)) {
+    if (!solidFor(tileAtT(run, tx, ty), fly)) continue
+    const rx = IX + tx * TILE; const ry = IX + ty * TILE
+    if (len(x - clamp(x, rx, rx + TILE), y - clamp(y, ry, ry + TILE)) < r - 1) return true
+  }
+  return false
+}
+
+// The nearest place a walker of radius r can stand, searching outward.
+export function freeSpot (run, x, y, r) {
+  if (!blocked(run, x, y, r)) return { x, y }
+  for (let d = 8; d < 400; d += 8) {
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2
+      const nx = clamp(x + Math.cos(a) * d, IX + r, IX + IW - r); const ny = clamp(y + Math.sin(a) * d, IX + r, IX + IH - r)
+      if (!blocked(run, nx, ny, r)) return { x: nx, y: ny }
+    }
+  }
+  return { x, y }
+}
 
 function pushOut (run, b, fly, player) {
   const r = b.r
@@ -635,7 +682,8 @@ function stepFoes (run, dt) {
     // Knockback.
     if (e.kx || e.ky) { api.moveBy(e, e.kx * dt * 6, e.ky * dt * 6); e.kx *= Math.pow(0.0001, dt); e.ky *= Math.pow(0.0001, dt); if (Math.abs(e.kx) + Math.abs(e.ky) < 1) e.kx = e.ky = 0 }
     // Touching you.
-    if (!e.harmless && !st.charm && !freeze && e.z < 10 && len(e.x - p.x, e.y - p.y) < e.r + p.r - 2) hurt(run, 1, def.name || def.short || 'an enemy')
+    if (e.safeT > 0) e.safeT -= dt
+    if (!e.harmless && !(e.safeT > 0) && !st.charm && !freeze && e.z < 10 && len(e.x - p.x, e.y - p.y) < e.r + p.r - 2) hurt(run, 1, def.name || def.short || 'an enemy')
     if (p.flags.thorns && len(e.x - p.x, e.y - p.y) < e.r + p.r + 6 && (e.thornT = (e.thornT || 0) - dt) <= 0) { e.thornT = 0.4; damage(run, e, 5 + p.stats.dmg, { kind: 'thorns' }) }
   }
   room.foes = room.foes.filter((e) => !e.dead || e.keep)
@@ -735,8 +783,12 @@ function breakTile (run, tx, ty, t) {
   const x = IX + tx * TILE + TILE / 2; const y = IX + ty * TILE + TILE / 2
   run.ev.push({ k: 'tile', x, y, t })
   run.room.flowT = 0
-  if (t === T.TINTED) dropPick(run, x, y, rpick(run, ['soul', 'bang', 'mark', 'glyph5']))
-  if (t === T.POT && rand(run) < 0.35) dropPick(run, x, y, rpick(run, ['glyph', 'glyph', 'half', 'bang']))
+  // A marked rock always gives something good, and never just money.
+  if (t === T.TINTED) {
+    dropPick(run, x, y, wpick(run, [['bang2', 1], ['mark', 1.2], ['soul', 1], ['charge', 0.3]]))
+    if (rand(run) < 0.5) dropPick(run, x, y, wpick(run, [['bang', 1], ['mark', 1], ['heart', 0.6], ['glyph5', 0.6]]))
+  }
+  if (t === T.POT && rand(run) < 0.4) dropPick(run, x, y, wpick(run, [['glyph', 2], ['half', 1], ['bang', 1], ['mark', 1]]))
 }
 
 function hitTile (run, x, y, dmg) {
@@ -954,14 +1006,14 @@ function checkClear (run) {
   if (r.type === 'boss') return bossCleared(run, r)
   if (r.type === 'miniboss') {
     if (!run.stats.sins.includes(r.boss)) run.stats.sins.push(r.boss)
-    for (let i = 0; i < 3; i++) dropPick(run, CX, CY, rpick(run, ['heart', 'soul', 'glyph5', 'bang', 'mark']))
+    for (let i = 0; i < 3; i++) dropPick(run, CX, CY, wpick(run, [['heart', 1], ['soul', 1], ['glyph5', 0.7], ['bang', 1.2], ['mark', 1.2]]))
     if (rand(run) < 0.2) room.peds.push({ item: drawItem(run, 'treasure'), x: CX, y: CY })
     return
   }
   // A reward, sometimes.
   const luck = p.stats.luck
   if (rand(run) < 0.42 + luck * 0.04) {
-    const kind = run.fi > 0 && rand(run) < 0.07 ? 'charge' : rpick(run, ['glyph', 'glyph', 'glyph', 'heart', 'half', 'bang', 'mark', 'soul', 'glyph5', 'heart'])
+    const kind = run.fi > 0 && rand(run) < 0.07 ? 'charge' : wpick(run, CLEAR_DROPS)
     dropPick(run, CX, CY, kind)
   }
 }
