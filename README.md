@@ -154,6 +154,16 @@ A roguelike down through the dictionary: room by room, floor by floor, from The 
 - **Every boss is word trouble:** The Run-On Sentence, Typo, The Ellipsis, Lorem Ipsum, Palindrome, The Homophones, Anagram, Widow & Orphan, Thesaurus Rex, The Silent Letter, Oxymoron, Spoonerism, The Passive Voice, The Longest Word, The Department of Redundancy Department, Malaprop, The Red Pen and Autocorrect, plus the seven grammar sins.
 - **Progress:** six characters to unlock, badges, and looks you can only get down there, including **faces**: each character's head can replace your initial wherever friends see you, frame and all. Bosses pay some coins. Runs save at every door.
 
+## Catchword
+
+Coin a word and get the whole world saying it. Each new word is a blend of two you've rated (or one you make up); pick where someone first says it, then evolve it until all eight billion people have absorbed it.
+
+- **Everyone is unaware, saying it, or has absorbed it.** Speakers pass it on; the absorbed don't notice it's new any more, so it's in their language for good but they've stopped spreading it. You win when the whole world has absorbed it, and lose if nobody is left saying it while someone still hasn't heard it.
+- **Three trees to evolve** with buzz (pop the bubbles on the map): **Spread** (schoolyards, group chats, flights, ships, translation apps), **The word** (catchier and louder, or more ordinary: "Becomes a verb", "Grandma says it"), and **Staying power** (formal places, other languages, slowing the Purists).
+- **The trade-off:** notoriety brings more buzz but brings the Purists sooner, and their style ruling makes speakers drop the word; absorbing people quickly beats the ruling but burns the word out if it hasn't reached everyone yet.
+- Regions differ in how online, young and formal they are, which language family they speak, and whether they have an airport or port. Casual, Normal and Brutal. Wins pay coins; there are badges and looks to earn, and every word you've spread is remembered.
+- The map is Natural Earth's (public domain), via world-atlas; `node scripts/build-map.mjs` rebuilds it.
+
 ## Your profile
 
 **Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Leximon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.

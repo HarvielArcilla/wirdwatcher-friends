@@ -33,8 +33,9 @@ export const KINDS = [
 import { MORE_COSMETICS } from './cosmetics-more.js'
 import { VALLEY_COSMETICS } from './cosmetics-valley.js'
 import { WIRDLIKE_COSMETICS } from './wirdlike/content.js'
+import { CATCHWORD_COSMETICS } from './catchword/content.js'
 
-const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley', wirdlike: 'Wirdlike' }
+const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley', wirdlike: 'Wirdlike', catchword: 'Catchword' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
 const earned = (id, text, badge, hint) => item('title', id, text, null, 'badge', hint, { badge, text })
@@ -258,7 +259,9 @@ export const COSMETICS = [
   // Faces: your initial, or a head from Wirdlike (and only from there).
   item('face', 'letter', 'Your initial', 0, 'common', 'The first letter of your name, in your colour.', { free: true }),
   // Only from Wirdlike.
-  ...WIRDLIKE_COSMETICS
+  ...WIRDLIKE_COSMETICS,
+  // Only from Catchword.
+  ...CATCHWORD_COSMETICS
 ]
 
 export const DEFAULT_LOOK = Object.fromEntries(KINDS.map((k) => [k.id, COSMETICS.find((c) => c.kind === k.id && c.free).id]))

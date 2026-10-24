@@ -136,6 +136,13 @@ function handlers () {
     wirdlikeResume: () => ww.wirdlike.resume(),
     wirdlikeAbandon: () => ww.wirdlike.abandon(),
     wirdlikeEnd: (summary) => ww.wirdlike.end(summary),
+    catchword: () => ww.catchword.view(),
+    catchwordCoin: () => ww.catchword.coin(),
+    catchwordStart: (opts) => ww.catchword.start(opts),
+    catchwordSave: (data) => ww.catchword.save(data),
+    catchwordResume: () => ww.catchword.resume(),
+    catchwordAbandon: () => ww.catchword.abandon(),
+    catchwordEnd: (data) => ww.catchword.end(data),
     valley: () => ww.valley.view(),
     valleyWords: (q) => ww.valley.words(q),
     valleyAction: (action, ...args) => {

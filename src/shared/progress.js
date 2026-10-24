@@ -2,6 +2,7 @@
 // background process (which awards) and the window (which shows).
 
 import { WIRDLIKE_BADGES } from './wirdlike/content.js'
+import { CATCHWORD_BADGES } from './catchword/content.js'
 
 export const XP = {
   rating: 10, // a word you hadn't rated before
@@ -141,7 +142,9 @@ export const BADGES = [
   { id: 'shopper', emoji: '🛍️', name: 'Window shopper', hint: 'Buy something in the shop.', test: (s) => s.ecoCosmetics >= 1 },
   { id: 'wardrobe', emoji: '👗', name: 'Wardrobe', hint: 'Own 25 things from the shop.', test: (s) => s.ecoCosmetics >= 25 },
   // Wirdlike.
-  ...WIRDLIKE_BADGES
+  ...WIRDLIKE_BADGES,
+  // Catchword.
+  ...CATCHWORD_BADGES
 ]
 
 // Rating input: what the box shows after each keystroke, like the original

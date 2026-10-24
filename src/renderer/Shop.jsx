@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { COSMETICS, KINDS, RARITY } from '../shared/cosmetics.js'
 import { VALLEY_GOALS } from '../shared/cosmetics-valley.js'
 import { WL_GOALS } from '../shared/wirdlike/content.js'
+import { CW_GOALS } from '../shared/catchword/content.js'
 import { BADGES } from '../shared/progress.js'
 import { api, Avatar, Coins, CoinArt, useToast } from './ui.jsx'
 import { burst, centerOf, setConfettiStyle } from './effects.js'
@@ -91,10 +92,11 @@ export function lockText (c) {
   if (c.pack) return '🃏 Only in card packs'
   if (c.valley) return `🌾 Wird Valley: ${VALLEY_GOALS[c.valley]?.text || 'earned there'}`
   if (c.wl) return `🕳️ ${WL_GOALS[c.wl]?.text || 'Earned in Wirdlike'}`
+  if (c.cw) return `🗣️ Catchword: ${CW_GOALS[c.cw]?.text || 'earned there'}`
   return '🔒 Not for sale'
 }
 // The description without the how-to-get-it part (the lock says that).
-const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.|Only in card packs\.|From Wirdlike\.)\s*/, '').trim()
+const flavor = (c) => String(c.desc || '').replace(/^(Reach level \d+\.|Comes with[^.]*\.|Earned [^.]*\.|Only in card packs\.|From Wirdlike\.|From Catchword\.)\s*/, '').trim()
 
 // A small picture of each item, drawn with the same styles the real thing uses.
 export function Preview ({ c, me }) {

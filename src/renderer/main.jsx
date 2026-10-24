@@ -19,6 +19,7 @@ import Valley from './Valley.jsx'
 import Casino from './Casino.jsx'
 import Today from './Today.jsx'
 import Wirdlike from './Wirdlike.jsx'
+import Catchword from './Catchword.jsx'
 import { formatCoins } from '../shared/economy.js'
 
 const TABS = [
@@ -33,6 +34,7 @@ const TABS = [
   { id: 'casino', label: 'Casino', icon: icons.casino },
   { id: 'valley', label: 'Valley', icon: icons.farm },
   { id: 'wirdlike', label: 'Wirdlike', icon: icons.wirdlike },
+  { id: 'catchword', label: 'Catchword', icon: icons.catchword },
   { id: 'shop', label: 'Shop', icon: icons.shop }
 ]
 
@@ -209,6 +211,7 @@ function App () {
         {tab === 'casino' && <Casino econ={econ} settings={settings.values} />}
         {tab === 'valley' && <Valley />}
         {tab === 'wirdlike' && <Wirdlike settings={settings.values} />}
+        {tab === 'catchword' && <Catchword settings={settings.values} />}
         {tab === 'leximon' && <Leximon econ={econ} friends={friends} settings={settings.values} />}
         {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}
