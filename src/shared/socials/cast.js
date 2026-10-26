@@ -9,7 +9,7 @@
 const R = (handle, name, o) => ({ handle, name, ...o })
 export const REGULARS = [
   // The owner.
-  R('grandiloquent', 'Grandiloquent', { check: 'grey', followers: 214e6, sites: ['writter'], voice: 'owner', color: '#1a1a1a', bio: 'Chief Writter. Free speech absolutist (terms apply). Bought this place for 44B glyphs, no regrets (some regrets).' }),
+  R('grandiloquent', 'Grandiloquent', { check: 'grey', followers: 214e6, sites: ['writter'], voice: 'owner', color: '#1a1a1a', bio: 'Chief W (formerly Chief Writter). Free speech absolutist (terms apply). Bought this place for 44B glyphs, no regrets (some regrets).' }),
   // Money.
   R('bignounenergy', 'Big Noun Energy', { check: 'blue', followers: 312e3, sites: ['writter', 'readit'], subs: ['WirdStreetBets', 'PennyWords'], voice: 'degen', color: '#e8503a', bio: 'Not financial advice. Barely advice. 🚀' }),
   R('diamondhyphens', 'Diamond Hyphens', { check: 'blue', followers: 88e3, sites: ['writter', 'readit'], subs: ['WirdStreetBets'], voice: 'holder', color: '#3a8ae8', bio: '💎🙌 never selling a single word. not one.' }),

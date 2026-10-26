@@ -3104,6 +3104,7 @@ body[data-scheme="dark"] { --cw-sea: #0e2236; --cw-sea-hi: #17344f; --cw-land: #
 .sm-ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px; }
 .sm-ico svg { width: 18px; height: 18px; }
 .sm-ico.writter { background: #1d9bf0; }
+.sm-ico.writter.x { background: #0f1419; font-family: Georgia, serif; font-size: 17px; }
 .sm-ico.readit { background: #ff4500; border-radius: 50%; }
 .sm-ico.wirdin { background: #0a66c2; border-radius: 5px; font-size: 13px; letter-spacing: -.5px; }
 .sm-gap { flex: 1; }
@@ -3346,3 +3347,5 @@ body[data-scheme="dark"] .sm-wirdin { --sm-bg: #000; }
 .sm-fine { font-size: 12px; text-align: center; }
 .rarity.r-socials { color: #fff; background: linear-gradient(90deg, #1d9bf0, #ff4500, #0a66c2); }
 .shop-item.r-socials { background: linear-gradient(160deg, color-mix(in srgb, #1d9bf0 12%, var(--panel)), var(--panel) 60%); }
+.sm-formerly { font-size: 12px; font-weight: 600; opacity: .7; }
+.sm-blueformer { display: block; color: rgba(255,255,255,.65); font-size: 12px; margin-top: -4px; }

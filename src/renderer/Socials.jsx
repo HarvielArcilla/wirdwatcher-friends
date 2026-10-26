@@ -9,7 +9,7 @@ import { render } from '../shared/socials/player.js'
 const fmtN = (n) => { n = Math.max(0, Math.round(n || 0)); return n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n) }
 const ago = (t, now) => { const s = Math.max(0, (now - t) / 1000); return s < 60 ? `${Math.max(1, Math.floor(s))}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' }) }
 const APPS = [
-  { id: 'writter', name: 'Writter', color: '#1d9bf0' },
+  { id: 'writter', name: 'W', color: '#1d9bf0' },
   { id: 'readit', name: 'readit', color: '#ff4500' },
   { id: 'wirdin', name: 'WirdIn', color: '#0a66c2' }
 ]
@@ -41,14 +41,13 @@ export default function Socials ({ econ }) {
   const open = async (p) => { const th = await api('socialsThread', p.id); if (th) setThread(th) }
   if (!info || !v) return <div className='page' />
   const me = info.profile
-  const W = app === 'writter' && v.w
   return (
     <div className={`sm sm-${app}`}>
       <nav className='sm-apps'>
         {APPS.map((a) => (
           <button key={a.id} className={`sm-app ${app === a.id ? 'on' : ''}`} onClick={() => { setApp(a.id); setSub(null); setPage('feed'); setThread(null) }} style={{ '--ac': a.color }} title={a.name}>
-            <AppIcon id={a.id} w={a.id === 'writter' && v.w} />
-            <span>{a.id === 'writter' && W ? 'W' : a.name}</span>
+            <AppIcon id={a.id} bird={a.id === 'writter' && v.writterDay} />
+            <span>{a.id !== 'writter' ? a.name : v.writterDay ? 'Writter' : <small className='sm-formerly'>(formerly Writter)</small>}</span>
           </button>
         ))}
         <span className='sm-gap' />
@@ -78,13 +77,13 @@ export default function Socials ({ econ }) {
 }
 
 // --- bits ----------------------------------------------------------------------------------------
-function AppIcon ({ id, w }) {
-  if (id === 'writter') return <span className='sm-ico writter'>{w ? 'W' : <svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5c4 4.5 7 6 10 6-1 2-3 4-7 4 3 2 8 3 11-1 2-3 2-7 1-9 1 0 2-1 2.5-2-1 .3-2 .4-2.7.2C17.6 1.8 15 2 14 3.5 11 3 7 3 4 5Z' fill='currentColor' /></svg>}</span>
+function AppIcon ({ id, bird }) {
+  if (id === 'writter') return <span className={`sm-ico writter ${bird ? '' : 'x'}`}>{!bird ? 'W' : <svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5c4 4.5 7 6 10 6-1 2-3 4-7 4 3 2 8 3 11-1 2-3 2-7 1-9 1 0 2-1 2.5-2-1 .3-2 .4-2.7.2C17.6 1.8 15 2 14 3.5 11 3 7 3 4 5Z' fill='currentColor' /></svg>}</span>
   if (id === 'readit') return <span className='sm-ico readit'><svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='14' r='7' fill='#fff' /><circle cx='9.4' cy='13.6' r='1.2' fill='#ff4500' /><circle cx='14.6' cy='13.6' r='1.2' fill='#ff4500' /><path d='M9.2 16.6c1.6 1.1 4 1.1 5.6 0' stroke='#ff4500' strokeWidth='1.1' fill='none' strokeLinecap='round' /><circle cx='17.5' cy='5.5' r='1.5' fill='#fff' /><path d='M12 7l1.2-3.6 4.3 2' stroke='#fff' strokeWidth='1.1' fill='none' /></svg></span>
   return <span className='sm-ico wirdin'>Wi</span>
 }
 
-const CHECK_TITLE = { blue: 'Writter Blue (paid)', legacy: 'Legacy verified', grey: 'Official account', gold: 'Verified brand', diamond: 'Diamond Check (paid, a lot)', checkcheck: 'The Check With a Check On It' }
+const CHECK_TITLE = { blue: 'W Blue (paid)', legacy: 'Legacy verified', grey: 'Official account', gold: 'Verified brand', diamond: 'Diamond Check (paid, a lot)', checkcheck: 'The Check With a Check On It' }
 export function Check ({ kind }) {
   if (!kind) return null
   const fill = { blue: '#1d9bf0', legacy: '#1d9bf0', grey: '#829aab', gold: '#e2b719', diamond: '#5ad8ff', checkcheck: '#1d9bf0' }[kind]
@@ -203,9 +202,9 @@ function Writter ({ v, info, tab, setTab, open, thread, closeThread, act, goBlue
   return (
     <div className='wr'>
       <aside className='wr-left'>
-        <div className='wr-logo'>{v.w ? <b className='wr-w'>W</b> : <><AppIcon id='writter' /> Writter</>}</div>
-        {v.w && <small className='wr-wnote'>Writter is called W today. It’ll be Writter again tomorrow. Probably.</small>}
-        <button className='wr-blue' onClick={goBlue}><Check kind='blue' /> {me.blue ? `${me.blue.name}` : 'Get Writter Blue'}</button>
+        <div className='wr-logo'>{v.writterDay ? <><AppIcon id='writter' bird /> Writter</> : <b className='wr-w'>W</b>}</div>
+        <small className='wr-wnote'>{v.writterDay ? 'It’s Writter again, for today. Tomorrow it’s W. Probably.' : '(formerly Writter)'}</small>
+        <button className='wr-blue' onClick={goBlue}><Check kind='blue' /> {me.blue ? `${me.blue.name}` : 'Get W Blue'}</button>
         <p className='wr-pitch'>{me.blue ? `Active until ${new Date(me.blue.until).toLocaleDateString()}. It means nothing.` : 'A checkmark that means nothing, for a price that means something.'}</p>
       </aside>
       <main className='wr-main'>
@@ -462,7 +461,7 @@ function Profile ({ info, v, act, open }) {
         <Face a={me.author} size={84} />
         <div className='sm-prof-name'><h2>{me.author.name}<Check kind={me.author.check} /></h2><span>@{me.handle}</span></div>
         <div className='sm-prof-stats'>
-          <div><b>{fmtN(me.followers)}</b><small>Writter followers</small></div>
+          <div><b>{fmtN(me.followers)}</b><small>W followers</small></div>
           <div><b>{fmtN(me.karma)}</b><small>readit karma</small></div>
           <div><b>{fmtN(me.connections)}</b><small>WirdIn connections</small></div>
           <div><b>{me.posts}</b><small>posts</small></div>
@@ -506,7 +505,7 @@ function BluePage ({ info, act, coins, onBack }) {
       <button className='btn ghost small' onClick={onBack}>← Back</button>
       <div className='sm-blue-hero'>
         <Check kind='blue' />
-        <h1>Writter Blue</h1>
+        <h1>W Blue</h1><small className='sm-blueformer'>Formerly Writter Blue. Same check.</small>
         <p>For people who want to be taken seriously by people who will not take them seriously.</p>
         {me.legacy && <p className='sm-blue-warn'>You’re legacy verified. Buying Blue will make people laugh at you. Specifically at you.</p>}
         {me.blue && <p className='sm-blue-now'>You have {me.blue.name} until {new Date(me.blue.until).toLocaleString()}. <button className='linkish' onClick={() => act('cancelBlue')}>Cancel</button></p>}
@@ -521,7 +520,7 @@ function BluePage ({ info, act, coins, onBack }) {
           </div>
         ))}
       </div>
-      <p className='wl-note sm-fine'>Blue gives your Writter posts a little more reach. Each tier above it adds almost nothing, and costs four times as much. Refunds are not available (or a word).</p>
+      <p className='wl-note sm-fine'>Blue gives your W posts a little more reach. Each tier above it adds almost nothing, and costs four times as much. Refunds are not available (or a word).</p>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 // Socials' places, trends, tiers and price lists.
 
 export const SITES = {
-  writter: { name: 'Writter', blurb: 'What’s happening, wordwise.' },
+  writter: { name: 'W', formerly: 'Writter', blurb: 'What’s happening, wordwise.' },
   readit: { name: 'readit', blurb: 'The front page of the dictionary.' },
   wirdin: { name: 'WirdIn', blurb: 'Your professional word network.' }
 }
@@ -87,7 +87,7 @@ export const LEGACY_AT = 100000
 
 // Writter Blue. Each tier costs more and does exactly as much.
 export const BLUE = [
-  { id: 'blue', name: 'Writter Blue', weeks: 1, k: 1, perks: ['A checkmark that means nothing', 'Your replies float to the top', 'Half the ads', 'Edit button (coming soon)'] },
+  { id: 'blue', name: 'W Blue', weeks: 1, k: 1, perks: ['A checkmark that means nothing', 'Your replies float to the top', 'Half the ads', 'Edit button (coming soon)'] },
   { id: 'premium', name: 'Blue Premium', weeks: 1, k: 4, perks: ['Everything in Blue', 'A slightly bluer checkmark', 'Longer posts (nobody reads them)'] },
   { id: 'plus', name: 'Blue Premium+', weeks: 1, k: 16, perks: ['Everything in Premium', 'No ads (some ads)', 'AI replies (it’s a thesaurus)'] },
   { id: 'diamond', name: 'Diamond Check', weeks: 1, k: 64, perks: ['Everything in Premium+', 'The check sparkles', 'Grandiloquent may reply to you (he won’t)'] },

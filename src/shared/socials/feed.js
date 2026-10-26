@@ -1,4 +1,4 @@
-// The feed: Writter, readit and WirdIn, the same on every computer.
+// The feed: W (formerly Writter), readit and WirdIn, the same on every computer.
 //
 // Time is cut into slots. Each slot's posts come from a hash of the slot
 // number and facts that are themselves the same everywhere (Word Exchange
@@ -44,14 +44,15 @@ const tail = (r) => { const u = r(); return u < 0.012 ? 30 + r() * 120 : u < 0.0
 
 export const slotOf = (t) => Math.floor(t / SLOT_MS)
 
-// --- the weekly W poll ------------------------------------------------------------------------
-// Every Monday at 17:00 UTC Grandiloquent asks whether to rename Writter to
-// W. When the answer is yes (about one week in three), Wednesday is W day.
+// --- the weekly Writter poll ------------------------------------------------------------------
+// The site is W now (formerly Writter). Every Monday at 17:00 UTC Grandiloquent
+// asks whether to change it back. When the answer is yes (about one week in
+// three), Wednesday is Writter day, and Thursday it's W again.
 const WEEK = 7 * DAY
 const MONDAY = Date.UTC(2026, 0, 5, 17) // a Monday, 17:00 UTC
 export const pollWeek = (t) => Math.floor((t - MONDAY) / WEEK)
 export const pollYes = (w) => hash32(`w-poll|${w}`) % 3 === 0
-export function isW (t) {
+export function isWritterDay (t) {
   const w = pollWeek(t)
   const since = t - (MONDAY + w * WEEK)
   return pollYes(w) && since >= DAY && since < 2 * DAY
@@ -122,7 +123,7 @@ const W_LINES = {
   },
   sports: ['{TEAM} WIN {score}!!! {team_} til I die', 'Can’t believe the {opp} lost {score}. Actually I can. I’ve watched them all season.', 'Refs handed the {team} that one {score}. Rigged league.', 'FINAL: {team} {score} {opp}. Your bets are worthless now. Mine too.'],
   games: ['Beat Autocorrect in Wirdlike with nothing but adverbs. AMA. #WirdlikeSpeedrun', 'Wirdlike seed of the day is evil. Who put The Red Pen on floor 2', 'Got “{w}{w2}” into every dictionary on Earth in Catchword. The Purists can cope. #CatchwordChallenge', 'My Tycoon company just got a 9.8 for a cooking picture dictionary. I am a publishing god now.', 'Turnips are up in Wird Valley and I have 400 of them #TurnipSzn', 'Opened {big} crates. Got {big} duplicates. #OneMoreCrate', 'Rate my Leximon team: {W}, {W2}, and a {pos} I caught by accident #RateMyLeximon', 'Penguin Cross: hopped 9 floes, got greedy, ice cracked. Every single time.', 'put my entire life savings on red in Wird Roulette. it was black. it’s always black'],
-  owner: ['Should Writter be renamed to W? 🗳️', 'Free speech means you can say any word. Except that one.', '!!', 'Looking into this', '💯', 'Writter Blue is now 8 glyphs. Complaints can be sent to /dev/null', 'Concerning', 'The algorithm is fine. Your posts are bad.', 'Edit button coming soon™'],
+  owner: ['Should W go back to being Writter? 🗳️', 'Free speech means you can say any word. Except that one.', '!!', 'Looking into this', '💯', 'W Blue is now 8 glyphs. Complaints can be sent to /dev/null', 'Concerning', 'The algorithm is fine. Your posts are bad.', 'Edit button coming soon™'],
   popstar: ['BOOM.', 'KERPLUNK. Out now. 💥', 'Thank you {big} million listeners!!! BOOM', 'New single “{W}” drops Friday. Bang. Crash. Wallop.'],
   news: ['BREAKING: {cashUp} surges {upPct}% on the Word Exchange.', 'BREAKING: {team} beat {opp} {score}.', 'BREAKING: The Purists say they are “monitoring” a new word.', 'BREAKING: Daily Clues #{num} reportedly “a hard one.” More soon.', 'BREAKING: Local man rates {w} a 0.0. Neighbours concerned.'],
   scam: ['🚀 Lexicoin is going 100× on adjectives. DM me now, only {n} spots left 🐳', 'I turned 50 glyphs into 50,000 with this ONE trick (DM me)', 'Hello dear, I am a Nigerian prince of nouns. Kindly send glyphs.'],
@@ -179,7 +180,7 @@ function writterPost (slot, k, ctx) {
     }
     case 'sports': if (r() < 0.4) voice('sports'); else crowd(); text = pick(r, lines); f.TEAM = f.team.toUpperCase(); f.team_ = f.team.toUpperCase(); break
     case 'games': if (r() < 0.3) voice(pick(r, ['speedrun', 'catchword', 'farmer', 'gacha', 'leximon', 'tycoon'])); else crowd(); text = pick(r, lines); break
-    case 'owner': voice('owner'); text = pick(r, lines); if (text.startsWith('Should Writter')) { media = { type: 'poll', options: ['Yes', 'No'], pct: [pollPct(pollWeek(t)), 100 - pollPct(pollWeek(t))] } } break
+    case 'owner': voice('owner'); text = pick(r, lines); if (text.startsWith('Should W go back')) { media = { type: 'poll', options: ['Yes', 'No'], pct: [pollPct(pollWeek(t)), 100 - pollPct(pollWeek(t))] } } break
     case 'popstar': voice('popstar'); text = pick(r, lines); break
     case 'news': voice('news'); text = pick(r, lines); break
     case 'scam': if (r() < 0.4) voice('scam'); else { crowd(); a.name = `${a.name} | Lexicoin 🚀`; a.check = 'blue' } text = pick(r, lines); break
@@ -317,11 +318,11 @@ export function slotPosts (slot, ctx) {
   for (let k = 0; k < PER_SLOT.writter; k++) out.push(writterPost(slot, k, ctx))
   for (let k = 0; k < PER_SLOT.readit; k++) out.push(readitPost(slot, k, ctx))
   for (let k = 0; k < PER_SLOT.wirdin; k++) out.push(wirdinPost(slot, k, ctx))
-  // The weekly W poll itself, Mondays at 17:00.
+  // The weekly Writter poll itself, Mondays at 17:00.
   const w = pollWeek(slot * SLOT_MS)
   const pollAt = MONDAY + w * WEEK
   if (pollAt >= slot * SLOT_MS && pollAt < (slot + 1) * SLOT_MS) {
-    out.push({ id: `w-poll-${w}`, site: 'writter', t: pollAt, kind: 'owner', text: 'Should Writter be renamed to W? Poll closes in 24 hours. 🗳️', tags: [], author: author(REGULAR.grandiloquent), media: { type: 'poll', options: ['Yes', 'No'], pct: [pollPct(w), 100 - pollPct(w)], closes: pollAt + DAY }, eng: { likes: 2.1e6, reposts: 300e3, replies: 410e3, views: 98e6, tau: 3 * HOUR } })
+    out.push({ id: `w-poll-${w}`, site: 'writter', t: pollAt, kind: 'owner', text: 'Should W go back to being Writter? Poll closes in 24 hours. 🗳️', tags: [], author: author(REGULAR.grandiloquent), media: { type: 'poll', options: ['Yes', 'No'], pct: [pollPct(w), 100 - pollPct(w)], closes: pollAt + DAY }, eng: { likes: 2.1e6, reposts: 300e3, replies: 410e3, views: 98e6, tau: 3 * HOUR } })
   }
   if (cache.size > 3000) cache.clear()
   cache.set(key, out)
@@ -356,7 +357,7 @@ export function statsAt (p, t) {
   return out
 }
 
-// What's trending on Writter around t: a few evergreen tags (they change
+// What's trending on W around t: a few evergreen tags (they change
 // every few hours), the day's movers as cashtags, and Daily Clues.
 export function trends (t, ctx) {
   const h = Math.floor(t / (3 * HOUR))
@@ -368,7 +369,7 @@ export function trends (t, ctx) {
   const out = [...picks].map((tag) => ({ tag, cat: HASHTAGS.drama.includes(tag) ? 'Drama' : HASHTAGS.games.includes(tag) ? 'Games' : 'Words', posts: Math.round(5e3 + r() * 200e3) }))
   for (const m of [...w.movers.up.slice(0, 2), ...w.movers.down.slice(0, 1)]) out.splice(1 + Math.floor(r() * out.length), 0, { tag: `$${m.word.toUpperCase()}`, cat: `Word Exchange · ${m.pct > 0 ? '+' : ''}${Math.round(m.pct)}%`, posts: Math.round(2e3 + r() * 60e3) })
   out.splice(2, 0, { tag: `Daily Clues #${w.dailyNumber}`, cat: 'Games · Trending', posts: Math.round(40e3 + r() * 100e3) })
-  if (isW(t)) out.unshift({ tag: '#ItsStillWritter', cat: 'Trending worldwide', posts: 1.2e6 })
+  out.unshift(isWritterDay(t) ? { tag: '#WritterIsBack', cat: 'Trending worldwide', posts: 1.2e6 } : { tag: '#ItsStillWritter', cat: 'Trending worldwide', posts: Math.round(80e3 + rng(hash32(`isw|${Math.floor(t / DAY)}`))() * 200e3) })
   const mc = mainCharacter(Math.floor(t / DAY), ctx)
   out.push({ tag: `@${mc.handle}`, cat: 'Main Character of the Day', posts: Math.round(8e3 + r() * 30e3) })
   return out
@@ -380,7 +381,7 @@ const REPLIES = {
     any: ['this', 'real', 'ratio', 'L + ratio', 'who asked', 'Source?', 'Counterpoint: no', 'I’m saving this', 'Not you posting this at {hour}', 'This aged well', 'This will age badly', 'Sir this is a Wirdy’s', 'Big if true', 'Let him cook', 'Touch grass', 'You’re so right and so wrong at the same time', 'bookmarked', '💀💀💀', 'Me reading this: 🧍', 'Okay but why is this so true'],
     take: ['Delete this', 'Finally someone said it', 'Worst take I’ve seen today and I’ve been online since 6am', '{w} slander will not be tolerated', 'I rated it a {cr}. Fight me.', 'Ratio for saying this about {w}', 'Mom come quick, the wrong opinion is here'],
     market: ['Bag holder detected', 'NFA but I’m in', 'This is financial advice now', 'sold at the bottom, as is tradition', 'Wodleheads are typing…', 'Just buy WTLX', 'Screenshot this', 'Puts', 'Calls'],
-    owner: ['!!', 'Concerning', 'Interesting', 'Yes', 'No', 'Please stop renaming things', 'It’s still Writter to me', 'Edit button when'],
+    owner: ['!!', 'Concerning', 'Interesting', 'Yes', 'No', 'Please stop renaming things', 'It’s still Writter to me', 'What does W even stand for', 'Edit button when'],
     blue: ['Paid for the check lmao', 'Imagine paying 8 glyphs to be annoying', 'Blue check reply detected, scrolling past', 'Nice check. Did it come with a personality?'],
     pedant: ['Well, ackshually,', 'Technically it’s a {pos}', 'You mean “{syn}”'],
     scam: ['🚀 DM me for 100× on {w}', 'I made 40,000 glyphs this week with Lexicoin, DM me 🐳', 'Hello dear, kindly check your DMs']

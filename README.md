@@ -178,7 +178,7 @@ Run a dictionary publisher from a garage in 1985 to 2030.
 
 A **Socials** tab with three apps, all fiction and all about words. Every generated post, account and number comes from the clock and the shared word data, so everyone sees the same feed at the same moment, with no server.
 
-- **Writter:** owned by @Grandiloquent, who runs a weekly poll on renaming it to W (when it passes, Wednesday is W day). There are trends, Context Footnotes, a Main Character of the day, and a large **Get Writter Blue** button with five tiers. The top tier, The Check With a Check On It, adds a check to your check and nothing else.
+- **W (formerly Writter):** owned by @Grandiloquent, who runs a weekly poll on changing it back (when it passes, Wednesday is Writter day and the bird returns for 24 hours). There are trends, Context Footnotes, a Main Character of the day, and a large **Get W Blue** button with five tiers. The top tier, The Check With a Check On It, adds a check to your check and nothing else.
 - **readit:** dozens of subs, among them r/WirdStreetBets, r/Wodleheads (buy the whole dictionary, stay the course, your question has been asked before), r/AmITheAsterisk, r/BoneAppleTea, r/ShowerWords, r/Palindromes and r/WirdConspiracy (the silent K is a cover-up). Posts carry votes, flair and comment threads, and an AutoLexerator sticky.
 - **WirdIn:** the professional network. People post their 4am routines, Thought Leadership and "Agree?".
 - **Everyone is named after words:** a regular cast plus endless throwaway accounts.

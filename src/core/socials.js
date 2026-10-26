@@ -11,7 +11,7 @@
 import crypto from 'node:crypto'
 import { hash32, profile, priceAt } from '../shared/market.js'
 import { slate, game, team, LEAGUES } from '../shared/sports.js'
-import { feed, findPost, statsAt, trends, repliesFor, rng, isW, mainCharacter, slotOf, SLOT_MS } from '../shared/socials/feed.js'
+import { feed, findPost, statsAt, trends, repliesFor, rng, isWritterDay, mainCharacter, slotOf, SLOT_MS } from '../shared/socials/feed.js'
 import { render, engagement, countsAt, gradeCall, followerGain, myReplies } from '../shared/socials/player.js'
 import { throwaway, REGULARS, validHandle } from '../shared/socials/cast.js'
 import { SUBS, SUB, STANCE, TIERS, tierFor, LEGACY_AT, BLUE, BLUE_TIER, SPONSORS } from '../shared/socials/content.js'
@@ -393,7 +393,7 @@ export class Socials {
     const seen = new Set()
     const posts = [...world, ...mine, ...friends].sort((a, b) => b.t - a.t).filter((p) => { if (p.mine || p.friend) return true; const k = `${p.sub || ''}|${p.title || p.text}`; if (seen.has(k)) return false; seen.add(k); return true }).slice(0, limit)
     return {
-      site, sub, tab, posts, now: t, w: isW(t),
+      site, sub, tab, posts, now: t, writterDay: isWritterDay(t),
       trends: site === 'writter' ? trends(t, this.ctx) : null,
       subs: site === 'readit' ? SUBS.map((s) => ({ id: s.id, blurb: s.blurb, group: s.group, members: s.members })) : null,
       follow: site === 'writter' ? this._whoToFollow(t) : null,

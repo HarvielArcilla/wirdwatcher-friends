@@ -12,7 +12,7 @@ export const SM_GOALS = {
   cancelled: { text: 'Get cancelled.', test: (g) => g.cancelled },
   comeback: { text: 'Post a Notes-app apology after getting cancelled.', test: (g) => g.comeback },
   called: { text: 'Call a word’s move right.', test: (g) => g.called },
-  blue: { text: 'Buy Writter Blue.', test: (g) => g.blue },
+  blue: { text: 'Buy W Blue.', test: (g) => g.blue },
   karma: { text: 'Reach 50,000 readit karma.', test: (g) => g.karma >= 50000 }
 }
 
@@ -41,6 +41,6 @@ export const SOCIALS_BADGES = [
   { id: 'sm-ratio', emoji: '💀', name: 'Ratio’d', hint: 'Get more replies than likes.', test: (s) => s.smRatioed >= 1 },
   { id: 'sm-cancel', emoji: '🙊', name: 'Cancelled', hint: 'Get cancelled on Socials.', test: (s) => s.smCancelled >= 1 },
   { id: 'sm-called', emoji: '🔮', name: 'Called it', hint: 'Call a word’s move right on Socials.', test: (s) => s.smCalled >= 1 },
-  { id: 'sm-blue', emoji: '☑️', name: 'Bought the check', hint: 'Buy Writter Blue.', test: (s) => s.smBlue >= 1 },
+  { id: 'sm-blue', emoji: '☑️', name: 'Bought the check', hint: 'Buy W Blue.', test: (s) => s.smBlue >= 1 },
   { id: 'sm-legacy', emoji: '✅', name: 'Legacy verified', hint: 'Reach 100,000 followers.', test: (s) => s.smLegacy >= 1 }
 ]
