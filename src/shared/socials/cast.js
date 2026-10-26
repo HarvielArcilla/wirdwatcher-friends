@@ -17,6 +17,10 @@ export const REGULARS = [
   R('prudenceledger', 'Prudence Ledger', { check: null, followers: 52e3, sites: ['readit', 'writter'], subs: ['Wodleheads', 'LexiconFIRE'], voice: 'boggle', color: '#3a7a5a', bio: 'WTLX and chill. Stay the course.' }),
   R('stalwart', 'Stalwart', { check: null, followers: 9e3, sites: ['readit'], subs: ['Wodleheads'], voice: 'boggle', color: '#5a6a4a', bio: 'Dollar-cost averaging into nouns since 1985.' }),
   R('feeratio', 'Fee Ratio', { check: null, followers: 4e3, sites: ['readit'], subs: ['Wodleheads', 'LexiconFIRE'], voice: 'boggle', color: '#2a5a3a', bio: '0.03% is theft.' }),
+  // Prediction markets.
+  R('soothsayer', 'Soothsayer Markets', { check: 'gold', followers: 2.4e6, sites: ['writter'], voice: 'markets', color: '#2a6ae8', bio: 'Live odds on the Wird leagues, elections and everything else. Prices, not promises.' }),
+  R('clairvoyant', 'Clairvoyant', { check: 'blue', followers: 96e3, sites: ['writter'], voice: 'pmwhale', color: '#8a3ae8', bio: 'Bought YES at 3¢ once. Haven’t shut up about it since.' }),
+  R('pollster', 'The Pollster', { check: null, followers: 210e3, sites: ['writter'], voice: 'pundit', color: '#6a6a6a', bio: 'Thirty years of polling. A market is a poll with a spread and an attitude.' }),
   R('hindsightprophet', 'Hindsight Prophet', { check: 'blue', followers: 61e3, sites: ['writter'], voice: 'prophet', color: '#c8962a', bio: 'Called every crash. After it happened.' }),
   R('lexicoinwhale', 'Lexicoin Whale 🐳', { check: 'blue', followers: 1.2e6, sites: ['writter'], voice: 'scam', color: '#2ab0c8', bio: 'DM for 100× on adjectives. Not a scam. 🐳' }),
   R('foliomagnate', 'Folio Magnate', { check: 'blue', followers: 470e3, sites: ['writter', 'wirdin'], voice: 'tycoon', color: '#8a5a2a', bio: 'Founder. Investor. Published 41 dictionaries. Ask me how.' }),

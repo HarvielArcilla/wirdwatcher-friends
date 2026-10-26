@@ -116,11 +116,35 @@ function Media ({ m }) {
       </div>
     )
   }
+  if (m.type === 'market') return <MarketCard m={m} />
   if (m.type === 'ticker') {
     const up = m.pct >= 0
     return <div className={`sm-ticker ${up ? 'up' : 'down'}`}><b>${m.word.toUpperCase()}</b><span>{up ? '▲' : '▼'} {Math.abs(m.pct)}% today</span><small>The Word Exchange</small></div>
   }
   return null
+}
+
+// A market on Predict, as it stood when the post went up.
+export function goPredict (m) {
+  try { localStorage.setItem('sports-league', m.league); localStorage.setItem('sports-open', m.id) } catch {}
+  window.dispatchEvent(new CustomEvent('ww-goto', { detail: { tab: 'predict' } }))
+}
+function MarketCard ({ m }) {
+  const final = m.status === 'final'
+  return (
+    <div className={`sm-market ${final ? 'final' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className='sm-market-top'><span>{m.emoji} {m.lname}</span><span className={final ? 'res' : 'live'}>{final ? 'Resolved' : '● Live'}</span></div>
+      <b className='sm-market-q'>{m.q}</b>
+      {m.opts.map((o) => (
+        <div key={o.k} className={`sm-market-row ${final && m.winner === o.k ? 'won' : ''}`}>
+          <i style={{ width: `${Math.max(1, o.pct)}%` }} />
+          <span>{o.name}{final && m.winner === o.k ? ' ✓' : ''}</span>
+          <b>{o.pct}%{!final && o.pct !== o.was && <small className={o.pct > o.was ? 'up' : 'down'}>{o.pct > o.was ? '▲' : '▼'}{Math.abs(o.pct - o.was)}</small>}</b>
+        </div>
+      ))}
+      <div className='sm-market-foot'><small>{final ? 'Paid out at 100' : 'Chance when posted'} · Predict</small><button className='btn small' onClick={() => goPredict(m)}>{final ? 'See market' : 'Trade on Predict'} →</button></div>
+    </div>
+  )
 }
 
 // --- composing ----------------------------------------------------------------------------------
@@ -222,7 +246,7 @@ function Writter ({ v, info, tab, setTab, open, thread, closeThread, act, goBlue
       <aside className='wr-right'>
         <section className='wr-box'>
           <h3>What’s happening</h3>
-          {v.trends?.map((t) => <div key={t.tag} className='wr-trend'><small>{t.cat}</small><b>{t.tag}</b><small>{fmtN(t.posts)} posts</small></div>)}
+          {v.trends?.map((t) => <div key={t.tag} className={`wr-trend ${t.market ? 'pm' : ''}`} onClick={t.market ? () => goPredict(t.market) : undefined}><small>{t.cat}</small><b>{t.tag}</b><small>{fmtN(t.posts)} posts</small></div>)}
         </section>
         <section className='wr-box'>
           <h3>Who to follow</h3>

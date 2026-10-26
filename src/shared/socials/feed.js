@@ -19,6 +19,7 @@
 import { hash32 } from '../market.js'
 import { REGULARS, REGULAR, throwaway } from './cast.js'
 import { SUBS, SUB, HASHTAGS, STANCE } from './content.js'
+import { marketAt } from './markets.js'
 
 export const FEED_VERSION = 1
 export const SLOT_MS = 6 * 60e3
@@ -207,6 +208,69 @@ function writterPost (slot, k, ctx) {
   }
 }
 
+// --- prediction markets on W -----------------------------------------------------------------
+// About one slot in two, someone posts about a market on Predict, quoting its
+// odds at that minute. (Races and fights are left out: working out their odds
+// for every slot of two days of feed is slow.)
+const BOOK = [['vote', 5], ['pop', 5], ['hoops', 3], ['gridiron', 2], ['pitch', 2]]
+const P_LINES = {
+  markets: {
+    live: ['JUST IN: {q}\n\n{lead}: {pct}% chance', 'Markets update: {q} {lead} is now {pct}%, {move} from {was}% {since}.', '{emoji} {lead} {pct}% · {other} {opct}%\n\n{q}', 'Trending on Predict: {q}'],
+    swing: ['📈 BIG MOVE: {lead} jumps to {pct}% (was {was}% {since}).\n\n{q}', '🚨 {q}\n\nThe market just flipped. {lead} {pct}%, {other} {opct}%.'],
+    final: ['RESOLVED: {q}\n\n{lead} ✅', 'Market closed. {q} {lead}. Paid out at 100.']
+  },
+  pmwhale: {
+    live: ['Just put a week of Wirdhouse income on {lead} at {pct}¢. Tell my story.', 'Bought {other} at {opct}¢. Contrarian. Visionary. Probably broke by dinner.', 'Loading up on {lead}. {pct}% is free money and I will not be explaining further.', 'If {other} wins I’m changing my name to “{other} Was Right.”'],
+    swing: ['Bought {lead} at {was}¢. It’s {pct}¢. I am a genius and this is not up for debate.', 'Sold my {other} at {opct}¢. Don’t ask what I paid.'],
+    final: ['Called it. {lead}. Screenshot this.', 'Told you all about {lead}. Cashed out at 100. You’re welcome.']
+  },
+  pundit: {
+    live: ['The market has {lead} at {pct}%. The market is not a poll. I am a poll.', 'Prediction markets say {pct}%. My model says “too close to call.” My model is always too close to call.', '{pct}% is not 100%. I will be quoting this tweet later.'],
+    swing: ['{lead} up {delta} points in the market. Polls haven’t moved. Polls are never wrong, except sometimes.'],
+    final: ['{lead} won. As my polling suggested. (My polling suggested both outcomes.)']
+  },
+  crowd: {
+    live: ['{lead} at {pct}%?? free money', 'someone just bought a lot of {other} at {opct}¢. who knows something', 'prediction markets are just polls with extra steps', 'I don’t even care about this. I just like watching the line move.', 'Me explaining to my family that {pct}% means it can still lose', 'Ok but who is buying {other} at {opct}¢', 'Put my rent money on {lead}. Just kidding. (I’m not kidding.)'],
+    swing: ['This market swung {delta} points {since}. Normal, healthy, totally fine.', 'Who bought {lead} at {was}¢ right before this moved? Asking for the regulators.', 'I sold {lead} at {was}¢. It’s {pct}¢ now. I’m logging off.'],
+    final: ['RIP to everyone who had {other} at {opct}¢ an hour ago', 'Down a week of coins on {other}. Still think I was right.', 'The market had {lead} the whole time and I still bet against it. Growth.']
+  },
+  sport: {
+    live: ['{lead} {pct}% to win and I’ve never seen them play', 'Not me watching the win chance instead of the actual game', 'Bought {other} at {opct}¢ out of spite. Let’s go.'],
+    swing: ['{lead} {was}% → {pct}% {since}. What did I miss??', 'The win chance graph on this one looks like my heart rate'],
+    final: ['{lead} win. My {other} contracts are now very nice bookmarks.']
+  }
+}
+
+function predictPost (slot, ctx) {
+  const r = rng(hash32(`wm|${FEED_VERSION}|${slot}`))
+  if (r() > 0.5) return null
+  const t = slot * SLOT_MS + Math.floor(r() * SLOT_MS)
+  const league = weighted(r, BOOK)
+  let m = null
+  try { m = marketAt(league, t, { settled: r() < 0.2 }) } catch { m = null }
+  if (!m || m.opts.length < 2) return null
+  const lead = m.opts[0]
+  const other = m.opts[1]
+  const delta = Math.abs(lead.pct - lead.was)
+  const phase = m.status === 'final' ? 'final' : delta >= 15 ? 'swing' : 'live'
+  const sport = ['hoops', 'gridiron', 'pitch'].includes(league)
+  const v = weighted(r, [['markets', 4], ['pmwhale', 2], ['pundit', league === 'vote' ? 2 : 0.5], [sport ? 'sport' : 'crowd', 4]])
+  const a = v === 'crowd' || v === 'sport' ? throwaway('writter', ctx.pools, r) : regular(v, 'writter', r)
+  const f = { q: m.q, lead: lead.name, pct: lead.pct, was: lead.was, other: other.name, opct: other.pct, delta, since: m.since === 'open' ? 'at the open' : m.since, move: lead.pct >= lead.was ? 'up' : 'down', emoji: m.emoji }
+  const pool = P_LINES[v][phase].filter((x) => lead.pct !== lead.was || !/\{(was|move)\}/.test(x))
+  const text = fill(pick(r, pool.length ? pool : P_LINES[v][phase]), f)
+  const media = { type: 'market', ...m }
+  const au = author(a)
+  const reach = Math.max(20, au.followers) * 0.004 * tail(r) * (au.check === 'blue' ? 1.15 : 1)
+  let footnote = null
+  if (phase === 'live' && /free money/i.test(text) && lead.pct < 97) footnote = `Readers added context: ${lead.pct}% is not 100%. Markets priced at ${lead.pct}% miss about ${100 - lead.pct} times in 100.`
+  else if (v === 'pmwhale' && phase === 'final' && r() < 0.6) footnote = 'Readers added context: The account’s earlier posts backed the other side.'
+  return {
+    id: `w-${slot}-m`, site: 'writter', t, kind: 'predict', text, tags: [...new Set(text.match(/#\w+/g) || [])], media, author: au, stance: null, word: null, footnote,
+    eng: { likes: Math.round(reach), reposts: Math.round(reach * (0.1 + r() * 0.2)), replies: Math.round(reach * (0.05 + r() * 0.12)), views: Math.round(reach * (30 + r() * 60)), tau: 1.2 * HOUR }
+  }
+}
+
 // --- readit ----------------------------------------------------------------------------------
 // Each sub has its own posts: [title, body] pairs, some with sub-specific voices.
 const R_POSTS = {
@@ -316,6 +380,8 @@ export function slotPosts (slot, ctx) {
   if (out) return out
   out = []
   for (let k = 0; k < PER_SLOT.writter; k++) out.push(writterPost(slot, k, ctx))
+  const pm = predictPost(slot, ctx)
+  if (pm) out.push(pm)
   for (let k = 0; k < PER_SLOT.readit; k++) out.push(readitPost(slot, k, ctx))
   for (let k = 0; k < PER_SLOT.wirdin; k++) out.push(wirdinPost(slot, k, ctx))
   // The weekly Writter poll itself, Mondays at 17:00.
@@ -340,7 +406,7 @@ export function feed (site, ctx, { to, from = to - 2 * DAY, limit = 60, sub = nu
 }
 
 export function findPost (id, ctx) {
-  const m = /^[wrl]-(\d+)-\d+$/.exec(id)
+  const m = /^[wrl]-(\d+)-(\d+|m)$/.exec(id)
   if (m) return slotPosts(Number(m[1]), ctx).find((p) => p.id === id) || null
   const pw = /^w-poll-(-?\d+)$/.exec(id)
   if (pw) { const t = MONDAY + Number(pw[1]) * WEEK; return slotPosts(slotOf(t), ctx).find((p) => p.id === id) || null }
@@ -370,6 +436,11 @@ export function trends (t, ctx) {
   for (const m of [...w.movers.up.slice(0, 2), ...w.movers.down.slice(0, 1)]) out.splice(1 + Math.floor(r() * out.length), 0, { tag: `$${m.word.toUpperCase()}`, cat: `Word Exchange · ${m.pct > 0 ? '+' : ''}${Math.round(m.pct)}%`, posts: Math.round(2e3 + r() * 60e3) })
   out.splice(2, 0, { tag: `Daily Clues #${w.dailyNumber}`, cat: 'Games · Trending', posts: Math.round(40e3 + r() * 100e3) })
   out.unshift(isWritterDay(t) ? { tag: '#WritterIsBack', cat: 'Trending worldwide', posts: 1.2e6 } : { tag: '#ItsStillWritter', cat: 'Trending worldwide', posts: Math.round(80e3 + rng(hash32(`isw|${Math.floor(t / DAY)}`))() * 200e3) })
+  // The biggest question on Predict right now.
+  try {
+    const m = marketAt(['vote', 'pop'][Math.floor(t / HOUR) % 2], t)
+    if (m && m.status === 'live') out.splice(3, 0, { tag: m.q, cat: `Prediction markets · ${m.opts[0].name} ${m.opts[0].pct}%`, posts: Math.round(10e3 + rng(hash32(`pmt|${m.id}`))() * 80e3), market: m })
+  } catch {}
   const mc = mainCharacter(Math.floor(t / DAY), ctx)
   out.push({ tag: `@${mc.handle}`, cat: 'Main Character of the Day', posts: Math.round(8e3 + r() * 30e3) })
   return out
@@ -384,6 +455,7 @@ const REPLIES = {
     owner: ['!!', 'Concerning', 'Interesting', 'Yes', 'No', 'Please stop renaming things', 'It’s still Writter to me', 'What does W even stand for', 'Edit button when'],
     blue: ['Paid for the check lmao', 'Imagine paying 8 glyphs to be annoying', 'Blue check reply detected, scrolling past', 'Nice check. Did it come with a personality?'],
     pedant: ['Well, ackshually,', 'Technically it’s a {pos}', 'You mean “{syn}”'],
+    predict: ['Bought {other} at {opct}¢. See you in hell.', 'Free money', 'Selling everything for {lead}', 'This market is rigged (I lost)', 'Polls said the opposite', 'Who’s buying {other}?? Show yourself', 'Not financial advice but I’m all in on {lead}', 'The line moved before the news. Interesting.', 'Inverse this guy', 'Love watching numbers I don’t understand go up', 'What’s the spread on this'],
     scam: ['🚀 DM me for 100× on {w}', 'I made 40,000 glyphs this week with Lexicoin, DM me 🐳', 'Hello dear, kindly check your DMs']
   },
   readit: {
@@ -405,6 +477,7 @@ export function repliesFor (p, ctx, n = 8) {
   const f = facts(ctx, p.t, r)
   f.hour = `${Math.floor(r() * 4) + 1}am`
   f.name = (p.author?.name || '').split(' ')[0]
+  if (p.media?.type === 'market') { const [x, y] = p.media.opts; Object.assign(f, { lead: x.name, pct: x.pct, other: y.name, opct: y.pct }) }
   const site = p.site
   const pools = REPLIES[site]
   const out = []
@@ -416,6 +489,7 @@ export function repliesFor (p, ctx, n = 8) {
       const voice = r()
       if (p.kind === 'owner' && voice < 0.5) line = pick(r, pools.owner)
       else if ((p.kind === 'market') && voice < 0.4) line = pick(r, pools.market)
+      else if (p.kind === 'predict' && voice < 0.5) line = pick(r, pools.predict)
       else if (p.kind === 'take' && voice < 0.45) line = pick(r, pools.take)
       else if (voice < 0.55 && voice > 0.5) { a = REGULAR.ackshually; line = pick(r, pools.pedant) } else if (voice > 0.93) { a = r() < 0.5 ? REGULAR.lexicoinwhale : null; line = pick(r, pools.scam) } else line = pick(r, pools.any)
       if (!a) a = throwaway('writter', ctx.pools, r)

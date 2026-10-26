@@ -149,6 +149,8 @@ function App () {
 
   // Joining or hosting a lobby takes you to it.
   useEffect(() => { if (lobby) setTab('lobby') }, [Boolean(lobby)]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Other pages can send you to a tab (W's market cards open Predict).
+  useEffect(() => { const go = (e) => { if (e.detail?.tab) setTab(e.detail.tab) }; window.addEventListener('ww-goto', go); return () => window.removeEventListener('ww-goto', go) }, [])
 
   const pickMode = (m) => { setMode(m); try { localStorage.setItem('mode', m) } catch {} }
 

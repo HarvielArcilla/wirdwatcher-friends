@@ -109,7 +109,8 @@ export default function Sportsbook ({ coins }) {
   const toast = useToast()
   const [league, setLeague] = useState(() => { try { return localStorage.getItem('sports-league') || 'hoops' } catch { return 'hoops' } })
   const [board, setBoard] = useState(null)
-  const [open, setOpen] = useState(null)
+  // Opened from somewhere else (a market card on W): start on that market.
+  const [open, setOpen] = useState(() => { try { const id = localStorage.getItem('sports-open'); localStorage.removeItem('sports-open'); return id || null } catch { return null } })
   const load = useCallback(() => { api('sportsBoard', league).then(setBoard).catch(() => {}) }, [league])
   useEffect(() => { setBoard(null); load(); try { localStorage.setItem('sports-league', league) } catch {} }, [load]) // eslint-disable-line react-hooks/exhaustive-deps
   useInterval(load, 3000)

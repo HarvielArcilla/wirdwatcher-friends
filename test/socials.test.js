@@ -112,3 +112,24 @@ test('Socials: a feed view never shows the same post twice', () => {
   }
   assert.ok(SLOT_MS > 0)
 })
+
+test('Socials: W quotes Predict’s real odds, and market posts open as threads', async () => {
+  const { marketAt } = await import('../src/shared/socials/markets.js')
+  const { gameById, outcomes } = await import('../src/shared/sports.js')
+  for (const lg of ['vote', 'pop', 'hoops', 'gridiron', 'pitch']) {
+    const m = marketAt(lg, T0)
+    assert.ok(m && m.opts.length >= 2, lg)
+    assert.deepEqual(marketAt(lg, T0), m)
+    const g = gameById(m.id)
+    assert.ok(g, m.id)
+    const o = outcomes(g, Math.min(T0, g.end))
+    const top = m.opts[0]
+    assert.equal(top.pct, Math.round(o[top.k] * 100), lg)
+  }
+  const a = app()
+  const posts = []
+  for (let s = slotOf(T0) - 40; s <= slotOf(T0); s++) posts.push(...slotPosts(s, a.socials.ctx).filter((p) => p.kind === 'predict'))
+  assert.ok(posts.length > 5)
+  assert.ok(posts.every((p) => p.media.type === 'market' && !/\{\w+\}/.test(p.text)))
+  assert.ok(a.socials.thread(posts[0].id))
+})
