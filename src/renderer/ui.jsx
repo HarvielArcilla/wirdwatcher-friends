@@ -250,6 +250,7 @@ export const icons = {
   chevron: I(<path d='m6 9 6 6 6-6' />),
   wirdlike: I(<><path d='M5 21V10a7 7 0 0 1 14 0v11' /><path d='M3 21h18' /><path d='M9 21v-3h3v-3h3v-3' /><circle cx='12' cy='7.5' r='1' /></>),
   catchword: I(<><circle cx='12' cy='12' r='8.5' /><path d='M3.5 12h17' /><path d='M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5s1.2-6.1 3.8-8.5Z' /></>),
+  socials: I(<><path d='M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5Z' /><path d='M8 8h8M8 11.5h5' /></>),
   tycoon: I(<><path d='M4 20V8l5-3v15' /><path d='M9 20V4h6v16' /><path d='M15 20V9l5 2v9' /><path d='M3 20h18' /><path d='M11.5 8h1M11.5 11h1M11.5 14h1' /></>),
   farm: I(<><path d='M12 21v-8' /><path d='M12 13c0-4 3-6.5 7-6.5 0 4-3 6.5-7 6.5Z' /><path d='M12 15.5c0-3-2.4-5-5.5-5 0 3 2.4 5 5.5 5Z' /><path d='M4 21h16' /></>),
   house: I(<><path d='M3 10.5 12 3l9 7.5' /><path d='M5 9.5V21h14V9.5' /><path d='M9.5 21v-6h5v6' /><path d='M16 5.5V3h2.5v4.6' /></>),

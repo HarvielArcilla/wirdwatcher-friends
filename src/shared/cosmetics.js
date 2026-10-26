@@ -35,8 +35,9 @@ import { VALLEY_COSMETICS } from './cosmetics-valley.js'
 import { WIRDLIKE_COSMETICS } from './wirdlike/content.js'
 import { CATCHWORD_COSMETICS } from './catchword/content.js'
 import { TYCOON_COSMETICS } from './tycoon/content.js'
+import { SOCIALS_COSMETICS } from './socials/looks.js'
 
-const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley', wirdlike: 'Wirdlike', catchword: 'Catchword', tycoon: 'Wird Tycoon' }
+const R = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', edition: 'Edition', badge: 'Badge', level: 'Level', valley: 'Wird Valley', wirdlike: 'Wirdlike', catchword: 'Catchword', tycoon: 'Wird Tycoon', socials: 'Socials' }
 
 const item = (kind, id, name, price, rarity, desc, extra = {}) => ({ kind, id, name, price, rarity, desc, ...extra })
 const earned = (id, text, badge, hint) => item('title', id, text, null, 'badge', hint, { badge, text })
@@ -263,8 +264,10 @@ export const COSMETICS = [
   ...WIRDLIKE_COSMETICS,
   // Only from Catchword.
   ...CATCHWORD_COSMETICS,
-  // Only from Wird Tycoon
-  ...TYCOON_COSMETICS
+  // Only from Wird Tycoon.
+  ...TYCOON_COSMETICS,
+  // Only from Socials.
+  ...SOCIALS_COSMETICS
 ]
 
 export const DEFAULT_LOOK = Object.fromEntries(KINDS.map((k) => [k.id, COSMETICS.find((c) => c.kind === k.id && c.free).id]))

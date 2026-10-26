@@ -27,6 +27,7 @@ import { Valley } from './valley.js'
 import { Wirdlike } from './wirdlike.js'
 import { Catchword } from './catchword.js'
 import { Tycoon } from './tycoon.js'
+import { Socials } from './socials.js'
 import { Tables } from './tables.js'
 import { DuelHost, DuelClient } from './duel.js'
 import { withForms } from '../shared/slots.js'
@@ -69,6 +70,8 @@ export class WirdApp extends EventEmitter {
     this.wirdlike = new Wirdlike({ economy: this.economy, rated: () => this.store.ratings(), lookup: (w) => this.words.lookup(w), award: (xp, counters) => this._withLevelReward(this.game.award(xp, counters)) })
     this.catchword = new Catchword({ economy: this.economy, rated: () => this.store.ratings(), award: (xp, counters) => this._withLevelReward(this.game.award(xp, counters)) })
     this.tycoon = new Tycoon({ economy: this.economy, rated: () => this.store.ratings(), name: () => this.me()?.name, award: (xp, counters) => this._withLevelReward(this.game.award(xp, counters)) })
+    this.socials = new Socials({ economy: this.economy, store: this.store, words: this.words, rated: () => this.store.ratings(), me: () => this.me(), now: now ? () => now().getTime() : () => Date.now(), award: (xp, counters) => this._withLevelReward(this.game.award(xp, counters)) })
+    this.socials.statsForBrags = () => ({ level: this.game.profile().level.level, streak: this.store.progress.streak || 0 })
     this.valley = new Valley({ economy: this.economy, now: now ? () => now().getTime() : () => Date.now(), rated: () => this.store.ratings() })
     this.leximon = new Leximon({ economy: this.economy, store: this.store, now: now ? () => now().getTime() : () => Date.now(), encounters: () => this.settings.get('leximonEncounters'), salt: () => this.identity?.userId || '' })
     this.daily = new Daily({ economy: this.economy, words: this.words, now: now ? () => now().getTime() : () => Date.now() })
@@ -80,7 +83,7 @@ export class WirdApp extends EventEmitter {
     this.economy.grantLevelPacks(this.game.profile().level.level)
     // Friends see what you wear and which edition you're on.
     this.game.extraProfile = () => this._publicProfile()
-    this.game.extraStats = () => ({ ...this.economy.badgeStats(), ...this.wirdlike.badgeStats(), ...this.catchword.badgeStats(), ...this.tycoon.badgeStats() })
+    this.game.extraStats = () => ({ ...this.economy.badgeStats(), ...this.wirdlike.badgeStats(), ...this.catchword.badgeStats(), ...this.tycoon.badgeStats(), ...this.socials.badgeStats() })
     // Spending, flipping and publishing can earn badges too.
     this.economy.on('changed', () => {
       if (this._awarding) return
@@ -102,6 +105,7 @@ export class WirdApp extends EventEmitter {
   // Rating a word: the game's result, plus what it paid.
   rate (word, r, opts) {
     const res = this._withLevelReward(this.game.rate(word, r, opts))
+    this._publishSoon()
     res.coins = this.economy.onWord(word, { fresh: res.fresh, r: res.r })
     // Only new words teach your Leximon (and bring wild words), whatever you gave them.
     if (res.coins) {
@@ -336,7 +340,7 @@ export class WirdApp extends EventEmitter {
   async start () {
     this.economy.start()
     await this.friends.start()
-    this.friends.on('presence', () => this.emit('friends'))
+    this.friends.on('presence', () => { this.game._refreshProfile(); this.emit('friends') })
     this.friends.on('friends', () => this.emit('friends'))
     this.friends.on('records', () => this.emit('friend-records'))
     this.friends.on('code', (e) => this.emit('friend-code', e))

@@ -21,6 +21,7 @@ import Today from './Today.jsx'
 import Wirdlike from './Wirdlike.jsx'
 import Catchword from './Catchword.jsx'
 import Tycoon from './Tycoon.jsx'
+import Socials from './Socials.jsx'
 import { formatCoins } from '../shared/economy.js'
 
 const TABS = [
@@ -29,6 +30,7 @@ const TABS = [
   { id: 'wirdhouse', label: 'Wirdhouse', icon: icons.house },
   { id: 'lobby', label: 'Lobby', icon: icons.lobby },
   { id: 'friends', label: 'Friends', icon: icons.friends },
+  { id: 'socials', label: 'Socials', icon: icons.socials },
   { id: 'today', label: 'Today', icon: icons.daily },
   { id: 'leximon', label: 'Leximon', icon: icons.leximon },
   { id: 'market', label: 'Market', icon: icons.market },
@@ -215,6 +217,7 @@ function App () {
         {tab === 'wirdlike' && <Wirdlike settings={settings.values} />}
         {tab === 'catchword' && <Catchword settings={settings.values} />}
         {tab === 'tycoon' && <Tycoon settings={settings.values} />}
+        {tab === 'socials' && <Socials econ={econ} />}
         {tab === 'leximon' && <Leximon econ={econ} friends={friends} settings={settings.values} />}
         {tab === 'market' && <Market econ={econ} openWord={(w) => { setFocusWord(w); setTab('play') }} />}
         {searching && <Search onClose={() => setSearching(false)} onOpen={(w) => { setSearching(false); setFocusWord(w); setTab('play') }} />}

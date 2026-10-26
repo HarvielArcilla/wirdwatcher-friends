@@ -149,6 +149,14 @@ function handlers () {
     tycoonResume: () => ww.tycoon.resume(),
     tycoonAbandon: () => ww.tycoon.abandon(),
     tycoonEnd: (data) => ww.tycoon.end(data),
+    socials: (site, opts) => ww.socials.view(site, opts),
+    socialsThread: (id) => ww.socials.thread(id),
+    socialsAction: (action, ...args) => {
+      if (!['setHandle', 'post', 'deletePost', 'vote', 'buyBlue', 'cancelBlue', 'claimPayout', 'acceptSponsor', 'seenNotifications'].includes(action)) throw new Error('Unknown action.')
+      return ww.socials[action](...args)
+    },
+    socialsInfo: () => ({ profile: ww.socials.profile(), brags: ww.socials.brags(), notifications: ww.socials.notifications(), looks: ww.socials.looks(), handles: ww.socials.suggestHandles() }),
+    socialsPerson: (handle) => ww.socials.person(handle),
     valley: () => ww.valley.view(),
     valleyWords: (q) => ww.valley.words(q),
     valleyAction: (action, ...args) => {

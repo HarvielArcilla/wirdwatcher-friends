@@ -22,7 +22,7 @@ import { EventEmitter } from 'node:events'
 import { readJson, writeJson } from './files.js'
 
 const USER = /^[0-9a-f]{64}$/
-const KEY = /^(r|c|f|p)\/[a-z0-9-]{1,64}$|^me$/
+const KEY = /^(r|c|f|p|s|v)\/[a-z0-9-]{1,64}$|^me$/
 
 // A plain object no bigger than `max` characters of JSON, or null.
 const small = (x, max) => { if (!x || typeof x !== 'object' || Array.isArray(x)) return null; try { return JSON.stringify(x).length <= max ? x : null } catch { return null } }
@@ -47,6 +47,20 @@ export function cleanRecord (key, rec, { maxCommentChars = 2000 } = {}) {
     } else if (kind === 'p') {
       if (typeof v !== 'object' || typeof v.name !== 'string' || !Array.isArray(v.words)) return null
       v = { name: v.name.slice(0, 40), emoji: typeof v.emoji === 'string' ? v.emoji.slice(0, 8) : '🎧', words: v.words.filter((w) => typeof w === 'string' && /^[a-z]{1,64}$/.test(w)).slice(0, 500) }
+    } else if (kind === 's') {
+      // A Socials post (see src/core/socials.js). Only what's needed to show it.
+      if (typeof v !== 'object' || !['writter', 'readit', 'wirdin'].includes(v.site) || !Number.isFinite(Number(v.t))) return null
+      const str = (x, n) => (typeof x === 'string' ? x.slice(0, n) : null)
+      v = {
+        v: 1, id: str(v.id, 64), site: v.site, sub: str(v.sub, 40), kind: str(v.kind, 16), t: Number(v.t), word: str(v.word, 64), stance: str(v.stance, 16),
+        call: v.call && typeof v.call === 'object' ? { dir: v.call.dir === 'down' ? 'down' : 'up', pct: Math.max(1, Math.min(500, Number(v.call.pct) || 10)), days: Math.max(1, Math.min(14, Number(v.call.days) || 3)) } : null,
+        brag: str(v.brag, 200), extra: str(v.extra, 140), title: str(v.title, 200), text: str(v.text, 600), handle: str(v.handle, 24),
+        f0: Math.max(0, Math.min(1e9, Number(v.f0) || 0)), spam: Math.max(0, Math.min(99, Number(v.spam) || 0)), blue: str(v.blue, 16), legacy: v.legacy === true, sponsor: str(v.sponsor, 16), disclosed: v.disclosed === true
+      }
+      if (!v.id) return null
+    } else if (kind === 'v') {
+      if (typeof v !== 'object' || ![1, -1].includes(v.v)) return null
+      v = { v: v.v }
     } else if (kind === 'me') {
       if (typeof v !== 'object') return null
       v = {

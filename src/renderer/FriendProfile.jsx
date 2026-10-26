@@ -12,13 +12,18 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
   const [p, setP] = useState(null)
   const [tab, setTab] = useState('words')
   const [mineNow, setMineNow] = useState(null)
-  useEffect(() => { api('profile').then(setMineNow).catch(() => {}) }, [userId])
+  // Both sides of every comparison come from the latest data, refreshed
+  // together: when their records arrive, and every so often while you look.
   useEffect(() => {
     let live = true
-    const load = () => api('friendProfile', userId).then((x) => { if (live) setP(x) }).catch(() => {})
+    const load = () => {
+      api('friendProfile', userId).then((x) => { if (live) setP(x) }).catch(() => {})
+      api('profile').then((x) => { if (live) setMineNow(x) }).catch(() => {})
+    }
     load()
     const off = window.ww.on.friendRecords?.(load)
-    return () => { live = false; off?.() }
+    const t = setInterval(() => { if (!document.hidden) load() }, 20000)
+    return () => { live = false; off?.(); clearInterval(t) }
   }, [userId])
   if (!p) return <div className='page'><button className='btn small ghost back' onClick={onBack}>← Friends</button></div>
   const s = p.stats
@@ -36,7 +41,7 @@ export default function FriendProfile ({ userId, online, myProfile, openWord, pl
         <div>
           <h1 className={`nm-${p.look?.name || 'plain'}`}>{p.name}</h1>
           <p className='lede'>
-            {titleText(p.look?.title) ? <b className='fp-title'>{titleText(p.look.title)}. </b> : null}{p.title}, level {p.level}{p.edition > 0 ? `, edition ${p.edition + 1}` : ''}. {online ? 'Online now.' : p.lastSeen ? `Last seen ${timeAgo(p.lastSeen)}.` : 'Not seen yet.'} {p.addedAt && `Friends since ${new Date(p.addedAt).toLocaleDateString()}.`}
+            {titleText(p.look?.title) ? <b className='fp-title'>{titleText(p.look.title)}. </b> : null}{p.title}, level {p.level}{p.edition > 0 ? `, edition ${p.edition + 1}` : ''}. {online ? 'Online now, up to date.' : p.lastSeen ? `Last seen ${timeAgo(p.lastSeen)}: showing what they had then.` : 'Not seen yet.'} {p.addedAt && `Friends since ${new Date(p.addedAt).toLocaleDateString()}.`}
           </p>
         </div>
         <span className='fp-actions'>

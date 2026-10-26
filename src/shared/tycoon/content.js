@@ -215,22 +215,22 @@ export const LX_GOALS = {
 
 const look = (kind, id, name, goal, desc, extra = {}) => ({ kind, id, name, price: null, rarity: 'tycoon', lx: goal, desc, ...extra })
 export const TYCOON_COSMETICS = [
-  look('title', 'lx-publisher', 'Publisher', 'firstBook', 'From Wird Tycoon', { text: 'Publisher' }),
-  look('cardBack', 'lx-marbled', 'Marbled endpaper', 'office', 'From Wird Tycoon The inside of a good book.', { back: 'radial-gradient(ellipse at 20% 30%, #c84a3a 0 18%, transparent 19%), radial-gradient(ellipse at 70% 60%, #2a5a8a 0 22%, transparent 23%), radial-gradient(ellipse at 40% 80%, #e8b84a 0 14%, transparent 15%), radial-gradient(ellipse at 85% 15%, #3a7a5a 0 16%, transparent 17%), repeating-radial-gradient(circle at 50% 50%, #f2e8d0 0 4px, #e0d0b0 4px 7px)' }),
-  look('frame', 'lx-gilt', 'Gilt spine', 'score9', 'From Wird Tycoon Gold on leather.', { ring: ['#5a2a1a', '#f2c23e', '#5a2a1a', '#f2c23e', '#5a2a1a'], spin: true }),
-  look('name', 'lx-firsted', 'First edition', 'perfect', 'From Wird Tycoon A perfect review, in gold leaf.', { grad: ['#f2c23e', '#fff4c2', '#b07a12', '#f2c23e'], move: true }),
-  look('confetti', 'lx-paper', 'Paper & ink', 'million', 'From Wird Tycoon Books, pens and loose pages.', { emoji: ['📚', '📖', '✒️', '📜'] }),
-  look('frame', 'lx-ribbon', 'Bookmark ribbon', 'media5', 'From Wird Tycoon Every way to read.', { ring: ['#c23a3a', '#e85a5a', '#c23a3a', '#f2d58b', '#c23a3a'] }),
-  look('title', 'lx-bestseller', 'Bestselling author', 'bestseller', 'From Wird Tycoon', { text: 'Bestselling author' }),
-  look('table', 'lx-desk', 'Leather desk', 'tower', 'From Wird Tycoon Green leather, brass edges.', { felt: 'linear-gradient(rgba(255,255,255,.04), rgba(0,0,0,.12)), radial-gradient(ellipse at 50% 40%, #2e6a4a, #143826 75%)', rim: '#b08a3a' }),
-  look('title', 'lx-emeritus', 'Lexicographer emeritus', 'retire', 'From Wird Tycoon', { text: 'Lexicographer emeritus' })
+  look('title', 'lx-publisher', 'Publisher', 'firstBook', 'From Wird Tycoon.', { text: 'Publisher' }),
+  look('cardBack', 'lx-marbled', 'Marbled endpaper', 'office', 'From Wird Tycoon. The inside of a good book.', { back: 'radial-gradient(ellipse at 20% 30%, #c84a3a 0 18%, transparent 19%), radial-gradient(ellipse at 70% 60%, #2a5a8a 0 22%, transparent 23%), radial-gradient(ellipse at 40% 80%, #e8b84a 0 14%, transparent 15%), radial-gradient(ellipse at 85% 15%, #3a7a5a 0 16%, transparent 17%), repeating-radial-gradient(circle at 50% 50%, #f2e8d0 0 4px, #e0d0b0 4px 7px)' }),
+  look('frame', 'lx-gilt', 'Gilt spine', 'score9', 'From Wird Tycoon. Gold on leather.', { ring: ['#5a2a1a', '#f2c23e', '#5a2a1a', '#f2c23e', '#5a2a1a'], spin: true }),
+  look('name', 'lx-firsted', 'First edition', 'perfect', 'From Wird Tycoon. A perfect review, in gold leaf.', { grad: ['#f2c23e', '#fff4c2', '#b07a12', '#f2c23e'], move: true }),
+  look('confetti', 'lx-paper', 'Paper & ink', 'million', 'From Wird Tycoon. Books, pens and loose pages.', { emoji: ['📚', '📖', '✒️', '📜'] }),
+  look('frame', 'lx-ribbon', 'Bookmark ribbon', 'media5', 'From Wird Tycoon. Every way to read.', { ring: ['#c23a3a', '#e85a5a', '#c23a3a', '#f2d58b', '#c23a3a'] }),
+  look('title', 'lx-bestseller', 'Bestselling author', 'bestseller', 'From Wird Tycoon.', { text: 'Bestselling author' }),
+  look('table', 'lx-desk', 'Leather desk', 'tower', 'From Wird Tycoon. Green leather, brass edges.', { felt: 'linear-gradient(rgba(255,255,255,.04), rgba(0,0,0,.12)), radial-gradient(ellipse at 50% 40%, #2e6a4a, #143826 75%)', rim: '#b08a3a' }),
+  look('title', 'lx-emeritus', 'Lexicographer emeritus', 'retire', 'From Wird Tycoon.', { text: 'Lexicographer emeritus' })
 ]
 
 export const TYCOON_BADGES = [
-  { id: 'lx-book', emoji: '📕', name: 'Published', hint: 'Publish a book in Wird Tycoon', test: (s) => s.lxBooks >= 1 },
-  { id: 'lx-nine', emoji: '🌟', name: 'Critically acclaimed', hint: 'Get a 9 or better in Wird Tycoon', test: (s) => s.lxBest >= 9 },
-  { id: 'lx-office', emoji: '🏢', name: 'Out of the garage', hint: 'Move into an office in Wird Tycoon', test: (s) => s.lxOffice >= 1 },
-  { id: 'lx-million', emoji: '💰', name: 'Seven figures', hint: 'Have a million in the bank in Wird Tycoon', test: (s) => s.lxCash >= 1e6 },
-  { id: 'lx-bestseller', emoji: '📈', name: 'Bestseller', hint: 'Sell 250,000 copies of one book in Wird Tycoon', test: (s) => s.lxBestseller >= 250000 },
+  { id: 'lx-book', emoji: '📕', name: 'Published', hint: 'Publish a book in Wird Tycoon.', test: (s) => s.lxBooks >= 1 },
+  { id: 'lx-nine', emoji: '🌟', name: 'Critically acclaimed', hint: 'Get a 9 or better in Wird Tycoon.', test: (s) => s.lxBest >= 9 },
+  { id: 'lx-office', emoji: '🏢', name: 'Out of the garage', hint: 'Move into an office in Wird Tycoon.', test: (s) => s.lxOffice >= 1 },
+  { id: 'lx-million', emoji: '💰', name: 'Seven figures', hint: 'Have a million in the bank in Wird Tycoon.', test: (s) => s.lxCash >= 1e6 },
+  { id: 'lx-bestseller', emoji: '📈', name: 'Bestseller', hint: 'Sell 250,000 copies of one book in Wird Tycoon.', test: (s) => s.lxBestseller >= 250000 },
   { id: 'lx-retire', emoji: '🏆', name: 'Emeritus', hint: 'Run Wird Tycoon all the way to 2030.', test: (s) => s.lxRetired >= 1 }
 ]

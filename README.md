@@ -174,6 +174,17 @@ Run a dictionary publisher from a garage in 1985 to 2030.
 - **Grow:** research new subjects, formats and features, hire scholars, writers, illustrators and editors, take freelance jobs when money's tight, and move from the garage to an office, a publishing house and Wird Tower. Stay in the red for twelve weeks and you go bust.
 - Each book pays you some coins (more for better reviews and bigger books), making it to 2030 pays a pension, and there are badges and looks to earn.
 
+## Socials
+
+A **Socials** tab with three apps, all fiction and all about words. Every generated post, account and number comes from the clock and the shared word data, so everyone sees the same feed at the same moment, with no server.
+
+- **Writter:** owned by @Grandiloquent, who runs a weekly poll on renaming it to W (when it passes, Wednesday is W day). There are trends, Context Footnotes, a Main Character of the day, and a large **Get Writter Blue** button with five tiers. The top tier, The Check With a Check On It, adds a check to your check and nothing else.
+- **readit:** dozens of subs, among them r/WirdStreetBets, r/Wodleheads (buy the whole dictionary, stay the course, your question has been asked before), r/AmITheAsterisk, r/BoneAppleTea, r/ShowerWords, r/Palindromes and r/WirdConspiracy (the silent K is a cover-up). Posts carry votes, flair and comment threads, and an AutoLexerator sticky.
+- **WirdIn:** the professional network. People post their 4am routines, Thought Leadership and "Agree?".
+- **Everyone is named after words:** a regular cast plus endless throwaway accounts.
+- **Post yourself:** pick a handle (a word you've rated), then post takes, calls on Word Exchange words, brags or plain posts. Engagement is mostly bots and it's worked out from the post itself, so your friends see the same numbers you do. Your posts and your friends' posts show up alongside the generated ones.
+- **Grow, or don't:** followers come from your posts, from Lurker up to Lexicon Legend, with a legacy check at 100k. You also get a capped creator payout, sponsors who ask you to post #ad, and looks and badges. You can be downvoted, ratio'd or cancelled. That has its own looks, and the Notes-app apology is right there.
+
 ## Your profile
 
 **Profile** (and every friend's profile) is laid out like Letterboxd: who you are and your numbers across the top (words, this year, average, friends, best streak, badges, words caught), your **top 4** favorite words as big cards (pick yours on your profile), your most recent ratings, how you rate, and tabs for every rated word, favorites, playlists, badges, your **Leximon** and your **Casino & Market** record. Friends see all of it; Settings → Friends & lobbies can hide the casino and market part.
@@ -186,6 +197,8 @@ There are two ways to add a friend:
 - **With a code:** open **Friends → Make a friend code** and send the code (`WW-XXXXX-XXXXX-XXXXX-XXXXX`) to a friend, who types it under **Got a code?**. The code works once and lasts 15 minutes. Both computers wait for each other *and* look for each other, so it's enough for either one to be reachable.
 
 From then on, whenever you’re both online, your ratings, comments, favorites and playlists sync both ways. Your friends’ ratings stay hidden on each word until you’ve rated it, so they don’t sway you. Removing a friend removes their data from both computers.
+
+When a friend comes online you each send your latest summary straight away, and their profile refreshes both sides of every comparison while you look. An offline friend shows what they had when you last saw them.
 
 Click a friend to open their profile, laid out like yours: their top 4, recent ratings, numbers, Leximon and casino record, how they rate (with yours drawn behind), where the two of you agree and don’t, and their rated words, favorites, comments, playlists and badges. **Rate their words** plays through everything they’ve rated that you haven’t.
 
