@@ -145,6 +145,8 @@ A stock market of words under **Market**. Every word has a price, and the price 
 - **The coinflip**: bet any amount, call heads or tails, double it or lose it.
 - Nothing in the casino counts toward ink.
 
+The **prediction market** (every game in the Wird leagues, plus races and events) has its own **Predict** tab. A contract pays 100 coins if it comes true, and its price is the chance.
+
 ## Wirdlike
 
 A roguelike down through the dictionary: room by room, floor by floor, from The Margins through The Index, The Stacks, The Archive and The Printing Press, and (once you've beaten The Red Pen) The Unwritten. WASD moves, the arrow keys shoot ink, E sets off a bang, Space uses a verb, Tab shows the map, Esc pauses. Gamepads work too.

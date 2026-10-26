@@ -6,19 +6,18 @@ import { burst, centerOf } from './effects.js'
 import { playRating } from './sound.js'
 import { Coinflip, useLiveCoins } from './Wirdhouse.jsx'
 import Packs from './Packs.jsx'
-import Sportsbook from './Sportsbook.jsx'
 import { Credit } from './Credit.jsx'
 import { Roulette, Wordjack, Wheel } from './Tables.jsx'
 import Penguin from './Penguin.jsx'
 import Crates from './Crates.jsx'
 
 // The Casino: Wird Slots, the coinflip, the word tables (Letter Roulette,
-// Wordjack, the Wheel of Words), the prediction market and card packs. Luck, for coins that only buy
+// Wordjack, the Wheel of Words) and card packs. Luck, for coins that only buy
 // looks. Nothing here counts toward ink.
 export default function Casino ({ econ, settings }) {
   const toast = useToast()
   const [v, setV] = useState(null)
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem('casino-tab') || 'slots' } catch { return 'slots' } })
+  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem('casino-tab'); return t && t !== 'sports' ? t : 'slots' } catch { return 'slots' } }) // the prediction market has its own tab now
   const [tablesNet, setTablesNet] = useState(0)
   const spinUntil = useRef(0) // while a wheel spins, the totals wait
   const load = useCallback(() => { api('economy').then(setV).catch(() => {}); if (Date.now() >= spinUntil.current) api('tables').then((t) => setTablesNet(t.roulette.net + t.wheel.net + t.blackjack.net + (t.penguin?.net || 0))).catch(() => {}) }, [])
@@ -65,7 +64,7 @@ export default function Casino ({ econ, settings }) {
         </div>
       </div>
       <div className='tabs' role='tablist'>
-        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Wordjack'], ['wheel', 'Wheel of Words'], ['penguin', 'Penguin Cross'], ['sports', 'Prediction market'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`], ['crates', 'Crates']].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        {[['slots', 'Wird Slots'], ['flip', 'Coinflip'], ['roulette', 'Letter Roulette'], ['blackjack', 'Wordjack'], ['wheel', 'Wheel of Words'], ['penguin', 'Penguin Cross'], ['packs', `Card packs${v.packs.free > 0 ? ` (${v.packs.free})` : ''}`], ['crates', 'Crates']].map(([id, label]) => <button key={id} role='tab' aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
       {econ?.bankrupt
         ? <div className='casino-closed'><h2>The casino’s closed to you for now</h2><p className='lede'>It doesn’t take bankrupt players. Build some steady income and the doors open again{v.packs.free > 0 ? `, and your ${v.packs.free} free pack${v.packs.free === 1 ? ' is' : 's are'} waiting` : ''}.</p><Credit econ={econ} compact /></div>
@@ -77,7 +76,6 @@ export default function Casino ({ econ, settings }) {
             {tab === 'blackjack' && <Wordjack coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'wheel' && <Wheel coins={coins} hold={hold} toast={tableToast} />}
             {tab === 'penguin' && <Penguin coins={coins} hold={hold} toast={tableToast} settings={settings} />}
-            {tab === 'sports' && <Sportsbook coins={coins} />}
             {tab === 'packs' && <Packs v={shown} coins={coins} act={(action, ...a) => (action === 'openPack' ? play(1900, action, ...a) : act(action, ...a))} />}
             {tab === 'crates' && <Crates v={shown} coins={coins} settings={settings} act={(action, ...a) => (action === 'openCrate' ? play(7300, action, ...a) : act(action, ...a))} />}
           </>

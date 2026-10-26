@@ -348,6 +348,7 @@ const TICKERS = { animals: 'XANM', food: 'XFOD', plants: 'XPLT', body: 'XBOD', f
 const SECTOR_FUNDS = SECTORS.map((s) => ({ id: TICKERS[s.id], name: `${s.name} fund`, emoji: s.emoji, track: s.id, k: 1, fee: 0.0035 }))
 export const ETFS = [
   { id: 'WORD', name: 'Whole Market', emoji: '🌐', track: 'all', k: 1, fee: 0.0009, blurb: 'Every sector, equally weighted.' },
+  { id: 'WTLX', name: 'Total Lexicon', emoji: '🧾', track: 'all', k: 1, fee: 0.0008, blurb: 'The same words as WORD, in the same amounts, for 0.01% a year less.' },
   { id: 'WRD3', name: 'Whole Market 3×', emoji: '🚀', track: 'all', k: 3, fee: 0.0095, blurb: 'Three times the market’s daily move, reset each day.' },
   { id: 'WSHT', name: 'Whole Market Short', emoji: '🐻', track: 'all', k: -1, fee: 0.0095, blurb: 'The opposite of the market’s daily move.' },
   { id: 'WSH3', name: 'Whole Market Short 3×', emoji: '🕳️', track: 'all', k: -3, fee: 0.0095, blurb: 'Three times the opposite, reset each day.' },

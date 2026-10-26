@@ -17,6 +17,7 @@ import Market from './Market.jsx'
 import Leximon from './Leximon.jsx'
 import Valley from './Valley.jsx'
 import Casino from './Casino.jsx'
+import Predict from './Predict.jsx'
 import Today from './Today.jsx'
 import Wirdlike from './Wirdlike.jsx'
 import Catchword from './Catchword.jsx'
@@ -34,6 +35,7 @@ const TABS = [
   { id: 'today', label: 'Today', icon: icons.daily },
   { id: 'leximon', label: 'Leximon', icon: icons.leximon },
   { id: 'market', label: 'Market', icon: icons.market },
+  { id: 'predict', label: 'Predict', icon: icons.predict },
   { id: 'casino', label: 'Casino', icon: icons.casino },
   { id: 'valley', label: 'Valley', icon: icons.farm },
   { id: 'wirdlike', label: 'Wirdlike', icon: icons.wirdlike },
@@ -213,6 +215,7 @@ function App () {
         {tab === 'shop' && <Shop econ={econ} me={me} />}
         {tab === 'today' && <Today settings={settings.values} goTo={setTab} onChange={setToday} />}
         {tab === 'casino' && <Casino econ={econ} settings={settings.values} />}
+        {tab === 'predict' && <Predict econ={econ} />}
         {tab === 'valley' && <Valley />}
         {tab === 'wirdlike' && <Wirdlike settings={settings.values} />}
         {tab === 'catchword' && <Catchword settings={settings.values} />}

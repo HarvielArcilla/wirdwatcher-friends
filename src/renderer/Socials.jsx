@@ -326,7 +326,7 @@ function Readit ({ v, info, sub, setSub, open, thread, closeThread, act }) {
         </section>
         <section className='rd-box rd-rules'>
           <h3>Rules</h3>
-          <ol>{(s?.id === 'Wodleheads' ? ['Buy the total lexicon fund', 'Stay the course', 'No speculation (this means you)', 'Your question has been asked before'] : s?.id === 'WirdStreetBets' ? ['Positions or ban', 'No WTLX', 'Loss posts welcome', 'This is not financial advice'] : ['Be civil', 'No low-effort words', 'Tag your spoilers', 'Search before posting']).map((r) => <li key={r}>{r}</li>)}</ol>
+          <ol>{(s?.id === 'Wodleheads' ? ['Buy the total lexicon fund', 'Stay the course', 'No speculation (this means you)', 'Your question has been asked before'] : s?.id === 'WirdStreetBets' ? ['Positions or ban', 'No WTLX (or WORD, it’s the same thing)', 'Loss posts welcome', 'This is not financial advice'] : ['Be civil', 'No low-effort words', 'Tag your spoilers', 'Search before posting']).map((r) => <li key={r}>{r}</li>)}</ol>
         </section>
       </aside>
     </div>
